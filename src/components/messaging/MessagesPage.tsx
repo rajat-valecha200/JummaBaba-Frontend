@@ -20,7 +20,9 @@ import {
   X,
   MicOff,
   FileText,
-  Camera
+  Camera,
+  Reply,
+  CornerUpRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +34,7 @@ import { useVoiceRecorder } from '@/hooks/use-voice-recorder';
 import { VoiceMessage } from './VoiceMessage';
 import { MediaMessage, MediaPreviewBar, type MediaAttachment } from './MediaMessage';
 import { EmojiPicker, QuickReactions, MessageReactions, type Reaction } from './EmojiPicker';
+import { ReplyPreview, QuotedMessage, MessageActions, ForwardDialog, type ReplyToMessage } from './MessageActions';
 import {
   Tooltip,
   TooltipContent,
@@ -58,6 +61,8 @@ interface Message {
   isMedia?: boolean;
   mediaData?: MediaAttachment;
   reactions?: Reaction[];
+  replyTo?: ReplyToMessage;
+  isForwarded?: boolean;
 }
 
 interface Conversation {
@@ -251,12 +256,71 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [showReactionsFor, setShowReactionsFor] = useState<string | null>(null);
+  const [showActionsFor, setShowActionsFor] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ReplyToMessage | null>(null);
+  const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const filteredConversations = conversations.filter(c =>
     c.participantName.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleReply = (message: Message) => {
+    setReplyingTo({
+      id: message.id,
+      senderId: message.senderId,
+      senderName: selectedConversation?.participantName || "Unknown",
+      text: message.text,
+      isVoice: message.isVoice,
+      isMedia: message.isMedia
+    });
+    setShowActionsFor(null);
+    setShowReactionsFor(null);
+    inputRef.current?.focus();
+  };
+
+  const handleForwardMessage = (conversationIds: string[]) => {
+    if (!forwardMessage) return;
+
+    conversationIds.forEach(convId => {
+      setConversations(prev => prev.map(conv => {
+        if (conv.id !== convId) return conv;
+        
+        const forwardedMsg: Message = {
+          id: `fwd-${Date.now()}-${convId}`,
+          senderId: "me",
+          text: forwardMessage.text,
+          timestamp: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
+          status: "sent",
+          isVoice: forwardMessage.isVoice,
+          voiceData: forwardMessage.voiceData,
+          isMedia: forwardMessage.isMedia,
+          mediaData: forwardMessage.mediaData,
+          isForwarded: true
+        };
+
+        return {
+          ...conv,
+          messages: [...conv.messages, forwardedMsg],
+          lastMessage: "Forwarded message",
+          lastMessageTime: "Just now"
+        };
+      }));
+    });
+
+    setForwardMessage(null);
+  };
+
+  const scrollToMessage = (messageId: string) => {
+    const element = document.getElementById(`message-${messageId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      element.classList.add("bg-primary/10");
+      setTimeout(() => element.classList.remove("bg-primary/10"), 2000);
+    }
+  };
 
   const handleAddReaction = (messageId: string, emoji: string) => {
     if (!selectedConversation) return;
@@ -399,7 +463,8 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
       senderId: 'me',
       text: messageInput.trim(),
       timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-      status: 'sending'
+      status: 'sending',
+      replyTo: replyingTo || undefined
     };
 
     // Add message with 'sending' status
@@ -416,6 +481,7 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
       c.id === selectedConversation.id ? updatedConversation : c
     ));
     setMessageInput('');
+    setReplyingTo(null);
     setIsSending(true);
 
     // Simulate message status progression
@@ -840,12 +906,34 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                 {selectedConversation.messages.map((message) => (
                   <div
                     key={message.id}
+                    id={`message-${message.id}`}
                     className={cn(
-                      "flex flex-col gap-1",
+                      "flex flex-col gap-1 transition-colors duration-500 rounded-lg",
                       message.senderId === 'me' ? "items-end" : "items-start"
                     )}
                   >
                     <div className="relative group">
+                      {/* Message Actions Popup */}
+                      {showActionsFor === message.id && (
+                        <div className={cn(
+                          "absolute bottom-full mb-2 z-10",
+                          message.senderId === 'me' ? "right-0" : "left-0"
+                        )}>
+                          <MessageActions 
+                            onReply={() => handleReply(message)}
+                            onForward={() => {
+                              setForwardMessage(message);
+                              setShowActionsFor(null);
+                            }}
+                            onReact={() => {
+                              setShowReactionsFor(message.id);
+                              setShowActionsFor(null);
+                            }}
+                            isOwn={message.senderId === 'me'}
+                          />
+                        </div>
+                      )}
+
                       {/* Quick Reactions Popup */}
                       {showReactionsFor === message.id && (
                         <div className={cn(
@@ -866,12 +954,32 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                             ? "bg-primary text-primary-foreground rounded-tr-none"
                             : "bg-card rounded-tl-none"
                         )}
-                        onDoubleClick={() => setShowReactionsFor(showReactionsFor === message.id ? null : message.id)}
+                        onDoubleClick={() => setShowActionsFor(showActionsFor === message.id ? null : message.id)}
                         onContextMenu={(e) => {
                           e.preventDefault();
-                          setShowReactionsFor(showReactionsFor === message.id ? null : message.id);
+                          setShowActionsFor(showActionsFor === message.id ? null : message.id);
                         }}
                       >
+                        {/* Forwarded Label */}
+                        {message.isForwarded && (
+                          <div className={cn(
+                            "flex items-center gap-1 text-[10px] mb-1",
+                            message.senderId === 'me' ? "text-primary-foreground/60" : "text-muted-foreground"
+                          )}>
+                            <CornerUpRight className="h-3 w-3" />
+                            Forwarded
+                          </div>
+                        )}
+
+                        {/* Quoted Reply */}
+                        {message.replyTo && (
+                          <QuotedMessage 
+                            replyTo={message.replyTo}
+                            isOwn={message.senderId === 'me'}
+                            onClick={() => scrollToMessage(message.replyTo!.id)}
+                          />
+                        )}
+
                         {message.isMedia && message.mediaData ? (
                           <MediaMessage 
                             media={message.mediaData}
@@ -901,16 +1009,26 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                           )}
                         </div>
 
-                        {/* Hover reaction button */}
-                        <button
-                          onClick={() => setShowReactionsFor(showReactionsFor === message.id ? null : message.id)}
-                          className={cn(
-                            "absolute top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-card shadow-md flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 transition-opacity border",
-                            message.senderId === 'me' ? "-left-9" : "-right-9"
-                          )}
-                        >
-                          😊
-                        </button>
+                        {/* Hover action buttons */}
+                        <div className={cn(
+                          "absolute top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity",
+                          message.senderId === 'me' ? "-left-20" : "-right-20"
+                        )}>
+                          <button
+                            onClick={() => handleReply(message)}
+                            className="w-7 h-7 rounded-full bg-card shadow-md flex items-center justify-center border hover:bg-muted transition-colors"
+                            title="Reply"
+                          >
+                            <Reply className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setShowActionsFor(showActionsFor === message.id ? null : message.id)}
+                            className="w-7 h-7 rounded-full bg-card shadow-md flex items-center justify-center text-sm border hover:bg-muted transition-colors"
+                            title="More"
+                          >
+                            ⋮
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -980,6 +1098,17 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                   onClear={handleClearFiles}
                 />
 
+                {/* Reply Preview */}
+                {replyingTo && (
+                  <div className="px-2 md:px-4 pt-2">
+                    <ReplyPreview 
+                      replyTo={replyingTo}
+                      onClear={() => setReplyingTo(null)}
+                      isOwn={replyingTo.senderId === "me"}
+                    />
+                  </div>
+                )}
+
                 {/* Hidden file inputs */}
                 <input
                   ref={fileInputRef}
@@ -987,7 +1116,7 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
                   multiple
                   className="hidden"
-                  onChange={(e) => handleFileSelect(e.target.files, 'document')}
+                  onChange={(e) => handleFileSelect(e.target.files, "document")}
                 />
                 <input
                   ref={imageInputRef}
@@ -995,7 +1124,7 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                   accept="image/*"
                   multiple
                   className="hidden"
-                  onChange={(e) => handleFileSelect(e.target.files, 'image')}
+                  onChange={(e) => handleFileSelect(e.target.files, "image")}
                 />
 
                 {/* Message Input */}
@@ -1033,10 +1162,11 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
 
                     <div className="flex-1 relative">
                       <Input
+                        ref={inputRef}
                         placeholder="Type a message"
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && (selectedFiles.length > 0 ? handleSendMedia() : handleSendMessage())}
+                        onKeyDown={(e) => e.key === "Enter" && (selectedFiles.length > 0 ? handleSendMedia() : handleSendMessage())}
                         className="pr-10 bg-muted/50 border-0 rounded-full"
                       />
                       <Button 
@@ -1085,6 +1215,15 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
           </div>
         )}
       </div>
+
+      {/* Forward Dialog */}
+      <ForwardDialog
+        open={!!forwardMessage}
+        onOpenChange={(open) => !open && setForwardMessage(null)}
+        conversations={conversations.filter(c => c.id !== selectedConversation?.id)}
+        messagePreview={forwardMessage?.isVoice ? "🎤 Voice message" : forwardMessage?.isMedia ? "📷 Photo" : forwardMessage?.text || ""}
+        onForward={handleForwardMessage}
+      />
     </div>
   );
 }
