@@ -15,7 +15,10 @@ import {
   Clock,
   Bell,
   BellOff,
-  BellRing
+  BellRing,
+  Trash2,
+  X,
+  MicOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +26,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useNotifications } from '@/hooks/use-notifications';
+import { useVoiceRecorder } from '@/hooks/use-voice-recorder';
+import { VoiceMessage } from './VoiceMessage';
 import {
   Tooltip,
   TooltipContent,
@@ -35,6 +40,11 @@ interface Message {
   text: string;
   timestamp: string;
   status: 'sending' | 'sent' | 'delivered' | 'read';
+  isVoice?: boolean;
+  voiceData?: {
+    audioUrl: string;
+    duration: number;
+  };
 }
 
 interface Conversation {
@@ -216,6 +226,16 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     isEnabled 
   } = useNotifications();
 
+  const {
+    isRecording,
+    recordingDuration,
+    permissionDenied,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    formatDuration
+  } = useVoiceRecorder();
+
   const filteredConversations = conversations.filter(c =>
     c.participantName.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -363,6 +383,60 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
         };
       });
     }, 2000);
+  };
+
+  const handleSendVoiceMessage = async () => {
+    if (!selectedConversation) return;
+    
+    const recording = await stopRecording();
+    if (!recording) return;
+
+    const newMessage: Message = {
+      id: `voice-${Date.now()}`,
+      senderId: 'me',
+      text: 'Voice message',
+      timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+      status: 'sending',
+      isVoice: true,
+      voiceData: {
+        audioUrl: recording.audioUrl,
+        duration: recording.duration
+      }
+    };
+
+    const updatedConversation = {
+      ...selectedConversation,
+      messages: [...selectedConversation.messages, newMessage],
+      lastMessage: '🎤 Voice message',
+      lastMessageTime: 'Just now'
+    };
+
+    setSelectedConversation(updatedConversation);
+    setConversations(prev => prev.map(c => 
+      c.id === selectedConversation.id ? updatedConversation : c
+    ));
+
+    // Simulate status progression
+    setTimeout(() => {
+      setSelectedConversation(prev => prev ? {
+        ...prev,
+        messages: prev.messages.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const } : m)
+      } : prev);
+    }, 500);
+
+    setTimeout(() => {
+      setSelectedConversation(prev => prev ? {
+        ...prev,
+        messages: prev.messages.map(m => m.id === newMessage.id ? { ...m, status: 'delivered' as const } : m)
+      } : prev);
+    }, 1500);
+
+    setTimeout(() => {
+      setSelectedConversation(prev => prev ? {
+        ...prev,
+        messages: prev.messages.map(m => m.id === newMessage.id ? { ...m, status: 'read' as const } : m)
+      } : prev);
+    }, 2500);
   };
 
   const handleBack = () => {
@@ -609,7 +683,15 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                           : "bg-card rounded-tl-none"
                       )}
                     >
-                      <p className="text-sm leading-relaxed break-words">{message.text}</p>
+                      {message.isVoice && message.voiceData ? (
+                        <VoiceMessage 
+                          audioUrl={message.voiceData.audioUrl}
+                          duration={message.voiceData.duration}
+                          isOwn={message.senderId === 'me'}
+                        />
+                      ) : (
+                        <p className="text-sm leading-relaxed break-words">{message.text}</p>
+                      )}
                       <div className={cn(
                         "flex items-center gap-1 mt-1",
                         message.senderId === 'me' ? "justify-end" : "justify-start"
@@ -635,45 +717,95 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
               </div>
             </div>
 
-            {/* Message Input */}
-            <div className="bg-card border-t px-2 md:px-4 py-2">
-              <div className="flex items-center gap-1 md:gap-2">
-                <Button variant="ghost" size="icon" className="rounded-full flex-shrink-0 hidden md:flex">
-                  <Smile className="h-5 w-5 text-muted-foreground" />
-                </Button>
-                <Button variant="ghost" size="icon" className="rounded-full flex-shrink-0">
-                  <Paperclip className="h-5 w-5 text-muted-foreground" />
-                </Button>
-                <div className="flex-1 relative">
-                  <Input
-                    placeholder="Type a message"
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                    className="pr-10 bg-muted/50 border-0 rounded-full"
-                  />
+            {/* Voice Recording UI */}
+            {isRecording ? (
+              <div className="bg-card border-t px-2 md:px-4 py-3">
+                <div className="flex items-center gap-3">
                   <Button 
                     variant="ghost" 
-                    size="icon" 
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full md:hidden"
+                    size="icon"
+                    onClick={cancelRecording}
+                    className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
                   >
-                    <Image className="h-4 w-4 text-muted-foreground" />
+                    <Trash2 className="h-5 w-5" />
+                  </Button>
+                  
+                  <div className="flex-1 flex items-center justify-center gap-3">
+                    <span className="w-2.5 h-2.5 bg-destructive rounded-full animate-pulse" />
+                    <span className="text-sm font-medium tabular-nums">{formatDuration(recordingDuration)}</span>
+                    <span className="text-xs text-muted-foreground">Recording...</span>
+                  </div>
+                  
+                  <Button 
+                    size="icon"
+                    onClick={handleSendVoiceMessage}
+                    className="rounded-full h-10 w-10"
+                  >
+                    <Send className="h-5 w-5" />
                   </Button>
                 </div>
-                <Button 
-                  onClick={handleSendMessage} 
-                  size="icon"
-                  className="rounded-full flex-shrink-0 h-10 w-10"
-                  disabled={!messageInput.trim() || isSending}
-                >
-                  {messageInput.trim() ? (
-                    <Send className="h-5 w-5" />
-                  ) : (
-                    <Mic className="h-5 w-5" />
-                  )}
-                </Button>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Microphone Permission Warning */}
+                {permissionDenied && (
+                  <div className="mx-2 md:mx-4 mb-2 p-2 bg-destructive/10 rounded-lg flex items-center gap-2 text-sm text-destructive">
+                    <MicOff className="h-4 w-4 flex-shrink-0" />
+                    <span>Microphone access denied. Enable it in browser settings.</span>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto" onClick={() => {}}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Message Input */}
+                <div className="bg-card border-t px-2 md:px-4 py-2">
+                  <div className="flex items-center gap-1 md:gap-2">
+                    <Button variant="ghost" size="icon" className="rounded-full flex-shrink-0 hidden md:flex">
+                      <Smile className="h-5 w-5 text-muted-foreground" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="rounded-full flex-shrink-0">
+                      <Paperclip className="h-5 w-5 text-muted-foreground" />
+                    </Button>
+                    <div className="flex-1 relative">
+                      <Input
+                        placeholder="Type a message"
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                        className="pr-10 bg-muted/50 border-0 rounded-full"
+                      />
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full md:hidden"
+                      >
+                        <Image className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                    {messageInput.trim() ? (
+                      <Button 
+                        onClick={handleSendMessage} 
+                        size="icon"
+                        className="rounded-full flex-shrink-0 h-10 w-10"
+                        disabled={isSending}
+                      >
+                        <Send className="h-5 w-5" />
+                      </Button>
+                    ) : (
+                      <Button 
+                        onClick={startRecording}
+                        size="icon"
+                        variant="ghost"
+                        className="rounded-full flex-shrink-0 h-10 w-10 hover:bg-primary/10 hover:text-primary"
+                      >
+                        <Mic className="h-5 w-5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </>
         ) : (
           <div className="flex-1 hidden md:flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
