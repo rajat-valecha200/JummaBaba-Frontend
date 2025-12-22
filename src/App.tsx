@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MainLayout, VendorLayout, BuyerLayout, AdminLayout } from "@/components/layout";
+import { WishlistProvider } from "@/contexts/WishlistContext";
 
 // Pages
 import HomePage from "./pages/HomePage";
@@ -19,6 +20,7 @@ import BuyerOrders from "./pages/buyer/BuyerOrders";
 import BuyerRfqs from "./pages/buyer/BuyerRfqs";
 import BuyerProfile from "./pages/buyer/BuyerProfile";
 import BuyerMessages from "./pages/buyer/BuyerMessages";
+import BuyerWishlist from "./pages/buyer/BuyerWishlist";
 
 // Vendor Pages
 import VendorDashboard from "./pages/vendor/VendorDashboard";
@@ -43,6 +45,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      <WishlistProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
@@ -66,6 +69,7 @@ const App = () => (
           <Route element={<BuyerLayout />}>
             <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
             <Route path="/buyer/cart" element={<BuyerCart />} />
+            <Route path="/buyer/wishlist" element={<BuyerWishlist />} />
             <Route path="/buyer/orders" element={<BuyerOrders />} />
             <Route path="/buyer/rfqs" element={<BuyerRfqs />} />
             <Route path="/buyer/messages" element={<BuyerMessages />} />
@@ -98,6 +102,7 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
+      </WishlistProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
