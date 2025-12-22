@@ -41,6 +41,7 @@ import { TrustBadges } from '@/components/b2b/TrustBadge';
 import { PricingSlabsTable, CompactPricing } from '@/components/b2b/PricingSlabsTable';
 import { ProductCard } from '@/components/b2b/ProductCard';
 import { useToast } from '@/hooks/use-toast';
+import { useWishlist } from '@/contexts/WishlistContext';
 import { 
   products, 
   getSupplierById, 
@@ -52,6 +53,7 @@ import {
 export default function ProductDetailPage() {
   const { slug } = useParams();
   const { toast } = useToast();
+  const { isInWishlist, toggleWishlist } = useWishlist();
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState('');
   const [rfqOpen, setRfqOpen] = useState(false);
@@ -216,6 +218,20 @@ export default function ProductDetailPage() {
                 <Button variant="secondary" className="flex-1">
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Chat with Supplier
+                </Button>
+              </div>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  className={isInWishlist(product.id) ? "text-destructive hover:text-destructive" : ""}
+                  onClick={() => toggleWishlist(product.id, product.name)}
+                >
+                  <Heart className={`h-4 w-4 mr-2 ${isInWishlist(product.id) ? "fill-current" : ""}`} />
+                  {isInWishlist(product.id) ? "Saved" : "Save to Wishlist"}
+                </Button>
+                <Button variant="ghost">
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
                 </Button>
               </div>
             </div>

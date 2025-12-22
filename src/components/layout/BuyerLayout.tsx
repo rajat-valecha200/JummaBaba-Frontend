@@ -10,7 +10,8 @@ import {
   Settings,
   Menu,
   X,
-  ChevronLeft
+  ChevronLeft,
+  Heart
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,7 @@ import { cn } from '@/lib/utils';
 const buyerNavItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/buyer/dashboard' },
   { icon: ShoppingCart, label: 'Cart', path: '/buyer/cart' },
+  { icon: Heart, label: 'Wishlist', path: '/buyer/wishlist' },
   { icon: ClipboardList, label: 'Orders', path: '/buyer/orders' },
   { icon: FileText, label: 'My RFQs', path: '/buyer/rfqs' },
   { icon: MessageSquare, label: 'Messages', path: '/buyer/messages' },
