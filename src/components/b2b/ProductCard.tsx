@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { MapPin, MessageSquare, Heart } from 'lucide-react';
+import { MessageSquare, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { TrustBadges } from './TrustBadge';
@@ -76,23 +76,20 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
           MOQ: <span className="font-medium text-foreground">{product.moq} {product.unit}</span>
         </p>
 
-        {/* Supplier Info */}
+        {/* Platform Fulfillment Info */}
         <div className="border-t pt-3 space-y-2">
-          <Link 
-            to={`/supplier/${supplier.id}`}
-            className="text-sm font-medium hover:text-primary transition-colors block"
-          >
-            {supplier.companyName}
-          </Link>
-          
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <MapPin className="h-3 w-3" />
-            <span>{supplier.location}, {supplier.state}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-primary">Fulfilled by Platform</span>
           </div>
+          
+          {supplier.isTopSupplier && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span>Verified Supplier</span>
+            </div>
+          )}
 
           <TrustBadges
-            gstVerified={supplier.gstVerified}
-            isTopSupplier={supplier.isTopSupplier}
+            isTopSupplier={false}
             isVerified={product.isVerified}
           />
         </div>
@@ -104,7 +101,7 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
           className="w-full mt-3 group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
         >
           <MessageSquare className="h-4 w-4 mr-2" />
-          Contact Supplier
+          Request Quote
         </Button>
       </CardContent>
     </Card>
