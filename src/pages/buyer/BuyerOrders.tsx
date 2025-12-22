@@ -1,7 +1,7 @@
-import { Link } from 'react-router-dom';
-import { Eye, Download, Filter } from 'lucide-react';
+import { useState } from 'react';
+import { Eye, Download, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -18,7 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { orders, formatPrice } from '@/data/mockData';
+import { Separator } from '@/components/ui/separator';
+import { orders, formatPrice, suppliers } from '@/data/mockData';
+import { OrderTracking } from '@/components/orders/OrderTracking';
+
+type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-warning/10 text-warning',
@@ -29,6 +33,111 @@ const statusColors: Record<string, string> = {
 };
 
 export default function BuyerOrders() {
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
+  const selectedOrder = orders.find(o => o.id === selectedOrderId);
+  const supplier = selectedOrder ? suppliers.find(s => s.id === selectedOrder.vendorId) : null;
+
+  if (selectedOrder) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => setSelectedOrderId(null)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Order {selectedOrder.orderNumber}</h1>
+            <p className="text-muted-foreground">
+              Placed on {new Date(selectedOrder.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <OrderTracking
+              currentStatus={selectedOrder.status as OrderStatus}
+              orderNumber={selectedOrder.orderNumber}
+              orderDate={selectedOrder.createdAt}
+              estimatedDelivery="January 25, 2024"
+            />
+          </div>
+
+          <div className="space-y-4">
+            {/* Order Summary Card */}
+            <Card>
+              <CardContent className="pt-6 space-y-4">
+                <div>
+                  <h3 className="font-semibold mb-3">Order Summary</h3>
+                  <div className="space-y-2">
+                    {selectedOrder.items.map((item, index) => (
+                      <div key={index} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {item.productName} × {item.quantity}
+                        </span>
+                        <span>{formatPrice(item.quantity * item.pricePerUnit)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Separator className="my-3" />
+                  <div className="flex justify-between font-semibold">
+                    <span>Total</span>
+                    <span className="text-primary">{formatPrice(selectedOrder.totalAmount)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Shipping Address Card */}
+            <Card>
+              <CardContent className="pt-6">
+                <h3 className="font-semibold mb-3">Shipping Address</h3>
+                <p className="text-sm text-muted-foreground">{selectedOrder.shippingAddress}</p>
+              </CardContent>
+            </Card>
+
+            {/* Seller Info Card */}
+            {supplier && (
+              <Card>
+                <CardContent className="pt-6">
+                  <h3 className="font-semibold mb-3">Seller Information</h3>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={supplier.logo}
+                      alt={supplier.companyName}
+                      className="w-10 h-10 rounded-lg object-cover"
+                    />
+                    <div>
+                      <p className="font-medium">{supplier.companyName}</p>
+                      <p className="text-sm text-muted-foreground">{supplier.location}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2">
+              <Button variant="outline" className="w-full">
+                <Download className="h-4 w-4 mr-2" />
+                Download Invoice
+              </Button>
+              {selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'delivered' && (
+                <Button variant="outline" className="w-full text-destructive hover:text-destructive">
+                  Cancel Order
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -93,7 +202,11 @@ export default function BuyerOrders() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setSelectedOrderId(order.id)}
+                        >
                           <Eye className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon">
