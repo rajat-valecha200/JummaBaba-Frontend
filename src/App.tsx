@@ -45,63 +45,63 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <WishlistProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Public routes with main layout */}
-          <Route element={<MainLayout />}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/category/:slug" element={<CategoryPage />} />
-            <Route path="/categories" element={<CategoryPage />} />
-            <Route path="/products" element={<CategoryPage />} />
-            <Route path="/product/:slug" element={<ProductDetailPage />} />
-            <Route path="/supplier/:id" element={<SupplierDetailPage />} />
-          </Route>
+      <WishlistProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public routes with main layout */}
+            <Route element={<MainLayout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/category/:slug" element={<CategoryPage />} />
+              <Route path="/categories" element={<CategoryPage />} />
+              <Route path="/products" element={<CategoryPage />} />
+              <Route path="/product/:slug" element={<ProductDetailPage />} />
+              <Route path="/supplier/:id" element={<SupplierDetailPage />} />
+            </Route>
 
-          {/* Auth routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<LoginPage />} />
-          <Route path="/vendor/register" element={<LoginPage />} />
+            {/* Auth routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<LoginPage />} />
+            <Route path="/vendor/register" element={<LoginPage />} />
 
-          {/* Buyer dashboard routes */}
-          <Route element={<BuyerLayout />}>
-            <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
-            <Route path="/buyer/cart" element={<BuyerCart />} />
-            <Route path="/buyer/wishlist" element={<BuyerWishlist />} />
-            <Route path="/buyer/orders" element={<BuyerOrders />} />
-            <Route path="/buyer/rfqs" element={<BuyerRfqs />} />
-            <Route path="/buyer/messages" element={<BuyerMessages />} />
-            <Route path="/buyer/profile" element={<BuyerProfile />} />
-            <Route path="/buyer/settings" element={<BuyerDashboard />} />
-          </Route>
+            {/* Buyer dashboard routes */}
+            <Route element={<BuyerLayout />}>
+              <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
+              <Route path="/buyer/cart" element={<BuyerCart />} />
+              <Route path="/buyer/wishlist" element={<BuyerWishlist />} />
+              <Route path="/buyer/orders" element={<BuyerOrders />} />
+              <Route path="/buyer/rfqs" element={<BuyerRfqs />} />
+              <Route path="/buyer/messages" element={<BuyerMessages />} />
+              <Route path="/buyer/profile" element={<BuyerProfile />} />
+              <Route path="/buyer/settings" element={<BuyerDashboard />} />
+            </Route>
 
-          {/* Vendor dashboard routes */}
-          <Route element={<VendorLayout />}>
-            <Route path="/vendor/dashboard" element={<VendorDashboard />} />
-            <Route path="/vendor/products" element={<VendorProducts />} />
-            <Route path="/vendor/orders" element={<VendorOrders />} />
-            <Route path="/vendor/rfqs" element={<VendorRfqs />} />
-            <Route path="/vendor/messages" element={<VendorMessages />} />
-            <Route path="/vendor/profile" element={<VendorProfile />} />
-            <Route path="/vendor/settings" element={<VendorDashboard />} />
-          </Route>
+            {/* Vendor dashboard routes */}
+            <Route element={<VendorLayout />}>
+              <Route path="/vendor/dashboard" element={<VendorDashboard />} />
+              <Route path="/vendor/products" element={<VendorProducts />} />
+              <Route path="/vendor/orders" element={<VendorOrders />} />
+              <Route path="/vendor/rfqs" element={<VendorRfqs />} />
+              <Route path="/vendor/messages" element={<VendorMessages />} />
+              <Route path="/vendor/profile" element={<VendorProfile />} />
+              <Route path="/vendor/settings" element={<VendorDashboard />} />
+            </Route>
 
-          {/* Admin dashboard routes */}
-          <Route element={<AdminLayout />}>
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/vendors" element={<AdminVendors />} />
-            <Route path="/admin/products" element={<AdminProducts />} />
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/analytics" element={<AdminAnalytics />} />
-            <Route path="/admin/commissions" element={<AdminCommissions />} />
-            <Route path="/admin/settings" element={<AdminDashboard />} />
-          </Route>
+            {/* Admin dashboard routes */}
+            <Route element={<AdminLayout />}>
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/vendors" element={<AdminVendors />} />
+              <Route path="/admin/products" element={<AdminProducts />} />
+              <Route path="/admin/users" element={<AdminUsers />} />
+              <Route path="/admin/analytics" element={<AdminAnalytics />} />
+              <Route path="/admin/commissions" element={<AdminCommissions />} />
+              <Route path="/admin/settings" element={<AdminDashboard />} />
+            </Route>
 
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
       </WishlistProvider>
     </TooltipProvider>
   </QueryClientProvider>
