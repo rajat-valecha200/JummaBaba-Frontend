@@ -30,15 +30,15 @@ export default function BuyerDashboard() {
   const recentRfqs = rfqs.slice(0, 3);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 px-1 sm:px-0">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Welcome back, Amit!</h1>
-        <p className="text-muted-foreground">Here's what's happening with your account</p>
+        <h1 className="text-xl sm:text-2xl font-bold">Welcome back, Amit!</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">Here's what's happening with your account</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats - Responsive Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatsCard
           title="Total Orders"
           value={orders.length}
@@ -65,28 +65,29 @@ export default function BuyerDashboard() {
         />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      {/* Orders & RFQs - Stack on mobile, side by side on desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Recent Orders */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Recent Orders</CardTitle>
-            <Button asChild variant="ghost" size="sm">
+          <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
+            <CardTitle className="text-base sm:text-lg">Recent Orders</CardTitle>
+            <Button asChild variant="ghost" size="sm" className="text-xs sm:text-sm">
               <Link to="/buyer/orders">View All</Link>
             </Button>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+            <div className="space-y-3 sm:space-y-4">
               {recentOrders.map(order => (
-                <div key={order.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div key={order.id} className="flex items-start sm:items-center justify-between p-2.5 sm:p-3 bg-muted/50 rounded-lg gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{order.orderNumber}</p>
-                    <p className="text-sm text-muted-foreground truncate">
+                    <p className="font-medium text-sm sm:text-base truncate">{order.orderNumber}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">
                       {order.items[0].productName}
                     </p>
                   </div>
-                  <div className="text-right ml-4">
-                    <p className="font-semibold">{formatPrice(order.totalAmount)}</p>
-                    <Badge className={statusColors[order.status]} variant="secondary">
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-semibold text-sm sm:text-base">{formatPrice(order.totalAmount)}</p>
+                    <Badge className={`${statusColors[order.status]} text-xs`} variant="secondary">
                       {order.status}
                     </Badge>
                   </div>
@@ -98,27 +99,27 @@ export default function BuyerDashboard() {
 
         {/* Recent RFQs */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">My RFQs</CardTitle>
-            <Button asChild variant="ghost" size="sm">
+          <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
+            <CardTitle className="text-base sm:text-lg">My RFQs</CardTitle>
+            <Button asChild variant="ghost" size="sm" className="text-xs sm:text-sm">
               <Link to="/buyer/rfqs">View All</Link>
             </Button>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+            <div className="space-y-3 sm:space-y-4">
               {recentRfqs.map(rfq => (
-                <div key={rfq.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div key={rfq.id} className="flex items-start sm:items-center justify-between p-2.5 sm:p-3 bg-muted/50 rounded-lg gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{rfq.productName}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="font-medium text-sm sm:text-base truncate">{rfq.productName}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
                       {rfq.quantity} {rfq.unit}
                     </p>
                   </div>
-                  <div className="text-right ml-4">
-                    <Badge className={statusColors[rfq.status]} variant="secondary">
+                  <div className="text-right flex-shrink-0">
+                    <Badge className={`${statusColors[rfq.status]} text-xs`} variant="secondary">
                       {rfq.status}
                     </Badge>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                       {rfq.responses.length} responses
                     </p>
                   </div>
@@ -129,34 +130,34 @@ export default function BuyerDashboard() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Responsive */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Quick Actions</CardTitle>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-base sm:text-lg">Quick Actions</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button asChild variant="outline" className="h-auto py-4 flex-col gap-2">
+        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+            <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Link to="/post-requirement">
-                <FileText className="h-5 w-5" />
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span>Post RFQ</span>
               </Link>
             </Button>
-            <Button asChild variant="outline" className="h-auto py-4 flex-col gap-2">
+            <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Link to="/buyer/cart">
-                <ShoppingCart className="h-5 w-5" />
+                <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span>View Cart</span>
               </Link>
             </Button>
-            <Button asChild variant="outline" className="h-auto py-4 flex-col gap-2">
+            <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Link to="/products">
-                <Package className="h-5 w-5" />
-                <span>Browse Products</span>
+                <Package className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span>Browse</span>
               </Link>
             </Button>
-            <Button asChild variant="outline" className="h-auto py-4 flex-col gap-2">
+            <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Link to="/buyer/messages">
-                <MessageSquare className="h-5 w-5" />
+                <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span>Messages</span>
               </Link>
             </Button>
