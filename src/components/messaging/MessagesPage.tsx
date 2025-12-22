@@ -6,11 +6,13 @@ import {
   MoreVertical, 
   Paperclip, 
   Image, 
+  Check,
   CheckCheck, 
   ArrowLeft,
   Smile,
   Shield,
-  Mic
+  Mic,
+  Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +25,7 @@ interface Message {
   senderId: string;
   text: string;
   timestamp: string;
-  isRead: boolean;
+  status: 'sending' | 'sent' | 'delivered' | 'read';
 }
 
 interface Conversation {
@@ -36,6 +38,7 @@ interface Conversation {
   unreadCount: number;
   isOnline: boolean;
   isVerified: boolean;
+  isTyping: boolean;
   messages: Message[];
 }
 
@@ -50,11 +53,13 @@ const mockConversations: Conversation[] = [
     unreadCount: 2,
     isOnline: true,
     isVerified: true,
+    isTyping: true,
     messages: [
-      { id: 'm1', senderId: 'other', text: 'Hello! I saw your inquiry about Samsung phones.', timestamp: '10:15 AM', isRead: true },
-      { id: 'm2', senderId: 'me', text: 'Hi! Yes, I need 500 units of Galaxy A54. What is your best price?', timestamp: '10:20 AM', isRead: true },
-      { id: 'm3', senderId: 'other', text: 'For 500 units, we can offer ₹27,500 per unit with free shipping.', timestamp: '10:25 AM', isRead: true },
-      { id: 'm4', senderId: 'other', text: 'Yes, we can offer bulk pricing for 500+ units', timestamp: '10:30 AM', isRead: false },
+      { id: 'm1', senderId: 'other', text: 'Hello! I saw your inquiry about Samsung phones.', timestamp: '10:15 AM', status: 'read' },
+      { id: 'm2', senderId: 'me', text: 'Hi! Yes, I need 500 units of Galaxy A54. What is your best price?', timestamp: '10:20 AM', status: 'read' },
+      { id: 'm3', senderId: 'other', text: 'For 500 units, we can offer ₹27,500 per unit with free shipping.', timestamp: '10:25 AM', status: 'read' },
+      { id: 'm4', senderId: 'me', text: 'That sounds good! Can you also include warranty cards?', timestamp: '10:28 AM', status: 'delivered' },
+      { id: 'm5', senderId: 'other', text: 'Yes, we can offer bulk pricing for 500+ units', timestamp: '10:30 AM', status: 'read' },
     ],
   },
   {
@@ -67,11 +72,12 @@ const mockConversations: Conversation[] = [
     unreadCount: 0,
     isOnline: false,
     isVerified: true,
+    isTyping: false,
     messages: [
-      { id: 'm1', senderId: 'me', text: 'Can you send fabric samples before bulk order?', timestamp: 'Yesterday 2:00 PM', isRead: true },
-      { id: 'm2', senderId: 'other', text: 'Sure! Please share your delivery address.', timestamp: 'Yesterday 2:15 PM', isRead: true },
-      { id: 'm3', senderId: 'me', text: '123 Tech Park, Andheri East, Mumbai - 400069', timestamp: 'Yesterday 2:20 PM', isRead: true },
-      { id: 'm4', senderId: 'other', text: 'Sample shipment dispatched today', timestamp: 'Yesterday 4:30 PM', isRead: true },
+      { id: 'm1', senderId: 'me', text: 'Can you send fabric samples before bulk order?', timestamp: 'Yesterday 2:00 PM', status: 'read' },
+      { id: 'm2', senderId: 'other', text: 'Sure! Please share your delivery address.', timestamp: 'Yesterday 2:15 PM', status: 'read' },
+      { id: 'm3', senderId: 'me', text: '123 Tech Park, Andheri East, Mumbai - 400069', timestamp: 'Yesterday 2:20 PM', status: 'read' },
+      { id: 'm4', senderId: 'other', text: 'Sample shipment dispatched today', timestamp: 'Yesterday 4:30 PM', status: 'read' },
     ],
   },
   {
@@ -84,10 +90,11 @@ const mockConversations: Conversation[] = [
     unreadCount: 0,
     isOnline: true,
     isVerified: false,
+    isTyping: false,
     messages: [
-      { id: 'm1', senderId: 'other', text: 'Your order for drill machines is ready.', timestamp: 'Mon 11:00 AM', isRead: true },
-      { id: 'm2', senderId: 'me', text: 'Great! I have made the payment. Please check.', timestamp: 'Mon 11:30 AM', isRead: true },
-      { id: 'm3', senderId: 'other', text: 'Payment received. Order confirmed!', timestamp: 'Mon 12:00 PM', isRead: true },
+      { id: 'm1', senderId: 'other', text: 'Your order for drill machines is ready.', timestamp: 'Mon 11:00 AM', status: 'read' },
+      { id: 'm2', senderId: 'me', text: 'Great! I have made the payment. Please check.', timestamp: 'Mon 11:30 AM', status: 'read' },
+      { id: 'm3', senderId: 'other', text: 'Payment received. Order confirmed!', timestamp: 'Mon 12:00 PM', status: 'read' },
     ],
   },
   {
@@ -100,22 +107,55 @@ const mockConversations: Conversation[] = [
     unreadCount: 0,
     isOnline: false,
     isVerified: true,
+    isTyping: false,
     messages: [
-      { id: 'm1', senderId: 'me', text: 'Do you have organic certification for the rice?', timestamp: 'Last week', isRead: true },
-      { id: 'm2', senderId: 'other', text: 'We have organic certification', timestamp: 'Last week', isRead: true },
+      { id: 'm1', senderId: 'me', text: 'Do you have organic certification for the rice?', timestamp: 'Last week', status: 'sent' },
+      { id: 'm2', senderId: 'other', text: 'We have organic certification', timestamp: 'Last week', status: 'read' },
     ],
   },
 ];
+
+// Typing Indicator Component
+function TypingIndicator() {
+  return (
+    <div className="flex justify-start">
+      <div className="bg-card rounded-lg rounded-tl-none px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-1">
+          <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+          <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+          <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Message Status Icon Component
+function MessageStatus({ status }: { status: Message['status'] }) {
+  switch (status) {
+    case 'sending':
+      return <Clock className="h-3.5 w-3.5 text-primary-foreground/50" />;
+    case 'sent':
+      return <Check className="h-3.5 w-3.5 text-primary-foreground/70" />;
+    case 'delivered':
+      return <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/70" />;
+    case 'read':
+      return <CheckCheck className="h-3.5 w-3.5 text-primary-foreground" />;
+    default:
+      return null;
+  }
+}
 
 interface MessagesPageProps {
   userType: 'buyer' | 'vendor';
 }
 
 export default function MessagesPage({ userType }: MessagesPageProps) {
-  const [conversations] = useState<Conversation[]>(mockConversations);
+  const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const filteredConversations = conversations.filter(c =>
@@ -130,12 +170,74 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     if (selectedConversation) {
       scrollToBottom();
     }
-  }, [selectedConversation]);
+  }, [selectedConversation, selectedConversation?.messages.length]);
 
   const handleSendMessage = () => {
-    if (!messageInput.trim() || !selectedConversation) return;
-    // In a real app, this would send the message to the backend
+    if (!messageInput.trim() || !selectedConversation || isSending) return;
+    
+    const newMessage: Message = {
+      id: `m-${Date.now()}`,
+      senderId: 'me',
+      text: messageInput.trim(),
+      timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+      status: 'sending'
+    };
+
+    // Add message with 'sending' status
+    const updatedConversation = {
+      ...selectedConversation,
+      messages: [...selectedConversation.messages, newMessage],
+      lastMessage: newMessage.text,
+      lastMessageTime: 'Just now'
+    };
+
+    setSelectedConversation(updatedConversation);
+    setConversations(prev => prev.map(c => 
+      c.id === selectedConversation.id ? updatedConversation : c
+    ));
     setMessageInput('');
+    setIsSending(true);
+
+    // Simulate message status progression
+    setTimeout(() => {
+      // Update to 'sent'
+      setSelectedConversation(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          messages: prev.messages.map(m => 
+            m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
+          )
+        };
+      });
+    }, 500);
+
+    setTimeout(() => {
+      // Update to 'delivered'
+      setSelectedConversation(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          messages: prev.messages.map(m => 
+            m.id === newMessage.id ? { ...m, status: 'delivered' as const } : m
+          )
+        };
+      });
+      setIsSending(false);
+    }, 1500);
+
+    setTimeout(() => {
+      // Update to 'read'
+      setSelectedConversation(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          messages: prev.messages.map(m => 
+            m.id === newMessage.id ? { ...m, status: 'read' as const } : m
+          )
+        };
+      });
+    }, 3000);
   };
 
   const handleBack = () => {
@@ -146,11 +248,10 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     setSelectedConversation(conv);
   };
 
-  // Group messages by date
-  const groupMessagesByDate = (messages: Message[]) => {
-    // For demo purposes, we'll just return all messages
-    // In a real app, you'd group by actual dates
-    return messages;
+  // Get last message status for conversation list
+  const getLastMessageStatus = (conv: Conversation) => {
+    const lastMyMessage = [...conv.messages].reverse().find(m => m.senderId === 'me');
+    return lastMyMessage?.status;
   };
 
   return (
@@ -185,53 +286,72 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
 
         {/* Conversations */}
         <div className="flex-1 overflow-y-auto">
-          {filteredConversations.map((conv) => (
-            <div
-              key={conv.id}
-              className={cn(
-                "flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors active:bg-muted",
-                selectedConversation?.id === conv.id && "bg-muted/70"
-              )}
-              onClick={() => openConversation(conv)}
-            >
-              {/* Avatar */}
-              <div className="relative flex-shrink-0">
-                <Avatar className="h-12 w-12">
-                  <AvatarImage src={conv.participantAvatar} />
-                  <AvatarFallback className="text-lg">{conv.participantName[0]}</AvatarFallback>
-                </Avatar>
-                {conv.isOnline && (
-                  <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-success rounded-full border-2 border-background" />
+          {filteredConversations.map((conv) => {
+            const lastStatus = getLastMessageStatus(conv);
+            
+            return (
+              <div
+                key={conv.id}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors active:bg-muted",
+                  selectedConversation?.id === conv.id && "bg-muted/70"
                 )}
-              </div>
-              
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <p className="font-semibold truncate">{conv.participantName}</p>
-                    {conv.isVerified && (
-                      <Shield className="h-4 w-4 text-success flex-shrink-0" />
-                    )}
-                  </div>
-                  <span className={cn(
-                    "text-xs flex-shrink-0",
-                    conv.unreadCount > 0 ? "text-success font-medium" : "text-muted-foreground"
-                  )}>
-                    {conv.lastMessageTime}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-2 mt-0.5">
-                  <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
-                  {conv.unreadCount > 0 && (
-                    <Badge className="h-5 w-5 p-0 flex items-center justify-center rounded-full bg-success text-success-foreground text-xs">
-                      {conv.unreadCount}
-                    </Badge>
+                onClick={() => openConversation(conv)}
+              >
+                {/* Avatar */}
+                <div className="relative flex-shrink-0">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={conv.participantAvatar} />
+                    <AvatarFallback className="text-lg">{conv.participantName[0]}</AvatarFallback>
+                  </Avatar>
+                  {conv.isOnline && (
+                    <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-success rounded-full border-2 border-background" />
                   )}
                 </div>
+                
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className="font-semibold truncate">{conv.participantName}</p>
+                      {conv.isVerified && (
+                        <Shield className="h-4 w-4 text-success flex-shrink-0" />
+                      )}
+                    </div>
+                    <span className={cn(
+                      "text-xs flex-shrink-0",
+                      conv.unreadCount > 0 ? "text-success font-medium" : "text-muted-foreground"
+                    )}>
+                      {conv.lastMessageTime}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                    <div className="flex items-center gap-1 min-w-0">
+                      {/* Show status for last sent message */}
+                      {lastStatus && (
+                        <span className="flex-shrink-0">
+                          {lastStatus === 'sending' && <Clock className="h-3.5 w-3.5 text-muted-foreground/50" />}
+                          {lastStatus === 'sent' && <Check className="h-3.5 w-3.5 text-muted-foreground/70" />}
+                          {lastStatus === 'delivered' && <CheckCheck className="h-3.5 w-3.5 text-muted-foreground/70" />}
+                          {lastStatus === 'read' && <CheckCheck className="h-3.5 w-3.5 text-success" />}
+                        </span>
+                      )}
+                      {conv.isTyping ? (
+                        <span className="text-sm text-success italic">typing...</span>
+                      ) : (
+                        <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
+                      )}
+                    </div>
+                    {conv.unreadCount > 0 && (
+                      <Badge className="h-5 w-5 p-0 flex items-center justify-center rounded-full bg-success text-success-foreground text-xs">
+                        {conv.unreadCount}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {filteredConversations.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -282,7 +402,9 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {selectedConversation.isOnline ? (
+                  {selectedConversation.isTyping ? (
+                    <span className="text-success">typing...</span>
+                  ) : selectedConversation.isOnline ? (
                     <span className="text-success">Online</span>
                   ) : (
                     'Offline'
@@ -317,7 +439,7 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                   </span>
                 </div>
 
-                {groupMessagesByDate(selectedConversation.messages).map((message) => (
+                {selectedConversation.messages.map((message) => (
                   <div
                     key={message.id}
                     className={cn(
@@ -345,15 +467,16 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                           {message.timestamp}
                         </span>
                         {message.senderId === 'me' && (
-                          <CheckCheck className={cn(
-                            "h-3.5 w-3.5",
-                            message.isRead ? "text-primary-foreground" : "text-primary-foreground/50"
-                          )} />
+                          <MessageStatus status={message.status} />
                         )}
                       </div>
                     </div>
                   </div>
                 ))}
+
+                {/* Typing indicator */}
+                {selectedConversation.isTyping && <TypingIndicator />}
+                
                 <div ref={messagesEndRef} />
               </div>
             </div>
@@ -387,7 +510,7 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                   onClick={handleSendMessage} 
                   size="icon"
                   className="rounded-full flex-shrink-0 h-10 w-10"
-                  disabled={!messageInput.trim()}
+                  disabled={!messageInput.trim() || isSending}
                 >
                   {messageInput.trim() ? (
                     <Send className="h-5 w-5" />
