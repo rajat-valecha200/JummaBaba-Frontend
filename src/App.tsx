@@ -16,6 +16,7 @@ import BuyerDashboard from "./pages/buyer/BuyerDashboard";
 import BuyerCart from "./pages/buyer/BuyerCart";
 import BuyerOrders from "./pages/buyer/BuyerOrders";
 import BuyerRfqs from "./pages/buyer/BuyerRfqs";
+import BuyerProfile from "./pages/buyer/BuyerProfile";
 
 // Vendor Pages
 import VendorDashboard from "./pages/vendor/VendorDashboard";
@@ -63,7 +64,7 @@ const App = () => (
             <Route path="/buyer/orders" element={<BuyerOrders />} />
             <Route path="/buyer/rfqs" element={<BuyerRfqs />} />
             <Route path="/buyer/messages" element={<BuyerDashboard />} />
-            <Route path="/buyer/profile" element={<BuyerDashboard />} />
+            <Route path="/buyer/profile" element={<BuyerProfile />} />
             <Route path="/buyer/settings" element={<BuyerDashboard />} />
           </Route>
 
