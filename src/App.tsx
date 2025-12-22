@@ -9,6 +9,7 @@ import { MainLayout, VendorLayout, BuyerLayout, AdminLayout } from "@/components
 import HomePage from "./pages/HomePage";
 import CategoryPage from "./pages/CategoryPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
+import SupplierDetailPage from "./pages/SupplierDetailPage";
 import LoginPage from "./pages/auth/LoginPage";
 
 // Buyer Pages
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/categories" element={<CategoryPage />} />
             <Route path="/products" element={<CategoryPage />} />
             <Route path="/product/:slug" element={<ProductDetailPage />} />
+            <Route path="/supplier/:id" element={<SupplierDetailPage />} />
           </Route>
 
           {/* Auth routes */}
