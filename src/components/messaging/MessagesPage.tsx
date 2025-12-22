@@ -31,6 +31,7 @@ import { useNotifications } from '@/hooks/use-notifications';
 import { useVoiceRecorder } from '@/hooks/use-voice-recorder';
 import { VoiceMessage } from './VoiceMessage';
 import { MediaMessage, MediaPreviewBar, type MediaAttachment } from './MediaMessage';
+import { EmojiPicker, QuickReactions, MessageReactions, type Reaction } from './EmojiPicker';
 import {
   Tooltip,
   TooltipContent,
@@ -56,6 +57,7 @@ interface Message {
   };
   isMedia?: boolean;
   mediaData?: MediaAttachment;
+  reactions?: Reaction[];
 }
 
 interface Conversation {
@@ -248,12 +250,68 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
   } = useVoiceRecorder();
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [showReactionsFor, setShowReactionsFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const filteredConversations = conversations.filter(c =>
     c.participantName.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleAddReaction = (messageId: string, emoji: string) => {
+    if (!selectedConversation) return;
+
+    setSelectedConversation(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        messages: prev.messages.map(msg => {
+          if (msg.id !== messageId) return msg;
+          
+          const existingReactions = msg.reactions || [];
+          const existingReaction = existingReactions.find(r => r.emoji === emoji);
+          
+          if (existingReaction) {
+            if (existingReaction.hasReacted) {
+              // Remove reaction
+              if (existingReaction.count === 1) {
+                return {
+                  ...msg,
+                  reactions: existingReactions.filter(r => r.emoji !== emoji)
+                };
+              }
+              return {
+                ...msg,
+                reactions: existingReactions.map(r => 
+                  r.emoji === emoji 
+                    ? { ...r, count: r.count - 1, hasReacted: false }
+                    : r
+                )
+              };
+            } else {
+              // Add to existing reaction
+              return {
+                ...msg,
+                reactions: existingReactions.map(r =>
+                  r.emoji === emoji
+                    ? { ...r, count: r.count + 1, hasReacted: true }
+                    : r
+                )
+              };
+            }
+          } else {
+            // New reaction
+            return {
+              ...msg,
+              reactions: [...existingReactions, { emoji, count: 1, users: ['me'], hasReacted: true }]
+            };
+          }
+        })
+      };
+    });
+
+    setShowReactionsFor(null);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -783,47 +841,87 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                   <div
                     key={message.id}
                     className={cn(
-                      "flex",
-                      message.senderId === 'me' ? "justify-end" : "justify-start"
+                      "flex flex-col gap-1",
+                      message.senderId === 'me' ? "items-end" : "items-start"
                     )}
                   >
-                    <div
-                      className={cn(
-                        "max-w-[85%] md:max-w-[70%] rounded-lg px-3 py-2 shadow-sm relative",
-                        message.senderId === 'me'
-                          ? "bg-primary text-primary-foreground rounded-tr-none"
-                          : "bg-card rounded-tl-none"
-                      )}
-                    >
-                      {message.isMedia && message.mediaData ? (
-                        <MediaMessage 
-                          media={message.mediaData}
-                          isOwn={message.senderId === 'me'}
-                        />
-                      ) : message.isVoice && message.voiceData ? (
-                        <VoiceMessage 
-                          audioUrl={message.voiceData.audioUrl}
-                          duration={message.voiceData.duration}
-                          isOwn={message.senderId === 'me'}
-                        />
-                      ) : (
-                        <p className="text-sm leading-relaxed break-words">{message.text}</p>
-                      )}
-                      <div className={cn(
-                        "flex items-center gap-1 mt-1",
-                        message.senderId === 'me' ? "justify-end" : "justify-start"
-                      )}>
-                        <span className={cn(
-                          "text-[10px]",
-                          message.senderId === 'me' ? "text-primary-foreground/70" : "text-muted-foreground"
+                    <div className="relative group">
+                      {/* Quick Reactions Popup */}
+                      {showReactionsFor === message.id && (
+                        <div className={cn(
+                          "absolute bottom-full mb-2 z-10",
+                          message.senderId === 'me' ? "right-0" : "left-0"
                         )}>
-                          {message.timestamp}
-                        </span>
-                        {message.senderId === 'me' && (
-                          <MessageStatus status={message.status} />
+                          <QuickReactions 
+                            onSelect={(emoji) => handleAddReaction(message.id, emoji)}
+                            isOwn={message.senderId === 'me'}
+                          />
+                        </div>
+                      )}
+
+                      <div
+                        className={cn(
+                          "max-w-[85%] md:max-w-[70%] rounded-lg px-3 py-2 shadow-sm relative cursor-pointer",
+                          message.senderId === 'me'
+                            ? "bg-primary text-primary-foreground rounded-tr-none"
+                            : "bg-card rounded-tl-none"
                         )}
+                        onDoubleClick={() => setShowReactionsFor(showReactionsFor === message.id ? null : message.id)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setShowReactionsFor(showReactionsFor === message.id ? null : message.id);
+                        }}
+                      >
+                        {message.isMedia && message.mediaData ? (
+                          <MediaMessage 
+                            media={message.mediaData}
+                            isOwn={message.senderId === 'me'}
+                          />
+                        ) : message.isVoice && message.voiceData ? (
+                          <VoiceMessage 
+                            audioUrl={message.voiceData.audioUrl}
+                            duration={message.voiceData.duration}
+                            isOwn={message.senderId === 'me'}
+                          />
+                        ) : (
+                          <p className="text-sm leading-relaxed break-words">{message.text}</p>
+                        )}
+                        <div className={cn(
+                          "flex items-center gap-1 mt-1",
+                          message.senderId === 'me' ? "justify-end" : "justify-start"
+                        )}>
+                          <span className={cn(
+                            "text-[10px]",
+                            message.senderId === 'me' ? "text-primary-foreground/70" : "text-muted-foreground"
+                          )}>
+                            {message.timestamp}
+                          </span>
+                          {message.senderId === 'me' && (
+                            <MessageStatus status={message.status} />
+                          )}
+                        </div>
+
+                        {/* Hover reaction button */}
+                        <button
+                          onClick={() => setShowReactionsFor(showReactionsFor === message.id ? null : message.id)}
+                          className={cn(
+                            "absolute top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-card shadow-md flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 transition-opacity border",
+                            message.senderId === 'me' ? "-left-9" : "-right-9"
+                          )}
+                        >
+                          😊
+                        </button>
                       </div>
                     </div>
+
+                    {/* Message Reactions */}
+                    {message.reactions && message.reactions.length > 0 && (
+                      <MessageReactions
+                        reactions={message.reactions}
+                        onReactionClick={(emoji) => handleAddReaction(message.id, emoji)}
+                        isOwn={message.senderId === 'me'}
+                      />
+                    )}
                   </div>
                 ))}
 
@@ -903,9 +1001,17 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                 {/* Message Input */}
                 <div className="bg-card border-t px-2 md:px-4 py-2">
                   <div className="flex items-center gap-1 md:gap-2">
-                    <Button variant="ghost" size="icon" className="rounded-full flex-shrink-0 hidden md:flex">
-                      <Smile className="h-5 w-5 text-muted-foreground" />
-                    </Button>
+                    <div className="hidden md:block">
+                      <EmojiPicker 
+                        onSelect={(emoji) => setMessageInput(prev => prev + emoji)}
+                        trigger={
+                          <Button variant="ghost" size="icon" className="rounded-full">
+                            <Smile className="h-5 w-5 text-muted-foreground" />
+                          </Button>
+                        }
+                        align="start"
+                      />
+                    </div>
                     
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
