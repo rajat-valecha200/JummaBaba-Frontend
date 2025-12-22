@@ -17,6 +17,7 @@ import BuyerCart from "./pages/buyer/BuyerCart";
 import BuyerOrders from "./pages/buyer/BuyerOrders";
 import BuyerRfqs from "./pages/buyer/BuyerRfqs";
 import BuyerProfile from "./pages/buyer/BuyerProfile";
+import BuyerMessages from "./pages/buyer/BuyerMessages";
 
 // Vendor Pages
 import VendorDashboard from "./pages/vendor/VendorDashboard";
@@ -24,6 +25,7 @@ import VendorProducts from "./pages/vendor/VendorProducts";
 import VendorOrders from "./pages/vendor/VendorOrders";
 import VendorRfqs from "./pages/vendor/VendorRfqs";
 import VendorProfile from "./pages/vendor/VendorProfile";
+import VendorMessages from "./pages/vendor/VendorMessages";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -63,7 +65,7 @@ const App = () => (
             <Route path="/buyer/cart" element={<BuyerCart />} />
             <Route path="/buyer/orders" element={<BuyerOrders />} />
             <Route path="/buyer/rfqs" element={<BuyerRfqs />} />
-            <Route path="/buyer/messages" element={<BuyerDashboard />} />
+            <Route path="/buyer/messages" element={<BuyerMessages />} />
             <Route path="/buyer/profile" element={<BuyerProfile />} />
             <Route path="/buyer/settings" element={<BuyerDashboard />} />
           </Route>
@@ -74,7 +76,7 @@ const App = () => (
             <Route path="/vendor/products" element={<VendorProducts />} />
             <Route path="/vendor/orders" element={<VendorOrders />} />
             <Route path="/vendor/rfqs" element={<VendorRfqs />} />
-            <Route path="/vendor/messages" element={<VendorDashboard />} />
+            <Route path="/vendor/messages" element={<VendorMessages />} />
             <Route path="/vendor/profile" element={<VendorProfile />} />
             <Route path="/vendor/settings" element={<VendorDashboard />} />
           </Route>
