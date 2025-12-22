@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -19,17 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { formatPrice } from '@/data/mockData';
 import { useToast } from '@/hooks/use-toast';
+import { OrderTracking } from '@/components/orders/OrderTracking';
 
 type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
 
@@ -141,7 +136,9 @@ export default function VendorOrders() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [shippingCarrier, setShippingCarrier] = useState('');
+  const [shippingNotes, setShippingNotes] = useState('');
 
   const filteredOrders = orders.filter((o) => {
     const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
@@ -184,6 +181,181 @@ export default function VendorOrders() {
   const confirmedCount = orders.filter(o => o.status === 'confirmed').length;
   const shippedCount = orders.filter(o => o.status === 'shipped').length;
   const deliveredCount = orders.filter(o => o.status === 'delivered').length;
+
+  // Order Detail View
+  if (selectedOrder) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => setSelectedOrder(null)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Order {selectedOrder.orderNumber}</h1>
+            <p className="text-muted-foreground">
+              Placed on {new Date(selectedOrder.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <OrderTracking
+              currentStatus={selectedOrder.status}
+              orderNumber={selectedOrder.orderNumber}
+              orderDate={selectedOrder.createdAt}
+              estimatedDelivery="January 25, 2024"
+              shippingCarrier={shippingCarrier || 'BlueDart Express'}
+              trackingNumber={trackingNumber || 'BD123456789IN'}
+            />
+          </div>
+
+          <div className="space-y-4">
+            {/* Order Actions Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Order Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Current Status</span>
+                  {getStatusBadge(selectedOrder.status)}
+                </div>
+
+                {selectedOrder.status === 'confirmed' && (
+                  <div className="space-y-3 pt-2">
+                    <Separator />
+                    <p className="text-sm font-medium">Add Shipping Details</p>
+                    <div className="space-y-2">
+                      <Label htmlFor="carrier">Shipping Carrier</Label>
+                      <Select value={shippingCarrier} onValueChange={setShippingCarrier}>
+                        <SelectTrigger id="carrier">
+                          <SelectValue placeholder="Select carrier" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bluedart">BlueDart Express</SelectItem>
+                          <SelectItem value="delhivery">Delhivery</SelectItem>
+                          <SelectItem value="dtdc">DTDC</SelectItem>
+                          <SelectItem value="fedex">FedEx</SelectItem>
+                          <SelectItem value="self">Self Delivery</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="tracking">Tracking Number</Label>
+                      <Input
+                        id="tracking"
+                        placeholder="Enter tracking number"
+                        value={trackingNumber}
+                        onChange={(e) => setTrackingNumber(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="notes">Shipping Notes (Optional)</Label>
+                      <Textarea
+                        id="notes"
+                        placeholder="Any additional notes..."
+                        value={shippingNotes}
+                        onChange={(e) => setShippingNotes(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {getNextStatus(selectedOrder.status) && (
+                  <Button
+                    className="w-full"
+                    onClick={() => updateOrderStatus(selectedOrder.id, getNextStatus(selectedOrder.status)!)}
+                  >
+                    {selectedOrder.status === 'pending' && (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Confirm Order
+                      </>
+                    )}
+                    {selectedOrder.status === 'confirmed' && (
+                      <>
+                        <Truck className="h-4 w-4 mr-2" />
+                        Mark as Shipped
+                      </>
+                    )}
+                    {selectedOrder.status === 'shipped' && (
+                      <>
+                        <Package className="h-4 w-4 mr-2" />
+                        Mark as Delivered
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                {selectedOrder.status === 'pending' && (
+                  <Button
+                    variant="outline"
+                    className="w-full text-destructive hover:text-destructive"
+                    onClick={() => {
+                      updateOrderStatus(selectedOrder.id, 'cancelled');
+                    }}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel Order
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Buyer Info Card */}
+            <Card>
+              <CardContent className="pt-6">
+                <h3 className="font-semibold mb-3">Buyer Information</h3>
+                <div className="space-y-2 text-sm">
+                  <p className="font-medium">{selectedOrder.buyerName}</p>
+                  <p className="text-muted-foreground">{selectedOrder.buyerEmail}</p>
+                  <p className="text-muted-foreground">{selectedOrder.buyerPhone}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Shipping Address Card */}
+            <Card>
+              <CardContent className="pt-6">
+                <h3 className="font-semibold mb-3">Shipping Address</h3>
+                <p className="text-sm text-muted-foreground">{selectedOrder.shippingAddress}</p>
+              </CardContent>
+            </Card>
+
+            {/* Order Summary Card */}
+            <Card>
+              <CardContent className="pt-6 space-y-4">
+                <div>
+                  <h3 className="font-semibold mb-3">Order Summary</h3>
+                  <div className="space-y-2">
+                    {selectedOrder.items.map((item, index) => (
+                      <div key={index} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {item.productName} × {item.quantity}
+                        </span>
+                        <span>{formatPrice(item.quantity * item.pricePerUnit)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Separator className="my-3" />
+                  <div className="flex justify-between font-semibold">
+                    <span>Total</span>
+                    <span className="text-primary">{formatPrice(selectedOrder.totalAmount)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -310,10 +482,7 @@ export default function VendorOrders() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => {
-                          setSelectedOrder(order);
-                          setDetailsOpen(true);
-                        }}
+                        onClick={() => setSelectedOrder(order)}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
@@ -342,107 +511,6 @@ export default function VendorOrders() {
           )}
         </CardContent>
       </Card>
-
-      {/* Order Details Dialog */}
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Order Details</DialogTitle>
-            <DialogDescription>
-              {selectedOrder?.orderNumber}
-            </DialogDescription>
-          </DialogHeader>
-          {selectedOrder && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                {getStatusBadge(selectedOrder.status)}
-                <span className="text-sm text-muted-foreground">
-                  {new Date(selectedOrder.createdAt).toLocaleString()}
-                </span>
-              </div>
-
-              <Separator />
-
-              <div>
-                <h4 className="font-medium mb-2">Buyer Information</h4>
-                <div className="p-3 bg-muted/50 rounded-lg space-y-1">
-                  <p className="font-medium">{selectedOrder.buyerName}</p>
-                  <p className="text-sm text-muted-foreground">{selectedOrder.buyerEmail}</p>
-                  <p className="text-sm text-muted-foreground">{selectedOrder.buyerPhone}</p>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Shipping Address</h4>
-                <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-lg">
-                  {selectedOrder.shippingAddress}
-                </p>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Order Items</h4>
-                <div className="space-y-2">
-                  {selectedOrder.items.map((item, index) => (
-                    <div key={index} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-sm">{item.productName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.quantity} × {formatPrice(item.pricePerUnit)}
-                        </p>
-                      </div>
-                      <p className="font-medium">{formatPrice(item.quantity * item.pricePerUnit)}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Total Amount</span>
-                <span className="text-xl font-bold text-primary">{formatPrice(selectedOrder.totalAmount)}</span>
-              </div>
-            </div>
-          )}
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            {selectedOrder && selectedOrder.status === 'pending' && (
-              <Button
-                variant="outline"
-                className="text-destructive"
-                onClick={() => {
-                  updateOrderStatus(selectedOrder.id, 'cancelled');
-                  setDetailsOpen(false);
-                }}
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Cancel Order
-              </Button>
-            )}
-            {selectedOrder && getNextStatus(selectedOrder.status) && (
-              <Button onClick={() => updateOrderStatus(selectedOrder.id, getNextStatus(selectedOrder.status)!)}>
-                {selectedOrder.status === 'pending' && (
-                  <>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Confirm Order
-                  </>
-                )}
-                {selectedOrder.status === 'confirmed' && (
-                  <>
-                    <Truck className="h-4 w-4 mr-2" />
-                    Mark as Shipped
-                  </>
-                )}
-                {selectedOrder.status === 'shipped' && (
-                  <>
-                    <Package className="h-4 w-4 mr-2" />
-                    Mark as Delivered
-                  </>
-                )}
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
