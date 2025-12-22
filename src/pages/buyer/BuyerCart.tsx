@@ -61,7 +61,7 @@ export default function BuyerCart() {
                       {item.product!.name}
                     </Link>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Seller: {item.supplier?.companyName}
+                      Fulfilled by <span className="text-primary font-medium">Jummababa Platform</span>
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {formatPrice(item.pricePerUnit)} / {item.product!.unit}
@@ -146,9 +146,11 @@ export default function BuyerCart() {
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
 
-              <p className="text-xs text-muted-foreground text-center">
-                GST invoice will be generated after order confirmation
-              </p>
+              <div className="text-xs text-muted-foreground text-center space-y-1">
+                <p>GST invoice will be generated after order confirmation</p>
+                <p className="font-medium">Seller: Jummababa Marketplace Pvt Ltd</p>
+                <p>GSTIN: 27AABCJ1234A1Z5</p>
+              </div>
             </CardContent>
           </Card>
         </div>

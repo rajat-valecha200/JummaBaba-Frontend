@@ -100,25 +100,22 @@ export default function BuyerOrders() {
               </CardContent>
             </Card>
 
-            {/* Seller Info Card */}
-            {supplier && (
-              <Card>
-                <CardContent className="pt-6">
-                  <h3 className="font-semibold mb-3">Seller Information</h3>
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={supplier.logo}
-                      alt={supplier.companyName}
-                      className="w-10 h-10 rounded-lg object-cover"
-                    />
-                    <div>
-                      <p className="font-medium">{supplier.companyName}</p>
-                      <p className="text-sm text-muted-foreground">{supplier.location}</p>
-                    </div>
+            {/* Seller Info Card - Platform as Seller of Record */}
+            <Card>
+              <CardContent className="pt-6">
+                <h3 className="font-semibold mb-3">Seller of Record</h3>
+                <div className="space-y-2">
+                  <p className="font-medium">Jummababa Marketplace Pvt Ltd</p>
+                  <p className="text-sm text-muted-foreground">GSTIN: 27AABCJ1234A1Z5</p>
+                  <p className="text-sm text-muted-foreground">Mumbai, Maharashtra</p>
+                </div>
+                {supplier && (
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs text-muted-foreground">Fulfilled via Verified Supplier</p>
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                )}
+              </CardContent>
+            </Card>
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-2">

@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { 
   ChevronRight, 
-  ChevronLeft,
-  MapPin, 
   MessageSquare, 
   ShoppingCart,
   FileText,
@@ -12,7 +10,6 @@ import {
   ZoomIn,
   Star,
   Building,
-  Calendar,
   Package,
   Send
 } from 'lucide-react';
@@ -167,7 +164,6 @@ export default function ProductDetailPage() {
               <p className="text-muted-foreground mt-2">{product.shortDescription}</p>
               <TrustBadges 
                 isVerified={product.isVerified}
-                gstVerified={supplier?.gstVerified}
                 isTopSupplier={supplier?.isTopSupplier}
                 className="mt-3"
                 size="md"
@@ -217,7 +213,7 @@ export default function ProductDetailPage() {
                 </Button>
                 <Button variant="secondary" className="flex-1">
                   <MessageSquare className="h-4 w-4 mr-2" />
-                  Chat with Supplier
+                  Chat with Platform
                 </Button>
               </div>
               <div className="flex gap-3">
@@ -242,7 +238,7 @@ export default function ProductDetailPage() {
                 <DialogHeader>
                   <DialogTitle>Request for Quotation</DialogTitle>
                   <DialogDescription>
-                    Get a custom quote from {supplier?.companyName}
+                    Get a custom quote from Jummababa Platform
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -331,66 +327,52 @@ export default function ProductDetailPage() {
               </DialogContent>
             </Dialog>
 
-            {/* Supplier Card */}
-            {supplier && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Supplier Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={supplier.logo}
-                      alt={supplier.companyName}
-                      className="w-12 h-12 rounded-lg object-cover"
+            {/* Platform Seller Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Sold by Platform</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="font-semibold">Jummababa Marketplace Pvt Ltd</p>
+                  <p className="text-sm text-muted-foreground">GSTIN: 27AABCJ1234A1Z5</p>
+                  <p className="text-sm text-muted-foreground">Mumbai, Maharashtra</p>
+                </div>
+
+                {supplier && (
+                  <div className="pt-3 border-t">
+                    <p className="text-xs text-muted-foreground mb-2">Fulfilled via Verified Supplier</p>
+                    <TrustBadges 
+                      isTopSupplier={supplier.isTopSupplier}
+                      isVerified={true}
+                      size="sm"
                     />
-                    <div>
-                      <Link 
-                        to={`/supplier/${supplier.id}`}
-                        className="font-semibold hover:text-primary transition-colors"
-                      >
-                        {supplier.companyName}
-                      </Link>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        {supplier.location}, {supplier.state}
-                      </div>
-                    </div>
                   </div>
+                )}
 
-                  <div className="grid grid-cols-3 gap-3 pt-3 border-t">
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 text-primary">
-                        <Star className="h-4 w-4 fill-current" />
-                        <span className="font-semibold">{supplier.rating}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Rating</p>
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-1 text-primary">
+                      <Star className="h-4 w-4 fill-current" />
+                      <span className="font-semibold">4.8</span>
                     </div>
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-semibold">{yearsInBusiness}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Years</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <Package className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-semibold">{formatNumber(supplier.totalProducts)}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Products</p>
-                    </div>
+                    <p className="text-xs text-muted-foreground">Platform Rating</p>
                   </div>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <Package className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-semibold">50K+</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Orders</p>
+                  </div>
+                </div>
 
-                  <Button asChild variant="outline" className="w-full">
-                    <Link to={`/supplier/${supplier.id}`}>
-                      <Building className="h-4 w-4 mr-2" />
-                      View Full Profile
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+                <Button variant="outline" className="w-full">
+                  <Building className="h-4 w-4 mr-2" />
+                  View Platform Profile
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
 
