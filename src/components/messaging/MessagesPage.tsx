@@ -3,6 +3,7 @@ import {
   Send, 
   Search, 
   Phone, 
+  Video,
   MoreVertical, 
   Paperclip, 
   Image as ImageIcon, 
@@ -37,6 +38,7 @@ import { VoiceMessage } from './VoiceMessage';
 import { MediaMessage, MediaPreviewBar, type MediaAttachment } from './MediaMessage';
 import { EmojiPicker, QuickReactions, MessageReactions, type Reaction } from './EmojiPicker';
 import { ReplyPreview, QuotedMessage, MessageActions, ForwardDialog, type ReplyToMessage } from './MessageActions';
+import { CallDialog } from './CallDialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Tooltip,
@@ -286,6 +288,11 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
   const [showActionsFor, setShowActionsFor] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<ReplyToMessage | null>(null);
   const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
+  
+  // Call state
+  const [isCallOpen, setIsCallOpen] = useState(false);
+  const [callType, setCallType] = useState<'voice' | 'video'>('voice');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -786,6 +793,12 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     ));
   };
 
+  // Start a call
+  const handleStartCall = (type: 'voice' | 'video') => {
+    setCallType(type);
+    setIsCallOpen(true);
+  };
+
   // Get last message status for conversation list
   const getLastMessageStatus = (conv: Conversation) => {
     const lastMyMessage = [...conv.messages].reverse().find(m => m.senderId === 'me');
@@ -1039,11 +1052,30 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
               <div className="flex items-center gap-0.5">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="rounded-full h-9 w-9"
+                      onClick={() => handleStartCall('video')}
+                    >
+                      <Video className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Video Call</TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="rounded-full h-9 w-9"
+                      onClick={() => handleStartCall('voice')}
+                    >
                       <Phone className="h-5 w-5" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Call</TooltipContent>
+                  <TooltipContent>Voice Call</TooltipContent>
                 </Tooltip>
                 
                 {/* 3-dot Menu */}
@@ -1489,6 +1521,17 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      {/* Call Dialog */}
+      {selectedConversation && (
+        <CallDialog
+          isOpen={isCallOpen}
+          onClose={() => setIsCallOpen(false)}
+          callType={callType}
+          participantName={selectedConversation.participantName}
+          participantAvatar={selectedConversation.participantAvatar}
+        />
+      )}
     </div>
   );
 }
