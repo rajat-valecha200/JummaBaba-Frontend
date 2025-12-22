@@ -123,11 +123,7 @@ export default function CheckoutPage() {
     // Simulate order processing
     setTimeout(() => {
       setIsProcessing(false);
-      toast({
-        title: 'Order Placed Successfully!',
-        description: 'Your order has been confirmed. GST invoice will be sent to your email.',
-      });
-      navigate('/buyer/orders');
+      navigate(`/buyer/order-confirmation?payment=${paymentMethod}`);
     }, 2000);
   };
 

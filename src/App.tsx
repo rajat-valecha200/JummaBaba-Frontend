@@ -22,6 +22,7 @@ import BuyerProfile from "./pages/buyer/BuyerProfile";
 import BuyerMessages from "./pages/buyer/BuyerMessages";
 import BuyerWishlist from "./pages/buyer/BuyerWishlist";
 import CheckoutPage from "./pages/buyer/CheckoutPage";
+import OrderConfirmationPage from "./pages/buyer/OrderConfirmationPage";
 
 // Vendor Pages
 import VendorDashboard from "./pages/vendor/VendorDashboard";
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
               <Route path="/buyer/cart" element={<BuyerCart />} />
               <Route path="/buyer/checkout" element={<CheckoutPage />} />
+              <Route path="/buyer/order-confirmation" element={<OrderConfirmationPage />} />
               <Route path="/buyer/wishlist" element={<BuyerWishlist />} />
               <Route path="/buyer/orders" element={<BuyerOrders />} />
               <Route path="/buyer/rfqs" element={<BuyerRfqs />} />
