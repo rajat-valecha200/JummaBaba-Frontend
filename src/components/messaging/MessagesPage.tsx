@@ -5,7 +5,7 @@ import {
   Phone, 
   MoreVertical, 
   Paperclip, 
-  Image, 
+  Image as ImageIcon, 
   Check,
   CheckCheck, 
   ArrowLeft,
@@ -18,7 +18,9 @@ import {
   BellRing,
   Trash2,
   X,
-  MicOff
+  MicOff,
+  FileText,
+  Camera
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,11 +30,18 @@ import { cn } from '@/lib/utils';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useVoiceRecorder } from '@/hooks/use-voice-recorder';
 import { VoiceMessage } from './VoiceMessage';
+import { MediaMessage, MediaPreviewBar, type MediaAttachment } from './MediaMessage';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface Message {
   id: string;
@@ -45,6 +54,8 @@ interface Message {
     audioUrl: string;
     duration: number;
   };
+  isMedia?: boolean;
+  mediaData?: MediaAttachment;
 }
 
 interface Conversation {
@@ -235,6 +246,10 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     cancelRecording,
     formatDuration
   } = useVoiceRecorder();
+
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const filteredConversations = conversations.filter(c =>
     c.participantName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -439,8 +454,105 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     }, 2500);
   };
 
+  const handleFileSelect = (files: FileList | null, type: 'image' | 'document') => {
+    if (!files) return;
+    
+    const validFiles: File[] = [];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    
+    Array.from(files).forEach(file => {
+      if (file.size > maxSize) {
+        console.warn(`File ${file.name} is too large`);
+        return;
+      }
+      
+      if (type === 'image' && !file.type.startsWith('image/')) {
+        console.warn(`File ${file.name} is not an image`);
+        return;
+      }
+      
+      validFiles.push(file);
+    });
+    
+    setSelectedFiles(prev => [...prev, ...validFiles]);
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleClearFiles = () => {
+    setSelectedFiles([]);
+  };
+
+  const handleSendMedia = () => {
+    if (!selectedConversation || selectedFiles.length === 0) return;
+
+    const newMessages: Message[] = selectedFiles.map((file, index) => {
+      const isImage = file.type.startsWith('image/');
+      const mediaAttachment: MediaAttachment = {
+        id: `media-${Date.now()}-${index}`,
+        type: isImage ? 'image' : 'document',
+        url: URL.createObjectURL(file),
+        name: file.name,
+        size: file.size,
+        mimeType: file.type
+      };
+
+      return {
+        id: `msg-media-${Date.now()}-${index}`,
+        senderId: 'me',
+        text: isImage ? '📷 Photo' : `📎 ${file.name}`,
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+        status: 'sending' as const,
+        isMedia: true,
+        mediaData: mediaAttachment
+      };
+    });
+
+    const updatedConversation = {
+      ...selectedConversation,
+      messages: [...selectedConversation.messages, ...newMessages],
+      lastMessage: newMessages.length === 1 
+        ? (selectedFiles[0].type.startsWith('image/') ? '📷 Photo' : `📎 ${selectedFiles[0].name}`)
+        : `📎 ${newMessages.length} files`,
+      lastMessageTime: 'Just now'
+    };
+
+    setSelectedConversation(updatedConversation);
+    setConversations(prev => prev.map(c => 
+      c.id === selectedConversation.id ? updatedConversation : c
+    ));
+    setSelectedFiles([]);
+
+    // Simulate status progression for all messages
+    newMessages.forEach(msg => {
+      setTimeout(() => {
+        setSelectedConversation(prev => prev ? {
+          ...prev,
+          messages: prev.messages.map(m => m.id === msg.id ? { ...m, status: 'sent' as const } : m)
+        } : prev);
+      }, 500);
+
+      setTimeout(() => {
+        setSelectedConversation(prev => prev ? {
+          ...prev,
+          messages: prev.messages.map(m => m.id === msg.id ? { ...m, status: 'delivered' as const } : m)
+        } : prev);
+      }, 1500);
+
+      setTimeout(() => {
+        setSelectedConversation(prev => prev ? {
+          ...prev,
+          messages: prev.messages.map(m => m.id === msg.id ? { ...m, status: 'read' as const } : m)
+        } : prev);
+      }, 2500);
+    });
+  };
+
   const handleBack = () => {
     setSelectedConversation(null);
+    setSelectedFiles([]);
   };
 
   const openConversation = (conv: Conversation) => {
@@ -683,7 +795,12 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                           : "bg-card rounded-tl-none"
                       )}
                     >
-                      {message.isVoice && message.voiceData ? (
+                      {message.isMedia && message.mediaData ? (
+                        <MediaMessage 
+                          media={message.mediaData}
+                          isOwn={message.senderId === 'me'}
+                        />
+                      ) : message.isVoice && message.voiceData ? (
                         <VoiceMessage 
                           audioUrl={message.voiceData.audioUrl}
                           duration={message.voiceData.duration}
@@ -758,34 +875,77 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                   </div>
                 )}
 
+                {/* File Preview Bar */}
+                <MediaPreviewBar 
+                  files={selectedFiles}
+                  onRemove={handleRemoveFile}
+                  onClear={handleClearFiles}
+                />
+
+                {/* Hidden file inputs */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleFileSelect(e.target.files, 'document')}
+                />
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleFileSelect(e.target.files, 'image')}
+                />
+
                 {/* Message Input */}
                 <div className="bg-card border-t px-2 md:px-4 py-2">
                   <div className="flex items-center gap-1 md:gap-2">
                     <Button variant="ghost" size="icon" className="rounded-full flex-shrink-0 hidden md:flex">
                       <Smile className="h-5 w-5 text-muted-foreground" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="rounded-full flex-shrink-0">
-                      <Paperclip className="h-5 w-5 text-muted-foreground" />
-                    </Button>
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="rounded-full flex-shrink-0">
+                          <Paperclip className="h-5 w-5 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-48">
+                        <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
+                          <Camera className="h-4 w-4 mr-2" />
+                          Photos
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                          <FileText className="h-4 w-4 mr-2" />
+                          Documents
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
                     <div className="flex-1 relative">
                       <Input
                         placeholder="Type a message"
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                        onKeyDown={(e) => e.key === 'Enter' && (selectedFiles.length > 0 ? handleSendMedia() : handleSendMessage())}
                         className="pr-10 bg-muted/50 border-0 rounded-full"
                       />
                       <Button 
                         variant="ghost" 
                         size="icon" 
                         className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full md:hidden"
+                        onClick={() => imageInputRef.current?.click()}
                       >
-                        <Image className="h-4 w-4 text-muted-foreground" />
+                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </div>
-                    {messageInput.trim() ? (
+
+                    {messageInput.trim() || selectedFiles.length > 0 ? (
                       <Button 
-                        onClick={handleSendMessage} 
+                        onClick={selectedFiles.length > 0 ? handleSendMedia : handleSendMessage}
                         size="icon"
                         className="rounded-full flex-shrink-0 h-10 w-10"
                         disabled={isSending}
