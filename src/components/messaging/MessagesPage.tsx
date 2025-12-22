@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Send, 
   Search, 
@@ -12,13 +12,22 @@ import {
   Smile,
   Shield,
   Mic,
-  Clock
+  Clock,
+  Bell,
+  BellOff,
+  BellRing
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useNotifications } from '@/hooks/use-notifications';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface Message {
   id: string;
@@ -146,6 +155,47 @@ function MessageStatus({ status }: { status: Message['status'] }) {
   }
 }
 
+// Notification Permission Button
+function NotificationButton({ 
+  permission, 
+  onRequest, 
+  isSupported 
+}: { 
+  permission: NotificationPermission; 
+  onRequest: () => void; 
+  isSupported: boolean;
+}) {
+  if (!isSupported) return null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="rounded-full"
+          onClick={onRequest}
+        >
+          {permission === 'granted' ? (
+            <Bell className="h-5 w-5 text-success" />
+          ) : permission === 'denied' ? (
+            <BellOff className="h-5 w-5 text-destructive" />
+          ) : (
+            <BellRing className="h-5 w-5 text-warning animate-pulse" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {permission === 'granted' 
+          ? 'Notifications enabled' 
+          : permission === 'denied'
+          ? 'Notifications blocked - enable in browser settings'
+          : 'Click to enable notifications'}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 interface MessagesPageProps {
   userType: 'buyer' | 'vendor';
 }
@@ -157,6 +207,14 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const { 
+    permission, 
+    isSupported, 
+    requestPermission, 
+    showMessageNotification,
+    isEnabled 
+  } = useNotifications();
 
   const filteredConversations = conversations.filter(c =>
     c.participantName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -171,6 +229,74 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
       scrollToBottom();
     }
   }, [selectedConversation, selectedConversation?.messages.length]);
+
+  // Simulate incoming messages for demo
+  const simulateIncomingMessage = useCallback((conv: Conversation) => {
+    const incomingMessages = [
+      "Thanks for your inquiry! Let me check our inventory.",
+      "We have a special discount running this week.",
+      "Can you confirm the delivery address?",
+      "Your order has been processed successfully!",
+      "I'll send you the updated quotation shortly."
+    ];
+    
+    const randomMessage = incomingMessages[Math.floor(Math.random() * incomingMessages.length)];
+    
+    const newMessage: Message = {
+      id: `m-incoming-${Date.now()}`,
+      senderId: 'other',
+      text: randomMessage,
+      timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+      status: 'read'
+    };
+
+    // Show notification if not viewing this conversation
+    if (!selectedConversation || selectedConversation.id !== conv.id) {
+      showMessageNotification(
+        conv.participantName,
+        randomMessage,
+        conv.participantAvatar,
+        () => openConversation(conv)
+      );
+    }
+
+    // Update conversation
+    setConversations(prev => prev.map(c => {
+      if (c.id === conv.id) {
+        return {
+          ...c,
+          messages: [...c.messages, newMessage],
+          lastMessage: randomMessage,
+          lastMessageTime: 'Just now',
+          unreadCount: selectedConversation?.id !== conv.id ? c.unreadCount + 1 : c.unreadCount,
+          isTyping: false
+        };
+      }
+      return c;
+    }));
+
+    // Update selected conversation if viewing
+    if (selectedConversation?.id === conv.id) {
+      setSelectedConversation(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          messages: [...prev.messages, newMessage],
+          isTyping: false
+        };
+      });
+    }
+  }, [selectedConversation, showMessageNotification]);
+
+  // Demo: Simulate typing and incoming message after user sends
+  useEffect(() => {
+    if (selectedConversation?.isTyping) {
+      const timeout = setTimeout(() => {
+        simulateIncomingMessage(selectedConversation);
+      }, 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [selectedConversation?.isTyping, simulateIncomingMessage]);
 
   const handleSendMessage = () => {
     if (!messageInput.trim() || !selectedConversation || isSending) return;
@@ -188,7 +314,8 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
       ...selectedConversation,
       messages: [...selectedConversation.messages, newMessage],
       lastMessage: newMessage.text,
-      lastMessageTime: 'Just now'
+      lastMessageTime: 'Just now',
+      isTyping: false
     };
 
     setSelectedConversation(updatedConversation);
@@ -200,7 +327,6 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
 
     // Simulate message status progression
     setTimeout(() => {
-      // Update to 'sent'
       setSelectedConversation(prev => {
         if (!prev) return prev;
         return {
@@ -213,7 +339,6 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     }, 500);
 
     setTimeout(() => {
-      // Update to 'delivered'
       setSelectedConversation(prev => {
         if (!prev) return prev;
         return {
@@ -227,17 +352,17 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     }, 1500);
 
     setTimeout(() => {
-      // Update to 'read'
       setSelectedConversation(prev => {
         if (!prev) return prev;
         return {
           ...prev,
           messages: prev.messages.map(m => 
             m.id === newMessage.id ? { ...m, status: 'read' as const } : m
-          )
+          ),
+          isTyping: true // Start typing indicator
         };
       });
-    }, 3000);
+    }, 2000);
   };
 
   const handleBack = () => {
@@ -245,7 +370,12 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
   };
 
   const openConversation = (conv: Conversation) => {
-    setSelectedConversation(conv);
+    // Clear unread count when opening
+    const updatedConv = { ...conv, unreadCount: 0 };
+    setSelectedConversation(updatedConv);
+    setConversations(prev => prev.map(c => 
+      c.id === conv.id ? updatedConv : c
+    ));
   };
 
   // Get last message status for conversation list
@@ -269,9 +399,16 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
         <div className="bg-card border-b px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl font-bold">Chats</h2>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <MoreVertical className="h-5 w-5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <NotificationButton 
+                permission={permission}
+                onRequest={requestPermission}
+                isSupported={isSupported}
+              />
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -283,6 +420,24 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
             />
           </div>
         </div>
+
+        {/* Notification Banner */}
+        {isSupported && permission === 'default' && (
+          <div 
+            className="mx-4 mt-3 p-3 bg-primary/10 rounded-lg border border-primary/20 cursor-pointer hover:bg-primary/15 transition-colors"
+            onClick={requestPermission}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                <BellRing className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">Enable Notifications</p>
+                <p className="text-xs text-muted-foreground">Get notified when you receive new messages</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Conversations */}
         <div className="flex-1 overflow-y-auto">
@@ -327,7 +482,6 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                   </div>
                   <div className="flex items-center justify-between gap-2 mt-0.5">
                     <div className="flex items-center gap-1 min-w-0">
-                      {/* Show status for last sent message */}
                       {lastStatus && (
                         <span className="flex-shrink-0">
                           {lastStatus === 'sending' && <Clock className="h-3.5 w-3.5 text-muted-foreground/50" />}
