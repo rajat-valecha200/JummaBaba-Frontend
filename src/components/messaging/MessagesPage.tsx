@@ -22,7 +22,9 @@ import {
   FileText,
   Camera,
   Reply,
-  CornerUpRight
+  CornerUpRight,
+  Filter,
+  ChevronDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +37,7 @@ import { VoiceMessage } from './VoiceMessage';
 import { MediaMessage, MediaPreviewBar, type MediaAttachment } from './MediaMessage';
 import { EmojiPicker, QuickReactions, MessageReactions, type Reaction } from './EmojiPicker';
 import { ReplyPreview, QuotedMessage, MessageActions, ForwardDialog, type ReplyToMessage } from './MessageActions';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Tooltip,
   TooltipContent,
@@ -44,8 +47,18 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface Message {
   id: string;
@@ -235,6 +248,20 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Search and filter state
+  const [isMessageSearchOpen, setIsMessageSearchOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'unread' | 'recent'>('all');
+  const [supplierTypeFilter, setSupplierTypeFilter] = useState<string>('all');
+  const [searchResults, setSearchResults] = useState<Array<{
+    conversationId: string;
+    conversationName: string;
+    messageId: string;
+    text: string;
+    timestamp: string;
+  }>>([]);
   
   const { 
     permission, 
@@ -263,9 +290,75 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const filteredConversations = conversations.filter(c =>
-    c.participantName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Search messages across all conversations
+  const handleMessageSearch = useCallback((query: string) => {
+    setMessageSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    const results: typeof searchResults = [];
+    conversations.forEach(conv => {
+      conv.messages.forEach(msg => {
+        if (msg.text.toLowerCase().includes(query.toLowerCase()) && !msg.isVoice && !msg.isMedia) {
+          results.push({
+            conversationId: conv.id,
+            conversationName: conv.participantName,
+            messageId: msg.id,
+            text: msg.text,
+            timestamp: msg.timestamp
+          });
+        }
+      });
+    });
+    setSearchResults(results);
+  }, [conversations]);
+
+  // Navigate to a specific message from search results
+  const handleSearchResultClick = (result: typeof searchResults[0]) => {
+    const conv = conversations.find(c => c.id === result.conversationId);
+    if (conv) {
+      openConversation(conv);
+      setIsMessageSearchOpen(false);
+      setMessageSearchQuery('');
+      setSearchResults([]);
+      // Scroll to message after a short delay to allow the conversation to render
+      setTimeout(() => {
+        scrollToMessage(result.messageId);
+      }, 100);
+    }
+  };
+
+  // Filter conversations
+  const getFilteredConversations = useCallback(() => {
+    let filtered = conversations.filter(c =>
+      c.participantName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    
+    // Apply filter type
+    if (filterType === 'unread') {
+      filtered = filtered.filter(c => c.unreadCount > 0);
+    } else if (filterType === 'recent') {
+      filtered = filtered.filter(c => 
+        c.lastMessageTime === 'Just now' || 
+        c.lastMessageTime.includes('AM') || 
+        c.lastMessageTime.includes('PM') ||
+        c.lastMessageTime === 'Yesterday'
+      );
+    }
+    
+    // Apply supplier type filter
+    if (supplierTypeFilter !== 'all') {
+      filtered = filtered.filter(c => 
+        c.participantCompany.toLowerCase().includes(supplierTypeFilter.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  }, [conversations, searchQuery, filterType, supplierTypeFilter]);
+
+  const filteredConversations = getFilteredConversations();
 
   const handleReply = (message: Message) => {
     setReplyingTo({
@@ -377,15 +470,20 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     setShowReactionsFor(null);
   };
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
+  // Auto-scroll to latest message when conversation changes or new message arrives
   useEffect(() => {
     if (selectedConversation) {
-      scrollToBottom();
+      // Use a small timeout to ensure DOM is updated
+      const timer = setTimeout(() => {
+        scrollToBottom();
+      }, 50);
+      return () => clearTimeout(timer);
     }
-  }, [selectedConversation, selectedConversation?.messages.length]);
+  }, [selectedConversation, selectedConversation?.messages.length, scrollToBottom]);
 
   // Simulate incoming messages for demo
   const simulateIncomingMessage = useCallback((conv: Conversation) => {
@@ -715,11 +813,63 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                 onRequest={requestPermission}
                 isSupported={isSupported}
               />
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52 bg-card z-50">
+                  <DropdownMenuItem onClick={() => setIsMessageSearchOpen(true)}>
+                    <Search className="h-4 w-4 mr-2" />
+                    Search messages
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    Filter conversations
+                  </DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={filterType} onValueChange={(val) => setFilterType(val as typeof filterType)}>
+                    <DropdownMenuRadioItem value="all">All conversations</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="unread">Unread only</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="recent">Recent</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Supplier type</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={supplierTypeFilter} onValueChange={setSupplierTypeFilter}>
+                    <DropdownMenuRadioItem value="all">All types</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="verified">Verified Supplier</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="manufacturer">Manufacturer</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="wholesaler">Wholesaler</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="exporter">Exporter</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
+          {/* Active filters indicator */}
+          {(filterType !== 'all' || supplierTypeFilter !== 'all') && (
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              {filterType !== 'all' && (
+                <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                  {filterType === 'unread' ? 'Unread' : 'Recent'}
+                  <X 
+                    className="h-3 w-3 cursor-pointer" 
+                    onClick={() => setFilterType('all')}
+                  />
+                </Badge>
+              )}
+              {supplierTypeFilter !== 'all' && (
+                <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                  {supplierTypeFilter}
+                  <X 
+                    className="h-3 w-3 cursor-pointer" 
+                    onClick={() => setSupplierTypeFilter('all')}
+                  />
+                </Badge>
+              )}
+            </div>
+          )}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -836,18 +986,20 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
         )}
       >
         {selectedConversation ? (
-          <>
-            {/* Chat Header */}
-            <div className="bg-card border-b px-2 md:px-4 py-2 flex items-center gap-2">
+          <div className="flex flex-col h-full">
+            {/* Chat Header - Sticky WhatsApp-style */}
+            <div className="bg-card border-b px-2 md:px-4 py-2 flex items-center gap-2 sticky top-0 z-20 shadow-sm">
+              {/* Back Button */}
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="md:hidden flex-shrink-0 rounded-full"
+                className="flex-shrink-0 rounded-full"
                 onClick={handleBack}
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               
+              {/* Supplier DP */}
               <div className="relative flex-shrink-0">
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={selectedConversation.participantAvatar} />
@@ -858,38 +1010,82 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                 )}
               </div>
               
-              <div className="flex-1 min-w-0">
+              {/* Supplier Info */}
+              <div className="flex-1 min-w-0" onClick={() => {}}>
                 <div className="flex items-center gap-1.5">
                   <p className="font-semibold truncate">{selectedConversation.participantName}</p>
                   {selectedConversation.isVerified && (
                     <Shield className="h-4 w-4 text-success flex-shrink-0" />
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   {selectedConversation.isTyping ? (
-                    <span className="text-success">typing...</span>
+                    <span className="text-success font-medium">typing...</span>
                   ) : selectedConversation.isOnline ? (
-                    <span className="text-success">Online</span>
+                    <span className="text-success font-medium">Online</span>
                   ) : (
-                    'Offline'
+                    <span>Offline</span>
                   )}
-                  {selectedConversation.isVerified && ' • Verified Supplier'}
-                </p>
+                  {selectedConversation.isVerified && (
+                    <>
+                      <span className="text-muted-foreground/50">•</span>
+                      <span className="text-success">Verified</span>
+                    </>
+                  )}
+                </div>
               </div>
               
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <Phone className="h-5 w-5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <MoreVertical className="h-5 w-5" />
-                </Button>
+              {/* Action Icons */}
+              <div className="flex items-center gap-0.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
+                      <Phone className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Call</TooltipContent>
+                </Tooltip>
+                
+                {/* 3-dot Menu */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
+                      <MoreVertical className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52 bg-card z-50">
+                    <DropdownMenuItem onClick={() => setIsMessageSearchOpen(true)}>
+                      <Search className="h-4 w-4 mr-2" />
+                      Search messages
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="flex items-center gap-2">
+                      <Filter className="h-4 w-4" />
+                      Filter conversations
+                    </DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={filterType} onValueChange={(val) => setFilterType(val as typeof filterType)}>
+                      <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="unread">Unread</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="recent">Recent</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Supplier type</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={supplierTypeFilter} onValueChange={setSupplierTypeFilter}>
+                      <DropdownMenuRadioItem value="all">All types</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="verified">Verified</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="manufacturer">Manufacturer</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="wholesaler">Wholesaler</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="exporter">Exporter</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
-            {/* Messages Area */}
+            {/* Messages Area with Vertical Scroll */}
             <div 
-              className="flex-1 overflow-y-auto px-3 py-4"
+              ref={messagesContainerRef}
+              className="flex-1 overflow-y-auto px-3 py-4 scroll-smooth"
               style={{
                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
                 backgroundColor: 'hsl(var(--muted) / 0.3)'
@@ -897,8 +1093,8 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
             >
               <div className="space-y-2 max-w-3xl mx-auto">
                 {/* Date separator */}
-                <div className="flex justify-center mb-4">
-                  <span className="bg-muted px-3 py-1 rounded-full text-xs text-muted-foreground shadow-sm">
+                <div className="flex justify-center mb-4 sticky top-0 z-10">
+                  <span className="bg-muted/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-muted-foreground shadow-sm">
                     Today
                   </span>
                 </div>
@@ -1046,7 +1242,7 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                 {/* Typing indicator */}
                 {selectedConversation.isTyping && <TypingIndicator />}
                 
-                <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} className="h-1" />
               </div>
             </div>
 
@@ -1202,7 +1398,7 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                 </div>
               </>
             )}
-          </>
+          </div>
         ) : (
           <div className="flex-1 hidden md:flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
             <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -1224,6 +1420,74 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
         messagePreview={forwardMessage?.isVoice ? "🎤 Voice message" : forwardMessage?.isMedia ? "📷 Photo" : forwardMessage?.text || ""}
         onForward={handleForwardMessage}
       />
+
+      {/* Message Search Dialog */}
+      <Dialog open={isMessageSearchOpen} onOpenChange={setIsMessageSearchOpen}>
+        <DialogContent className="max-w-md mx-4 max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              Search Messages
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search across all conversations..."
+              value={messageSearchQuery}
+              onChange={(e) => handleMessageSearch(e.target.value)}
+              className="pl-10"
+              autoFocus
+            />
+            {messageSearchQuery && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                onClick={() => {
+                  setMessageSearchQuery('');
+                  setSearchResults([]);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          <ScrollArea className="flex-1 max-h-[50vh]">
+            {searchResults.length > 0 ? (
+              <div className="space-y-2 pr-4">
+                {searchResults.map((result, idx) => (
+                  <div
+                    key={`${result.messageId}-${idx}`}
+                    className="p-3 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors"
+                    onClick={() => handleSearchResultClick(result)}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">{result.conversationName}</span>
+                      <span className="text-xs text-muted-foreground">{result.timestamp}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {result.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : messageSearchQuery ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">No messages found</p>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">Type to search messages</p>
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
