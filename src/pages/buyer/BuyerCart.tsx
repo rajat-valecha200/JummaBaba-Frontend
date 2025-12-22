@@ -141,9 +141,11 @@ export default function BuyerCart() {
                 <span className="text-primary">{formatPrice(total)}</span>
               </div>
 
-              <Button className="w-full" size="lg">
-                Proceed to Checkout
-                <ArrowRight className="ml-2 h-4 w-4" />
+              <Button className="w-full" size="lg" asChild>
+                <Link to="/buyer/checkout">
+                  Proceed to Checkout
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
               </Button>
 
               <div className="text-xs text-muted-foreground text-center space-y-1">
