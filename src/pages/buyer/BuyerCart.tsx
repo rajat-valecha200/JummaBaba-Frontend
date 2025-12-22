@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
-import { Trash2, Plus, Minus, ShoppingCart, ArrowRight } from 'lucide-react';
+import { Trash2, Plus, Minus, ShoppingCart, ArrowRight, Shield, Truck, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { products, getSupplierById, formatPrice } from '@/data/mockData';
 
 // Mock cart items
@@ -32,62 +33,111 @@ export default function BuyerCart() {
 
   const subtotal = cartWithProducts.reduce((sum, item) => sum + item.total, 0);
   const gst = subtotal * 0.18;
-  const total = subtotal + gst;
+  const shipping = subtotal > 50000 ? 0 : 2500;
+  const total = subtotal + gst + shipping;
+
+  if (cartItems.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
+          <ShoppingCart className="h-12 w-12 text-muted-foreground" />
+        </div>
+        <h2 className="text-2xl font-bold mb-2">Your cart is empty</h2>
+        <p className="text-muted-foreground mb-6 text-center max-w-md">
+          Looks like you haven't added any products yet. Browse our marketplace to find great deals.
+        </p>
+        <Button asChild size="lg">
+          <Link to="/products">
+            Browse Products
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Shopping Cart</h1>
-        <p className="text-muted-foreground">{cartItems.length} items in your cart</p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">Shopping Cart</h1>
+          <p className="text-muted-foreground">{cartItems.length} items in your cart</p>
+        </div>
+        <Button variant="outline" asChild>
+          <Link to="/products">
+            Continue Shopping
+          </Link>
+        </Button>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Cart Items */}
         <div className="lg:col-span-2 space-y-4">
           {cartWithProducts.map(item => (
-            <Card key={item.productId}>
-              <CardContent className="p-4">
-                <div className="flex gap-4">
-                  <img
-                    src={item.product!.images[0]}
-                    alt={item.product!.name}
-                    className="w-24 h-24 object-cover rounded-lg"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <Link 
-                      to={`/product/${item.product!.slug}`}
-                      className="font-semibold hover:text-primary transition-colors line-clamp-2"
-                    >
-                      {item.product!.name}
-                    </Link>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Fulfilled by <span className="text-primary font-medium">Jummababa Platform</span>
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatPrice(item.pricePerUnit)} / {item.product!.unit}
-                    </p>
-                    
-                    <div className="flex items-center justify-between mt-3">
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" className="h-8 w-8">
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                        <Input
-                          type="number"
-                          value={item.quantity}
-                          className="w-20 h-8 text-center"
-                          readOnly
-                        />
-                        <Button variant="outline" size="icon" className="h-8 w-8">
-                          <Plus className="h-4 w-4" />
-                        </Button>
+            <Card key={item.productId} className="overflow-hidden">
+              <CardContent className="p-0">
+                <div className="flex flex-col sm:flex-row">
+                  {/* Product Image */}
+                  <div className="sm:w-40 h-40 sm:h-auto bg-muted flex-shrink-0">
+                    <img
+                      src={item.product!.images[0]}
+                      alt={item.product!.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  
+                  {/* Product Details */}
+                  <div className="flex-1 p-4 sm:p-5">
+                    <div className="flex flex-col h-full">
+                      {/* Product Name & Badge */}
+                      <div className="mb-2">
+                        <Link 
+                          to={`/product/${item.product!.slug}`}
+                          className="font-semibold text-lg hover:text-primary transition-colors line-clamp-2"
+                        >
+                          {item.product!.name}
+                        </Link>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <Badge variant="secondary" className="text-xs font-normal">
+                            <Shield className="h-3 w-3 mr-1" />
+                            Fulfilled by Platform
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-lg">{formatPrice(item.total)}</p>
-                        <Button variant="ghost" size="sm" className="text-destructive h-auto p-0">
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Remove
-                        </Button>
+                      
+                      {/* Price per unit */}
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {formatPrice(item.pricePerUnit)} per {item.product!.unit}
+                      </p>
+                      
+                      {/* Quantity & Actions */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-auto">
+                        {/* Quantity Controls */}
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm text-muted-foreground mr-2">Qty:</span>
+                          <Button variant="outline" size="icon" className="h-9 w-9 rounded-r-none border-r-0">
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <Input
+                            type="number"
+                            value={item.quantity}
+                            className="w-20 h-9 text-center rounded-none border-x-0 focus-visible:ring-0"
+                            readOnly
+                          />
+                          <Button variant="outline" size="icon" className="h-9 w-9 rounded-l-none border-l-0">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        {/* Price & Remove */}
+                        <div className="flex items-center justify-between sm:justify-end gap-4">
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Remove
+                          </Button>
+                          <p className="font-bold text-xl">{formatPrice(item.total)}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -95,52 +145,51 @@ export default function BuyerCart() {
               </CardContent>
             </Card>
           ))}
-
-          {cartItems.length === 0 && (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="font-semibold text-lg mb-2">Your cart is empty</h3>
-                <p className="text-muted-foreground mb-4">
-                  Browse products and add items to your cart
-                </p>
-                <Button asChild>
-                  <Link to="/products">Browse Products</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
-        {/* Order Summary */}
-        <div>
+        {/* Order Summary Sidebar */}
+        <div className="space-y-4">
           <Card className="sticky top-24">
-            <CardHeader>
-              <CardTitle>Order Summary</CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <Tag className="h-5 w-5 text-primary" />
+                Order Summary
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
+              {/* Price Breakdown */}
+              <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span>{formatPrice(subtotal)}</span>
+                  <span className="text-muted-foreground">Subtotal ({cartItems.length} items)</span>
+                  <span className="font-medium">{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">GST (18%)</span>
-                  <span>{formatPrice(gst)}</span>
+                  <span className="font-medium">{formatPrice(gst)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Shipping</span>
-                  <span className="text-success">Calculated at checkout</span>
+                  <span className={shipping === 0 ? 'text-success font-medium' : 'font-medium'}>
+                    {shipping === 0 ? 'FREE' : formatPrice(shipping)}
+                  </span>
                 </div>
+                {shipping === 0 && (
+                  <p className="text-xs text-success flex items-center gap-1">
+                    <Truck className="h-3 w-3" />
+                    Free shipping on orders above ₹50,000
+                  </p>
+                )}
               </div>
               
               <Separator />
               
-              <div className="flex justify-between font-semibold text-lg">
-                <span>Total</span>
-                <span className="text-primary">{formatPrice(total)}</span>
+              {/* Total */}
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-lg">Total</span>
+                <span className="font-bold text-2xl text-primary">{formatPrice(total)}</span>
               </div>
 
+              {/* Checkout Button */}
               <Button className="w-full" size="lg" asChild>
                 <Link to="/buyer/checkout">
                   Proceed to Checkout
@@ -148,13 +197,37 @@ export default function BuyerCart() {
                 </Link>
               </Button>
 
-              <div className="text-xs text-muted-foreground text-center space-y-1">
-                <p>GST invoice will be generated after order confirmation</p>
-                <p className="font-medium">Seller: Jummababa Marketplace Pvt Ltd</p>
-                <p>GSTIN: 27AABCJ1234A1Z5</p>
+              <Separator />
+
+              {/* Seller Info */}
+              <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Shield className="h-4 w-4 text-success" />
+                  Seller of Record
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium">Jummababa Marketplace Pvt Ltd</p>
+                  <p className="text-muted-foreground">GSTIN: 27AABCJ1234A1Z5</p>
+                </div>
               </div>
+
+              <p className="text-xs text-muted-foreground text-center">
+                GST compliant invoice will be generated after order confirmation
+              </p>
             </CardContent>
           </Card>
+
+          {/* Trust Badges */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center gap-2 p-3 bg-card rounded-lg border">
+              <Shield className="h-5 w-5 text-success" />
+              <span className="text-xs font-medium">Secure Checkout</span>
+            </div>
+            <div className="flex items-center gap-2 p-3 bg-card rounded-lg border">
+              <Truck className="h-5 w-5 text-primary" />
+              <span className="text-xs font-medium">Pan India Delivery</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
