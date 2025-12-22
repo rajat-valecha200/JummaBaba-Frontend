@@ -22,6 +22,8 @@ import VendorDashboard from "./pages/vendor/VendorDashboard";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminVendors from "./pages/admin/AdminVendors";
+import AdminProducts from "./pages/admin/AdminProducts";
 
 import NotFound from "./pages/NotFound";
 
@@ -73,8 +75,8 @@ const App = () => (
           {/* Admin dashboard routes */}
           <Route element={<AdminLayout />}>
             <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/vendors" element={<AdminDashboard />} />
-            <Route path="/admin/products" element={<AdminDashboard />} />
+            <Route path="/admin/vendors" element={<AdminVendors />} />
+            <Route path="/admin/products" element={<AdminProducts />} />
             <Route path="/admin/users" element={<AdminDashboard />} />
             <Route path="/admin/analytics" element={<AdminDashboard />} />
             <Route path="/admin/commissions" element={<AdminDashboard />} />
