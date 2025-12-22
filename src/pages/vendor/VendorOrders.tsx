@@ -1,0 +1,448 @@
+import { useState } from 'react';
+import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { formatPrice } from '@/data/mockData';
+import { useToast } from '@/hooks/use-toast';
+
+type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+
+interface OrderItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  pricePerUnit: number;
+}
+
+interface Order {
+  id: string;
+  orderNumber: string;
+  buyerName: string;
+  buyerEmail: string;
+  buyerPhone: string;
+  items: OrderItem[];
+  totalAmount: number;
+  status: OrderStatus;
+  createdAt: string;
+  shippingAddress: string;
+}
+
+const mockOrders: Order[] = [
+  {
+    id: 'ord-1',
+    orderNumber: 'JB-2024-001',
+    buyerName: 'Amit Patel',
+    buyerEmail: 'amit@techretail.com',
+    buyerPhone: '+91 98765 43210',
+    items: [
+      { productId: 'prod-1', productName: 'Samsung Galaxy A54 5G Bulk Pack', quantity: 100, pricePerUnit: 27800 },
+    ],
+    totalAmount: 2780000,
+    status: 'pending',
+    createdAt: '2024-01-20T10:30:00Z',
+    shippingAddress: '123 Tech Park, Andheri East, Mumbai - 400069',
+  },
+  {
+    id: 'ord-2',
+    orderNumber: 'JB-2024-002',
+    buyerName: 'Priya Sharma',
+    buyerEmail: 'priya@fashionhub.in',
+    buyerPhone: '+91 87654 32109',
+    items: [
+      { productId: 'prod-2', productName: 'Premium Cotton Fabric Roll', quantity: 500, pricePerUnit: 78 },
+      { productId: 'prod-6', productName: 'Executive Office Chair Bulk', quantity: 50, pricePerUnit: 6000 },
+    ],
+    totalAmount: 339000,
+    status: 'confirmed',
+    createdAt: '2024-01-19T14:15:00Z',
+    shippingAddress: '456 Fashion Street, Surat, Gujarat - 395003',
+  },
+  {
+    id: 'ord-3',
+    orderNumber: 'JB-2024-003',
+    buyerName: 'Rajesh Kumar',
+    buyerEmail: 'rajesh@industrialtools.com',
+    buyerPhone: '+91 76543 21098',
+    items: [
+      { productId: 'prod-3', productName: 'Heavy Duty Industrial Drill Machine', quantity: 25, pricePerUnit: 8000 },
+    ],
+    totalAmount: 200000,
+    status: 'shipped',
+    createdAt: '2024-01-18T09:00:00Z',
+    shippingAddress: '789 Industrial Area, Ludhiana, Punjab - 141003',
+  },
+  {
+    id: 'ord-4',
+    orderNumber: 'JB-2024-004',
+    buyerName: 'Sunita Devi',
+    buyerEmail: 'sunita@grainmart.in',
+    buyerPhone: '+91 65432 10987',
+    items: [
+      { productId: 'prod-4', productName: 'Organic Basmati Rice Premium Grade', quantity: 2000, pricePerUnit: 118 },
+    ],
+    totalAmount: 236000,
+    status: 'delivered',
+    createdAt: '2024-01-15T11:45:00Z',
+    shippingAddress: '321 Grain Market, Nashik, Maharashtra - 422001',
+  },
+  {
+    id: 'ord-5',
+    orderNumber: 'JB-2024-005',
+    buyerName: 'Vikram Singh',
+    buyerEmail: 'vikram@buildright.com',
+    buyerPhone: '+91 54321 09876',
+    items: [
+      { productId: 'prod-5', productName: 'AAC Blocks for Construction', quantity: 5000, pricePerUnit: 52 },
+    ],
+    totalAmount: 260000,
+    status: 'cancelled',
+    createdAt: '2024-01-14T16:20:00Z',
+    shippingAddress: '654 Construction Zone, Chennai, Tamil Nadu - 600001',
+  },
+];
+
+const statusConfig: Record<OrderStatus, { label: string; icon: typeof Package; color: string }> = {
+  pending: { label: 'Pending', icon: Clock, color: 'bg-warning/10 text-warning border-warning/20' },
+  confirmed: { label: 'Confirmed', icon: CheckCircle, color: 'bg-secondary/10 text-secondary border-secondary/20' },
+  shipped: { label: 'Shipped', icon: Truck, color: 'bg-primary/10 text-primary border-primary/20' },
+  delivered: { label: 'Delivered', icon: Package, color: 'bg-success/10 text-success border-success/20' },
+  cancelled: { label: 'Cancelled', icon: XCircle, color: 'bg-destructive/10 text-destructive border-destructive/20' },
+};
+
+export default function VendorOrders() {
+  const { toast } = useToast();
+  const [orders, setOrders] = useState<Order[]>(mockOrders);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const filteredOrders = orders.filter((o) => {
+    const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
+    const matchesSearch = o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      o.buyerName.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
+
+  const updateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
+    setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    toast({ title: `Order status updated to ${statusConfig[newStatus].label}` });
+    if (selectedOrder?.id === orderId) {
+      setSelectedOrder({ ...selectedOrder, status: newStatus });
+    }
+  };
+
+  const getStatusBadge = (status: OrderStatus) => {
+    const config = statusConfig[status];
+    const Icon = config.icon;
+    return (
+      <Badge className={config.color}>
+        <Icon className="h-3 w-3 mr-1" />
+        {config.label}
+      </Badge>
+    );
+  };
+
+  const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
+    const flow: Record<OrderStatus, OrderStatus | null> = {
+      pending: 'confirmed',
+      confirmed: 'shipped',
+      shipped: 'delivered',
+      delivered: null,
+      cancelled: null,
+    };
+    return flow[currentStatus];
+  };
+
+  const pendingCount = orders.filter(o => o.status === 'pending').length;
+  const confirmedCount = orders.filter(o => o.status === 'confirmed').length;
+  const shippedCount = orders.filter(o => o.status === 'shipped').length;
+  const deliveredCount = orders.filter(o => o.status === 'delivered').length;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Order Management</h1>
+        <p className="text-muted-foreground">Manage and track your orders</p>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-warning/10 rounded-lg">
+                <Clock className="h-5 w-5 text-warning" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{pendingCount}</div>
+                <p className="text-sm text-muted-foreground">Pending</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-secondary/10 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-secondary" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{confirmedCount}</div>
+                <p className="text-sm text-muted-foreground">Confirmed</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Truck className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{shippedCount}</div>
+                <p className="text-sm text-muted-foreground">Shipped</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-success/10 rounded-lg">
+                <Package className="h-5 w-5 text-success" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{deliveredCount}</div>
+                <p className="text-sm text-muted-foreground">Delivered</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row gap-4 justify-between">
+            <CardTitle>All Orders</CardTitle>
+            <div className="flex gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search orders..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 w-[200px]"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="confirmed">Confirmed</SelectItem>
+                  <SelectItem value="shipped">Shipped</SelectItem>
+                  <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Order #</TableHead>
+                <TableHead>Buyer</TableHead>
+                <TableHead>Items</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredOrders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell className="font-mono font-medium">{order.orderNumber}</TableCell>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">{order.buyerName}</p>
+                      <p className="text-sm text-muted-foreground">{order.buyerEmail}</p>
+                    </div>
+                  </TableCell>
+                  <TableCell>{order.items.length} item(s)</TableCell>
+                  <TableCell className="font-medium">{formatPrice(order.totalAmount)}</TableCell>
+                  <TableCell>{getStatusBadge(order.status)}</TableCell>
+                  <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setDetailsOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {getNextStatus(order.status) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updateOrderStatus(order.id, getNextStatus(order.status)!)}
+                        >
+                          {order.status === 'pending' && 'Confirm'}
+                          {order.status === 'confirmed' && 'Ship'}
+                          {order.status === 'shipped' && 'Deliver'}
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          {filteredOrders.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              No orders found matching your criteria.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Order Details Dialog */}
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Order Details</DialogTitle>
+            <DialogDescription>
+              {selectedOrder?.orderNumber}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                {getStatusBadge(selectedOrder.status)}
+                <span className="text-sm text-muted-foreground">
+                  {new Date(selectedOrder.createdAt).toLocaleString()}
+                </span>
+              </div>
+
+              <Separator />
+
+              <div>
+                <h4 className="font-medium mb-2">Buyer Information</h4>
+                <div className="p-3 bg-muted/50 rounded-lg space-y-1">
+                  <p className="font-medium">{selectedOrder.buyerName}</p>
+                  <p className="text-sm text-muted-foreground">{selectedOrder.buyerEmail}</p>
+                  <p className="text-sm text-muted-foreground">{selectedOrder.buyerPhone}</p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-medium mb-2">Shipping Address</h4>
+                <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-lg">
+                  {selectedOrder.shippingAddress}
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-medium mb-2">Order Items</h4>
+                <div className="space-y-2">
+                  {selectedOrder.items.map((item, index) => (
+                    <div key={index} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-sm">{item.productName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.quantity} × {formatPrice(item.pricePerUnit)}
+                        </p>
+                      </div>
+                      <p className="font-medium">{formatPrice(item.quantity * item.pricePerUnit)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="flex justify-between items-center">
+                <span className="font-medium">Total Amount</span>
+                <span className="text-xl font-bold text-primary">{formatPrice(selectedOrder.totalAmount)}</span>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {selectedOrder && selectedOrder.status === 'pending' && (
+              <Button
+                variant="outline"
+                className="text-destructive"
+                onClick={() => {
+                  updateOrderStatus(selectedOrder.id, 'cancelled');
+                  setDetailsOpen(false);
+                }}
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Cancel Order
+              </Button>
+            )}
+            {selectedOrder && getNextStatus(selectedOrder.status) && (
+              <Button onClick={() => updateOrderStatus(selectedOrder.id, getNextStatus(selectedOrder.status)!)}>
+                {selectedOrder.status === 'pending' && (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Confirm Order
+                  </>
+                )}
+                {selectedOrder.status === 'confirmed' && (
+                  <>
+                    <Truck className="h-4 w-4 mr-2" />
+                    Mark as Shipped
+                  </>
+                )}
+                {selectedOrder.status === 'shipped' && (
+                  <>
+                    <Package className="h-4 w-4 mr-2" />
+                    Mark as Delivered
+                  </>
+                )}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
