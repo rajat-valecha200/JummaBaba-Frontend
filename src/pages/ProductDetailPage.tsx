@@ -13,15 +13,34 @@ import {
   Star,
   Building,
   Calendar,
-  Package
+  Package,
+  Send
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { TrustBadges } from '@/components/b2b/TrustBadge';
 import { PricingSlabsTable, CompactPricing } from '@/components/b2b/PricingSlabsTable';
 import { ProductCard } from '@/components/b2b/ProductCard';
+import { useToast } from '@/hooks/use-toast';
 import { 
   products, 
   getSupplierById, 
@@ -32,8 +51,17 @@ import {
 
 export default function ProductDetailPage() {
   const { slug } = useParams();
+  const { toast } = useToast();
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState('');
+  const [rfqOpen, setRfqOpen] = useState(false);
+  const [rfqForm, setRfqForm] = useState({
+    quantity: '',
+    unit: 'pieces',
+    targetPrice: '',
+    deliveryLocation: '',
+    description: '',
+  });
 
   const product = products.find(p => p.slug === slug) || products[0];
   const supplier = getSupplierById(product.supplierId);
@@ -44,6 +72,29 @@ export default function ProductDetailPage() {
   const yearsInBusiness = supplier 
     ? new Date().getFullYear() - supplier.yearEstablished 
     : 0;
+
+  const handleOpenRfq = () => {
+    setRfqForm({
+      quantity: quantity || String(product.moq),
+      unit: product.unit,
+      targetPrice: '',
+      deliveryLocation: '',
+      description: '',
+    });
+    setRfqOpen(true);
+  };
+
+  const handleSubmitRfq = () => {
+    if (!rfqForm.quantity || !rfqForm.deliveryLocation) {
+      toast({ title: 'Please fill required fields', variant: 'destructive' });
+      return;
+    }
+    toast({ 
+      title: 'RFQ Submitted Successfully!', 
+      description: 'The supplier will respond to your inquiry soon.' 
+    });
+    setRfqOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -158,7 +209,7 @@ export default function ProductDetailPage() {
                 </Button>
               </div>
               <div className="flex gap-3">
-                <Button variant="outline" className="flex-1">
+                <Button variant="outline" className="flex-1" onClick={handleOpenRfq}>
                   <FileText className="h-4 w-4 mr-2" />
                   Request Quote
                 </Button>
@@ -168,6 +219,101 @@ export default function ProductDetailPage() {
                 </Button>
               </div>
             </div>
+
+            {/* RFQ Dialog */}
+            <Dialog open={rfqOpen} onOpenChange={setRfqOpen}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Request for Quotation</DialogTitle>
+                  <DialogDescription>
+                    Get a custom quote from {supplier?.companyName}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="font-medium text-sm">{product.name}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      MOQ: {product.moq} {product.unit} • Starting at {formatPrice(product.pricingSlabs[product.pricingSlabs.length - 1].pricePerUnit)}/{product.unit}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="rfqQty">Quantity Required *</Label>
+                      <Input
+                        id="rfqQty"
+                        type="number"
+                        value={rfqForm.quantity}
+                        onChange={(e) => setRfqForm({ ...rfqForm, quantity: e.target.value })}
+                        min={product.moq}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="rfqUnit">Unit</Label>
+                      <Select
+                        value={rfqForm.unit}
+                        onValueChange={(value) => setRfqForm({ ...rfqForm, unit: value })}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pieces">Pieces</SelectItem>
+                          <SelectItem value="kg">Kilograms</SelectItem>
+                          <SelectItem value="meters">Meters</SelectItem>
+                          <SelectItem value="liters">Liters</SelectItem>
+                          <SelectItem value="boxes">Boxes</SelectItem>
+                          <SelectItem value="sets">Sets</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="rfqTarget">Target Price (₹/{rfqForm.unit}) - Optional</Label>
+                    <Input
+                      id="rfqTarget"
+                      type="number"
+                      value={rfqForm.targetPrice}
+                      onChange={(e) => setRfqForm({ ...rfqForm, targetPrice: e.target.value })}
+                      placeholder="Your expected price"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="rfqLocation">Delivery Location *</Label>
+                    <Input
+                      id="rfqLocation"
+                      value={rfqForm.deliveryLocation}
+                      onChange={(e) => setRfqForm({ ...rfqForm, deliveryLocation: e.target.value })}
+                      placeholder="City, State"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="rfqDesc">Additional Requirements</Label>
+                    <Textarea
+                      id="rfqDesc"
+                      value={rfqForm.description}
+                      onChange={(e) => setRfqForm({ ...rfqForm, description: e.target.value })}
+                      placeholder="Specify color, size, packaging, or any other requirements..."
+                      rows={3}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setRfqOpen(false)}>Cancel</Button>
+                  <Button onClick={handleSubmitRfq}>
+                    <Send className="h-4 w-4 mr-2" />
+                    Submit RFQ
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* Supplier Card */}
             {supplier && (
