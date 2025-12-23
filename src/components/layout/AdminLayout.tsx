@@ -11,7 +11,8 @@ import {
   Menu,
   X,
   ChevronLeft,
-  Bell
+  Bell,
+  MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import { cn } from '@/lib/utils';
 
 const adminNavItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', badge: null },
+  { icon: MessageSquare, label: 'Messages', path: '/admin/messages', badge: 8 },
   { icon: Building, label: 'Vendor Approvals', path: '/admin/vendors', badge: 5 },
   { icon: Package, label: 'Product Moderation', path: '/admin/products', badge: 12 },
   { icon: Users, label: 'User Management', path: '/admin/users', badge: null },
