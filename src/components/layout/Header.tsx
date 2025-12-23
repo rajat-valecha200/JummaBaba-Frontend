@@ -12,6 +12,7 @@ import {
   Phone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Logo } from '@/components/ui/Logo';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -101,8 +102,8 @@ export function Header() {
 
           {/* Logo */}
           <Link to="/" className="flex-shrink-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-primary">
-              Jumma<span className="text-secondary">baba</span>
+            <h1>
+              <Logo size="md" />
             </h1>
           </Link>
 
