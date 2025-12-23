@@ -12,6 +12,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { categories } from '@/data/mockData';
+import { Logo } from '@/components/ui/Logo';
 
 export function Footer() {
   return (
@@ -49,8 +50,8 @@ export function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* About */}
           <div>
-            <h2 className="text-xl font-bold text-primary mb-4">
-              Jumma<span className="text-secondary-foreground">baba</span>
+            <h2 className="mb-4">
+              <Logo size="lg" />
             </h2>
             <p className="text-sm text-secondary-foreground/80 mb-4">
               India's leading B2B marketplace connecting buyers with verified suppliers 
@@ -124,7 +125,7 @@ export function Footer() {
       <div className="border-t border-secondary-foreground/10">
         <div className="b2b-container py-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-secondary-foreground/70">
-            <p>© 2024 Jummababa. All rights reserved.</p>
+            <p>© 2024 JummaBaba.com. All rights reserved.</p>
             <div className="flex gap-4">
               <Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
               <Link to="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
