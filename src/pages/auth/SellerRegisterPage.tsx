@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Phone, ArrowRight, User, Building2, MapPin, Check, FileText, Upload, BadgeCheck, Package, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Phone, ArrowRight, User, Building2, MapPin, Check, FileText, Upload, BadgeCheck, Package, AlertCircle, X, File, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -99,6 +99,90 @@ export default function SellerRegisterPage() {
     accountNumber: '',
     ifscCode: '',
   });
+
+  // Document uploads state
+  interface DocumentFile {
+    file: File;
+    preview: string;
+    name: string;
+  }
+
+  const [documents, setDocuments] = useState<{
+    gstCertificate: DocumentFile | null;
+    panCard: DocumentFile | null;
+    cancelledCheque: DocumentFile | null;
+  }>({
+    gstCertificate: null,
+    panCard: null,
+    cancelledCheque: null,
+  });
+
+  const [uploadErrors, setUploadErrors] = useState<{
+    gstCertificate: string | null;
+    panCard: string | null;
+    cancelledCheque: string | null;
+  }>({
+    gstCertificate: null,
+    panCard: null,
+    cancelledCheque: null,
+  });
+
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+
+  const handleDocumentUpload = (
+    documentType: 'gstCertificate' | 'panCard' | 'cancelledCheque',
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setUploadErrors(prev => ({
+        ...prev,
+        [documentType]: 'Only JPG, PNG, WebP, or PDF files are allowed'
+      }));
+      return;
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadErrors(prev => ({
+        ...prev,
+        [documentType]: 'File size must be less than 5MB'
+      }));
+      return;
+    }
+
+    // Clear error and set file
+    setUploadErrors(prev => ({ ...prev, [documentType]: null }));
+    
+    const preview = file.type.startsWith('image/') 
+      ? URL.createObjectURL(file) 
+      : '';
+
+    setDocuments(prev => ({
+      ...prev,
+      [documentType]: {
+        file,
+        preview,
+        name: file.name
+      }
+    }));
+
+    toast({
+      title: 'Document Uploaded',
+      description: `${file.name} uploaded successfully`
+    });
+  };
+
+  const removeDocument = (documentType: 'gstCertificate' | 'panCard' | 'cancelledCheque') => {
+    if (documents[documentType]?.preview) {
+      URL.revokeObjectURL(documents[documentType]!.preview);
+    }
+    setDocuments(prev => ({ ...prev, [documentType]: null }));
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -764,15 +848,169 @@ export default function SellerRegisterPage() {
                 </div>
               </div>
 
-              <div className="bg-muted/50 rounded-lg p-3 flex items-start gap-2">
-                <Upload className="h-4 w-4 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Upload Documents (Optional)</p>
-                  <p className="text-xs text-muted-foreground">GST Certificate, PAN Card, Cancelled Cheque</p>
-                  <Button variant="outline" size="sm" className="mt-2">
-                    <Upload className="h-3 w-3 mr-1" /> Upload Files
-                  </Button>
+              {/* Document Upload Section */}
+              <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <Upload className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-medium text-foreground">Upload Verification Documents</p>
+                    <p className="text-xs text-muted-foreground">JPG, PNG, WebP, or PDF (Max 5MB each)</p>
+                  </div>
                 </div>
+
+                {/* GST Certificate Upload */}
+                <div className="space-y-2">
+                  <Label htmlFor="gstCertificate" className="flex items-center gap-1">
+                    <FileText className="h-4 w-4" /> GST Certificate
+                  </Label>
+                  {documents.gstCertificate ? (
+                    <div className="flex items-center gap-3 p-3 bg-background border rounded-lg">
+                      {documents.gstCertificate.preview ? (
+                        <img 
+                          src={documents.gstCertificate.preview} 
+                          alt="GST Certificate" 
+                          className="h-12 w-12 object-cover rounded"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 bg-primary/10 rounded flex items-center justify-center">
+                          <File className="h-6 w-6 text-primary" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{documents.gstCertificate.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {(documents.gstCertificate.file.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => removeDocument('gstCertificate')}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors">
+                      <Image className="h-8 w-8 text-muted-foreground mb-2" />
+                      <span className="text-sm text-muted-foreground">Click to upload GST Certificate</span>
+                      <input
+                        type="file"
+                        id="gstCertificate"
+                        className="hidden"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf"
+                        onChange={(e) => handleDocumentUpload('gstCertificate', e)}
+                      />
+                    </label>
+                  )}
+                  <FieldError error={uploadErrors.gstCertificate} />
+                </div>
+
+                {/* PAN Card Upload */}
+                <div className="space-y-2">
+                  <Label htmlFor="panCard" className="flex items-center gap-1">
+                    <FileText className="h-4 w-4" /> PAN Card
+                  </Label>
+                  {documents.panCard ? (
+                    <div className="flex items-center gap-3 p-3 bg-background border rounded-lg">
+                      {documents.panCard.preview ? (
+                        <img 
+                          src={documents.panCard.preview} 
+                          alt="PAN Card" 
+                          className="h-12 w-12 object-cover rounded"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 bg-primary/10 rounded flex items-center justify-center">
+                          <File className="h-6 w-6 text-primary" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{documents.panCard.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {(documents.panCard.file.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => removeDocument('panCard')}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors">
+                      <Image className="h-8 w-8 text-muted-foreground mb-2" />
+                      <span className="text-sm text-muted-foreground">Click to upload PAN Card</span>
+                      <input
+                        type="file"
+                        id="panCard"
+                        className="hidden"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf"
+                        onChange={(e) => handleDocumentUpload('panCard', e)}
+                      />
+                    </label>
+                  )}
+                  <FieldError error={uploadErrors.panCard} />
+                </div>
+
+                {/* Cancelled Cheque Upload */}
+                <div className="space-y-2">
+                  <Label htmlFor="cancelledCheque" className="flex items-center gap-1">
+                    <FileText className="h-4 w-4" /> Cancelled Cheque
+                  </Label>
+                  {documents.cancelledCheque ? (
+                    <div className="flex items-center gap-3 p-3 bg-background border rounded-lg">
+                      {documents.cancelledCheque.preview ? (
+                        <img 
+                          src={documents.cancelledCheque.preview} 
+                          alt="Cancelled Cheque" 
+                          className="h-12 w-12 object-cover rounded"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 bg-primary/10 rounded flex items-center justify-center">
+                          <File className="h-6 w-6 text-primary" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{documents.cancelledCheque.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {(documents.cancelledCheque.file.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => removeDocument('cancelledCheque')}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors">
+                      <Image className="h-8 w-8 text-muted-foreground mb-2" />
+                      <span className="text-sm text-muted-foreground">Click to upload Cancelled Cheque</span>
+                      <input
+                        type="file"
+                        id="cancelledCheque"
+                        className="hidden"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf"
+                        onChange={(e) => handleDocumentUpload('cancelledCheque', e)}
+                      />
+                    </label>
+                  )}
+                  <FieldError error={uploadErrors.cancelledCheque} />
+                </div>
+
+                <p className="text-xs text-muted-foreground text-center">
+                  Documents are optional but help speed up verification
+                </p>
               </div>
 
               <div className="flex gap-3 mt-4">
