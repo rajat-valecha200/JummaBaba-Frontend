@@ -70,7 +70,7 @@ const supplierDetails = {
 };
 
 const defaultDetails = {
-  description: 'A trusted supplier on Jummababa marketplace, committed to delivering quality products and excellent service to businesses across India.',
+  description: 'A trusted supplier on JummaBaba.com marketplace, committed to delivering quality products and excellent service to businesses across India.',
   email: 'contact@supplier.com',
   phone: '+91 98765 43210',
   website: 'www.supplier.com',

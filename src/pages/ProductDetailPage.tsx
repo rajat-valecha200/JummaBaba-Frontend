@@ -238,7 +238,7 @@ export default function ProductDetailPage() {
                 <DialogHeader>
                   <DialogTitle>Request for Quotation</DialogTitle>
                   <DialogDescription>
-                    Get a custom quote from Jummababa Platform
+                    Get a custom quote from <span className="font-semibold"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba<span className="text-b2b-orange">.com</span></span> Platform
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -334,7 +334,7 @@ export default function ProductDetailPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <p className="font-semibold">Jummababa Marketplace Pvt Ltd</p>
+                  <p className="font-semibold"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba<span className="text-b2b-orange">.com</span> Marketplace Pvt Ltd</p>
                   <p className="text-sm text-muted-foreground">GSTIN: 27AABCJ1234A1Z5</p>
                   <p className="text-sm text-muted-foreground">Mumbai, Maharashtra</p>
                 </div>

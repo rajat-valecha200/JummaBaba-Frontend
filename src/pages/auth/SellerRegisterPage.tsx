@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { Logo } from '@/components/ui/Logo';
 import {
   sellerStep1EmailSchema,
   sellerStep1PhoneSchema,
@@ -405,7 +406,7 @@ export default function SellerRegisterPage() {
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4 py-8">
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
-          <Link to="/" className="text-2xl font-bold text-primary mx-auto">Jumma<span className="text-secondary">baba</span></Link>
+          <Link to="/" className="mx-auto"><Logo size="lg" /></Link>
           <CardTitle className="mt-4">Register as Seller</CardTitle>
           <CardDescription>Join India's leading B2B marketplace and grow your business</CardDescription>
           

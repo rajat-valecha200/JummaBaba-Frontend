@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import { Logo } from '@/components/ui/Logo';
 import {
   buyerStep1EmailSchema,
   buyerStep1PhoneSchema,
@@ -229,7 +230,7 @@ export default function BuyerRegisterPage() {
       toast({ title: 'Terms Required', description: 'Please agree to the terms and conditions', variant: 'destructive' });
       return;
     }
-    toast({ title: 'Registration Successful!', description: 'Welcome to Jummababa! You can now start buying.' });
+    toast({ title: 'Registration Successful!', description: 'Welcome to JummaBaba.com! You can now start buying.' });
     navigate('/buyer/dashboard');
   };
 
@@ -237,7 +238,7 @@ export default function BuyerRegisterPage() {
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4 py-8">
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
-          <Link to="/" className="text-2xl font-bold text-primary mx-auto">Jumma<span className="text-secondary">baba</span></Link>
+          <Link to="/" className="mx-auto"><Logo size="lg" /></Link>
           <CardTitle className="mt-4">Register as Buyer</CardTitle>
           <CardDescription>Create your buyer account to start purchasing wholesale</CardDescription>
           
