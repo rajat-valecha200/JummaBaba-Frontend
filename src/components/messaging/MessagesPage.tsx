@@ -97,75 +97,49 @@ interface Conversation {
   messages: Message[];
 }
 
-const mockConversations: Conversation[] = [
+// Admin-mediated chat - Buyers and Vendors only talk to JummaBaba Support
+const getAdminConversation = (userType: 'buyer' | 'vendor'): Conversation[] => [
   {
-    id: 'conv-1',
-    participantName: 'Rajesh Electronics',
-    participantAvatar: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
-    participantCompany: 'Verified Supplier',
-    lastMessage: 'Yes, we can offer bulk pricing for 500+ units',
+    id: 'admin-support',
+    participantName: 'JummaBaba Support',
+    participantAvatar: '',
+    participantCompany: 'Platform Admin',
+    lastMessage: userType === 'buyer' 
+      ? 'How can we help you today? Share your product queries with us.'
+      : 'We will forward buyer inquiries to you. How can we assist?',
     lastMessageTime: '10:30 AM',
-    unreadCount: 2,
+    unreadCount: 1,
     isOnline: true,
     isVerified: true,
-    isTyping: true,
-    messages: [
-      { id: 'm1', senderId: 'other', text: 'Hello! I saw your inquiry about Samsung phones.', timestamp: '10:15 AM', status: 'read' },
-      { id: 'm2', senderId: 'me', text: 'Hi! Yes, I need 500 units of Galaxy A54. What is your best price?', timestamp: '10:20 AM', status: 'read' },
-      { id: 'm3', senderId: 'other', text: 'For 500 units, we can offer ₹27,500 per unit with free shipping.', timestamp: '10:25 AM', status: 'read' },
-      { id: 'm4', senderId: 'me', text: 'That sounds good! Can you also include warranty cards?', timestamp: '10:28 AM', status: 'delivered' },
-      { id: 'm5', senderId: 'other', text: 'Yes, we can offer bulk pricing for 500+ units', timestamp: '10:30 AM', status: 'read' },
-    ],
-  },
-  {
-    id: 'conv-2',
-    participantName: 'Sharma Textiles',
-    participantAvatar: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=100&h=100&fit=crop',
-    participantCompany: 'Manufacturer',
-    lastMessage: 'Sample shipment dispatched today',
-    lastMessageTime: 'Yesterday',
-    unreadCount: 0,
-    isOnline: false,
-    isVerified: true,
     isTyping: false,
     messages: [
-      { id: 'm1', senderId: 'me', text: 'Can you send fabric samples before bulk order?', timestamp: 'Yesterday 2:00 PM', status: 'read' },
-      { id: 'm2', senderId: 'other', text: 'Sure! Please share your delivery address.', timestamp: 'Yesterday 2:15 PM', status: 'read' },
-      { id: 'm3', senderId: 'me', text: '123 Tech Park, Andheri East, Mumbai - 400069', timestamp: 'Yesterday 2:20 PM', status: 'read' },
-      { id: 'm4', senderId: 'other', text: 'Sample shipment dispatched today', timestamp: 'Yesterday 4:30 PM', status: 'read' },
-    ],
-  },
-  {
-    id: 'conv-3',
-    participantName: 'Industrial Tools India',
-    participantAvatar: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=100&h=100&fit=crop',
-    participantCompany: 'Wholesaler',
-    lastMessage: 'Payment received. Order confirmed!',
-    lastMessageTime: 'Mon',
-    unreadCount: 0,
-    isOnline: true,
-    isVerified: false,
-    isTyping: false,
-    messages: [
-      { id: 'm1', senderId: 'other', text: 'Your order for drill machines is ready.', timestamp: 'Mon 11:00 AM', status: 'read' },
-      { id: 'm2', senderId: 'me', text: 'Great! I have made the payment. Please check.', timestamp: 'Mon 11:30 AM', status: 'read' },
-      { id: 'm3', senderId: 'other', text: 'Payment received. Order confirmed!', timestamp: 'Mon 12:00 PM', status: 'read' },
-    ],
-  },
-  {
-    id: 'conv-4',
-    participantName: 'Agro Fresh Exports',
-    participantAvatar: 'https://images.unsplash.com/photo-1560472355-536de3962603?w=100&h=100&fit=crop',
-    participantCompany: 'Exporter',
-    lastMessage: 'We have organic certification',
-    lastMessageTime: 'Last week',
-    unreadCount: 0,
-    isOnline: false,
-    isVerified: true,
-    isTyping: false,
-    messages: [
-      { id: 'm1', senderId: 'me', text: 'Do you have organic certification for the rice?', timestamp: 'Last week', status: 'sent' },
-      { id: 'm2', senderId: 'other', text: 'We have organic certification', timestamp: 'Last week', status: 'read' },
+      { 
+        id: 'm1', 
+        senderId: 'other', 
+        text: userType === 'buyer'
+          ? 'Welcome to JummaBaba.com! 🙏 How can we help you today? You can ask us about any product, request quotes, or get support.'
+          : 'Welcome to JummaBaba.com Vendor Portal! 🙏 We will forward all buyer inquiries related to your products here.',
+        timestamp: '10:00 AM', 
+        status: 'read' 
+      },
+      { 
+        id: 'm2', 
+        senderId: 'other', 
+        text: userType === 'buyer'
+          ? 'Simply share the product you are interested in, and we will connect you with the best pricing and availability.'
+          : 'You can respond to buyer queries through this chat. We handle all communications on your behalf.',
+        timestamp: '10:05 AM', 
+        status: 'read' 
+      },
+      { 
+        id: 'm3', 
+        senderId: 'other', 
+        text: userType === 'buyer'
+          ? 'How can we help you today? Share your product queries with us.'
+          : 'We will forward buyer inquiries to you. How can we assist?',
+        timestamp: '10:30 AM', 
+        status: 'read' 
+      },
     ],
   },
 ];
@@ -292,7 +266,7 @@ interface MessagesPageProps {
 }
 
 export default function MessagesPage({ userType }: MessagesPageProps) {
-  const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
+  const [conversations, setConversations] = useState<Conversation[]>(() => getAdminConversation(userType));
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');

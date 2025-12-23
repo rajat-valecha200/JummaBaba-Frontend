@@ -58,17 +58,30 @@ interface ProductFormData {
   unit: string;
   pricingSlabs: PricingSlab[];
   images: string[];
+  selectedSlabCount: number;
 }
+
+// Fixed quantity categories
+const FIXED_QUANTITY_SLABS = [
+  { minQty: 1, maxQty: 500, label: '1 – 500' },
+  { minQty: 501, maxQty: 1000, label: '501 – 1000' },
+  { minQty: 1001, maxQty: 5000, label: '1001 – 5000' },
+  { minQty: 5001, maxQty: 20000, label: '5001 – 20000' },
+];
 
 const emptyProduct: ProductFormData = {
   name: '',
   shortDescription: '',
   description: '',
   categoryId: '',
-  moq: 10,
+  moq: 1,
   unit: 'pieces',
-  pricingSlabs: [{ minQty: 10, maxQty: 49, pricePerUnit: 0 }],
+  pricingSlabs: [
+    { minQty: 1, maxQty: 500, pricePerUnit: 0 },
+    { minQty: 501, maxQty: 1000, pricePerUnit: 0 },
+  ],
   images: [],
+  selectedSlabCount: 2,
 };
 
 const vendorProducts = products.slice(0, 6).map(p => ({
@@ -97,6 +110,7 @@ export default function VendorProducts() {
   };
 
   const handleOpenEdit = (product: typeof vendorProducts[0]) => {
+    const slabCount = Math.min(4, Math.max(2, product.pricingSlabs.length));
     setEditingProduct({
       id: product.id,
       name: product.name,
@@ -107,6 +121,7 @@ export default function VendorProducts() {
       unit: product.unit,
       pricingSlabs: product.pricingSlabs,
       images: product.images,
+      selectedSlabCount: slabCount,
     });
     setFormData({
       id: product.id,
@@ -118,6 +133,7 @@ export default function VendorProducts() {
       unit: product.unit,
       pricingSlabs: product.pricingSlabs,
       images: product.images,
+      selectedSlabCount: slabCount,
     });
     setFormOpen(true);
   };
@@ -169,31 +185,23 @@ export default function VendorProducts() {
     }
   };
 
-  const addPricingSlab = () => {
-    const lastSlab = formData.pricingSlabs[formData.pricingSlabs.length - 1];
-    const newMinQty = lastSlab.maxQty ? lastSlab.maxQty + 1 : (lastSlab.minQty + 50);
+  const handleSlabCountChange = (count: number) => {
+    const newSlabs = FIXED_QUANTITY_SLABS.slice(0, count).map((slab, index) => ({
+      minQty: slab.minQty,
+      maxQty: slab.maxQty,
+      pricePerUnit: formData.pricingSlabs[index]?.pricePerUnit || 0,
+    }));
     setFormData({
       ...formData,
-      pricingSlabs: [
-        ...formData.pricingSlabs,
-        { minQty: newMinQty, maxQty: null, pricePerUnit: 0 },
-      ],
+      selectedSlabCount: count,
+      pricingSlabs: newSlabs,
     });
   };
 
-  const updatePricingSlab = (index: number, field: keyof PricingSlab, value: number | null) => {
+  const updateSlabPrice = (index: number, price: number) => {
     const updated = [...formData.pricingSlabs];
-    updated[index] = { ...updated[index], [field]: value };
+    updated[index] = { ...updated[index], pricePerUnit: price };
     setFormData({ ...formData, pricingSlabs: updated });
-  };
-
-  const removePricingSlab = (index: number) => {
-    if (formData.pricingSlabs.length > 1) {
-      setFormData({
-        ...formData,
-        pricingSlabs: formData.pricingSlabs.filter((_, i) => i !== index),
-      });
-    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -424,64 +432,62 @@ export default function VendorProducts() {
             </div>
 
             {/* Pricing Slabs */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Pricing Slabs</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addPricingSlab}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Slab
-                </Button>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Number of Pricing Slabs (2-4)</Label>
+                <Select
+                  value={formData.selectedSlabCount.toString()}
+                  onValueChange={(value) => handleSlabCountChange(parseInt(value))}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2">2 Slabs</SelectItem>
+                    <SelectItem value="3">3 Slabs</SelectItem>
+                    <SelectItem value="4">4 Slabs</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choose how many quantity-based price tiers to offer
+                </p>
               </div>
               
               <div className="space-y-3">
-                {formData.pricingSlabs.map((slab, index) => (
-                  <div key={index} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    <div className="flex-1 grid grid-cols-3 gap-3">
-                      <div>
-                        <Label className="text-xs">Min Qty</Label>
-                        <Input
-                          type="number"
-                          value={slab.minQty}
-                          onChange={(e) => updatePricingSlab(index, 'minQty', parseInt(e.target.value) || 0)}
-                          min={1}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Max Qty</Label>
-                        <Input
-                          type="number"
-                          value={slab.maxQty || ''}
-                          onChange={(e) => updatePricingSlab(index, 'maxQty', e.target.value ? parseInt(e.target.value) : null)}
-                          placeholder="No limit"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Price/Unit (₹)</Label>
-                        <Input
-                          type="number"
-                          value={slab.pricePerUnit}
-                          onChange={(e) => updatePricingSlab(index, 'pricePerUnit', parseFloat(e.target.value) || 0)}
-                          min={0}
-                        />
-                      </div>
-                    </div>
-                    {formData.pricingSlabs.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => removePricingSlab(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                <Label>Set Prices for Each Quantity Range</Label>
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="font-semibold">Quantity Range</TableHead>
+                        <TableHead className="font-semibold">Price per {formData.unit} (₹)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {formData.pricingSlabs.map((slab, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">
+                            {FIXED_QUANTITY_SLABS[index]?.label || `${slab.minQty} - ${slab.maxQty}`}
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              value={slab.pricePerUnit || ''}
+                              onChange={(e) => updateSlabPrice(index, parseFloat(e.target.value) || 0)}
+                              placeholder="Enter price"
+                              min={0}
+                              className="w-32"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  💡 Tip: Offer better prices for higher quantities to encourage bulk orders
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Leave "Max Qty" empty for the last slab to indicate "X and above"
-              </p>
             </div>
 
             {/* Image Upload Placeholder */}
