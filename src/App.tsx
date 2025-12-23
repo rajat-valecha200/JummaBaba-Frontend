@@ -12,6 +12,8 @@ import CategoryPage from "./pages/CategoryPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
 import SupplierDetailPage from "./pages/SupplierDetailPage";
 import LoginPage from "./pages/auth/LoginPage";
+import BuyerRegisterPage from "./pages/auth/BuyerRegisterPage";
+import SellerRegisterPage from "./pages/auth/SellerRegisterPage";
 
 // Buyer Pages
 import BuyerDashboard from "./pages/buyer/BuyerDashboard";
@@ -64,8 +66,10 @@ const App = () => (
 
             {/* Auth routes */}
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<LoginPage />} />
-            <Route path="/vendor/register" element={<LoginPage />} />
+            <Route path="/register" element={<BuyerRegisterPage />} />
+            <Route path="/buyer/register" element={<BuyerRegisterPage />} />
+            <Route path="/seller/register" element={<SellerRegisterPage />} />
+            <Route path="/vendor/register" element={<SellerRegisterPage />} />
 
             {/* Buyer dashboard routes */}
             <Route element={<BuyerLayout />}>
