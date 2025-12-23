@@ -105,7 +105,7 @@ export default function BuyerOrders() {
               <CardContent className="pt-6">
                 <h3 className="font-semibold mb-3">Seller of Record</h3>
                 <div className="space-y-2">
-                  <p className="font-medium">Jummababa Marketplace Pvt Ltd</p>
+                  <p className="font-medium"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba<span className="text-b2b-orange">.com</span> Marketplace Pvt Ltd</p>
                   <p className="text-sm text-muted-foreground">GSTIN: 27AABCJ1234A1Z5</p>
                   <p className="text-sm text-muted-foreground">Mumbai, Maharashtra</p>
                 </div>

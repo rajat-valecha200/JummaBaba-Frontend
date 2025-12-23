@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Logo } from '@/components/ui/Logo';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -14,7 +15,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <Link to="/" className="text-2xl font-bold text-primary mx-auto">Jumma<span className="text-secondary">baba</span></Link>
+          <Link to="/" className="mx-auto"><Logo size="lg" /></Link>
           <CardTitle className="mt-4">Welcome Back</CardTitle>
           <CardDescription>Login to access your account</CardDescription>
         </CardHeader>

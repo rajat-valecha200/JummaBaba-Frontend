@@ -51,7 +51,7 @@ const mockOrderData = {
 
 // Platform details
 const platformDetails = {
-  name: 'Jummababa Marketplace Pvt Ltd',
+  name: 'JummaBaba.com Marketplace Pvt Ltd',
   gstin: '27AABCJ1234A1Z5',
   pan: 'AABCJ1234A',
   address: '123, Trade Centre, Andheri East',
@@ -61,7 +61,7 @@ const platformDetails = {
   email: 'billing@jummababa.com',
   phone: '+91 22 4000 5000',
   bankDetails: {
-    accountName: 'Jummababa Marketplace Pvt Ltd',
+    accountName: 'JummaBaba.com Marketplace Pvt Ltd',
     accountNumber: '50200012345678',
     ifsc: 'HDFC0001234',
     bank: 'HDFC Bank, Andheri East Branch',

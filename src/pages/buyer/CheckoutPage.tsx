@@ -46,7 +46,7 @@ const indianStates = [
 
 // Platform seller details
 const platformDetails = {
-  name: 'Jummababa Marketplace Pvt Ltd',
+  name: 'JummaBaba.com Marketplace Pvt Ltd',
   gstin: '27AABCJ1234A1Z5',
   pan: 'AABCJ1234A',
   address: '123, Trade Centre, Andheri East',
@@ -432,7 +432,7 @@ export default function CheckoutPage() {
                   <div className="mt-4 p-4 bg-muted/50 rounded-lg">
                     <p className="font-medium mb-2">Bank Account Details</p>
                     <div className="text-sm space-y-1 text-muted-foreground">
-                      <p>Account Name: <span className="text-foreground">Jummababa Marketplace Pvt Ltd</span></p>
+                      <p>Account Name: <span className="text-foreground"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba<span className="text-b2b-orange">.com</span> Marketplace Pvt Ltd</span></p>
                       <p>Account Number: <span className="text-foreground">50200012345678</span></p>
                       <p>IFSC Code: <span className="text-foreground">HDFC0001234</span></p>
                       <p>Bank: <span className="text-foreground">HDFC Bank, Andheri East Branch</span></p>
@@ -443,7 +443,7 @@ export default function CheckoutPage() {
                 {paymentMethod === 'upi' && (
                   <div className="mt-4 p-4 bg-muted/50 rounded-lg">
                     <p className="font-medium mb-2">UPI ID</p>
-                    <p className="text-sm">jummababa@hdfcbank</p>
+                    <p className="text-sm"><span className="font-semibold"><span className="font-extrabold">j</span>umma<span className="font-extrabold">b</span>aba</span>@hdfcbank</p>
                   </div>
                 )}
               </CardContent>

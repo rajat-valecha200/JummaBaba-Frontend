@@ -52,7 +52,7 @@ export function Header() {
           </div>
           <div className="flex items-center gap-4">
             <Link to="/vendor/register" className="hover:underline">
-              Sell on Jummababa
+              Sell on <span className="font-semibold"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba</span>
             </Link>
             <Link to="/help" className="hidden sm:block hover:underline">
               Help

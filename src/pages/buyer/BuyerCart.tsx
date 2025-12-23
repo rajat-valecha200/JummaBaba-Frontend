@@ -206,7 +206,7 @@ export default function BuyerCart() {
                   Seller of Record
                 </div>
                 <div className="text-sm">
-                  <p className="font-medium">Jummababa Marketplace Pvt Ltd</p>
+                  <p className="font-medium"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba<span className="text-b2b-orange">.com</span> Marketplace Pvt Ltd</p>
                   <p className="text-muted-foreground">GSTIN: 27AABCJ1234A1Z5</p>
                 </div>
               </div>
