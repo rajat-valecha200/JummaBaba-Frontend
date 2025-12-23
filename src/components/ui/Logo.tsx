@@ -14,10 +14,10 @@ export function Logo({ className, size = 'md' }: LogoProps) {
 
   return (
     <span className={cn('font-bold tracking-tight', sizeClasses[size], className)}>
-      <span className="text-foreground">
+      <span className="text-b2b-black">
         <span className="font-extrabold">J</span>umma
       </span>
-      <span className="text-foreground">
+      <span className="text-b2b-black">
         <span className="font-extrabold">B</span>aba
       </span>
       <span className="text-b2b-orange">.com</span>

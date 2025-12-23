@@ -7,15 +7,15 @@ interface BrandedNameProps {
 
 /**
  * Inline branded name component for use within text.
- * Renders "JummaBaba" with J and B bold, and optional ".com" in orange.
+ * Renders "JummaBaba" with J and B bold in BLACK, and optional ".com" in ORANGE.
  */
 export function BrandedName({ className, showDotCom = true }: BrandedNameProps) {
   return (
     <span className={cn('font-semibold', className)}>
-      <span className="text-foreground">
+      <span className="text-b2b-black">
         <span className="font-extrabold">J</span>umma
       </span>
-      <span className="text-foreground">
+      <span className="text-b2b-black">
         <span className="font-extrabold">B</span>aba
       </span>
       {showDotCom && <span className="text-b2b-orange">.com</span>}
