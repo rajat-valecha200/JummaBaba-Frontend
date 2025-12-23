@@ -68,6 +68,9 @@ interface Message {
   text: string;
   timestamp: string;
   status: 'sending' | 'sent' | 'delivered' | 'read';
+  statusTimestamp?: string; // When the status last changed
+  deliveredAt?: string; // When message was delivered
+  readAt?: string; // When message was read
   isVoice?: boolean;
   voiceData?: {
     audioUrl: string;
@@ -182,20 +185,65 @@ function TypingIndicator() {
   );
 }
 
-// Message Status Icon Component
-function MessageStatus({ status }: { status: Message['status'] }) {
-  switch (status) {
-    case 'sending':
-      return <Clock className="h-3.5 w-3.5 text-primary-foreground/50" />;
-    case 'sent':
-      return <Check className="h-3.5 w-3.5 text-primary-foreground/70" />;
-    case 'delivered':
-      return <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/70" />;
-    case 'read':
-      return <CheckCheck className="h-3.5 w-3.5 text-primary-foreground" />;
-    default:
-      return null;
-  }
+// Message Status Icon Component with animation
+function MessageStatus({ 
+  status, 
+  deliveredAt, 
+  readAt,
+  showDetails = false 
+}: { 
+  status: Message['status'];
+  deliveredAt?: string;
+  readAt?: string;
+  showDetails?: boolean;
+}) {
+  const getStatusInfo = () => {
+    switch (status) {
+      case 'sending':
+        return { icon: <Clock className="h-3.5 w-3.5" />, color: 'text-primary-foreground/50', label: 'Sending...' };
+      case 'sent':
+        return { icon: <Check className="h-3.5 w-3.5" />, color: 'text-primary-foreground/70', label: 'Sent' };
+      case 'delivered':
+        return { icon: <CheckCheck className="h-3.5 w-3.5" />, color: 'text-primary-foreground/70', label: deliveredAt ? `Delivered ${deliveredAt}` : 'Delivered' };
+      case 'read':
+        return { icon: <CheckCheck className="h-3.5 w-3.5" />, color: 'text-[hsl(var(--chart-3))]', label: readAt ? `Read ${readAt}` : 'Read' };
+      default:
+        return null;
+    }
+  };
+
+  const statusInfo = getStatusInfo();
+  if (!statusInfo) return null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn(
+          "inline-flex items-center transition-all duration-300",
+          statusInfo.color,
+          status === 'sending' && 'animate-pulse',
+          status === 'read' && 'animate-in fade-in-0 duration-300'
+        )}>
+          {statusInfo.icon}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="left" className="text-xs">
+        {statusInfo.label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// Read Receipt Sync Indicator - shows when receipts are syncing
+function ReadReceiptSyncIndicator({ isSyncing }: { isSyncing: boolean }) {
+  if (!isSyncing) return null;
+  
+  return (
+    <div className="flex items-center gap-1 text-xs text-muted-foreground animate-pulse">
+      <div className="w-1.5 h-1.5 bg-primary rounded-full animate-ping" />
+      <span>Syncing receipts...</span>
+    </div>
+  );
 }
 
 // Notification Permission Button
@@ -292,6 +340,9 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
   // Call state
   const [isCallOpen, setIsCallOpen] = useState(false);
   const [callType, setCallType] = useState<'voice' | 'video'>('voice');
+  
+  // Read receipt sync state
+  const [isReceiptSyncing, setIsReceiptSyncing] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -563,12 +614,16 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
   const handleSendMessage = () => {
     if (!messageInput.trim() || !selectedConversation || isSending) return;
     
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    
     const newMessage: Message = {
       id: `m-${Date.now()}`,
       senderId: 'me',
       text: messageInput.trim(),
-      timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+      timestamp: timeString,
       status: 'sending',
+      statusTimestamp: timeString,
       replyTo: replyingTo || undefined
     };
 
@@ -588,44 +643,64 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     setMessageInput('');
     setReplyingTo(null);
     setIsSending(true);
+    setIsReceiptSyncing(true);
 
-    // Simulate message status progression
+    // Simulate message status progression with timestamps
     setTimeout(() => {
+      const sentTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
       setSelectedConversation(prev => {
         if (!prev) return prev;
         return {
           ...prev,
           messages: prev.messages.map(m => 
-            m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
+            m.id === newMessage.id ? { ...m, status: 'sent' as const, statusTimestamp: sentTime } : m
           )
         };
       });
+      setConversations(prev => prev.map(c => 
+        c.id === selectedConversation.id 
+          ? { ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const, statusTimestamp: sentTime } : m) }
+          : c
+      ));
     }, 500);
 
     setTimeout(() => {
+      const deliveredTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
       setSelectedConversation(prev => {
         if (!prev) return prev;
         return {
           ...prev,
           messages: prev.messages.map(m => 
-            m.id === newMessage.id ? { ...m, status: 'delivered' as const } : m
+            m.id === newMessage.id ? { ...m, status: 'delivered' as const, deliveredAt: deliveredTime, statusTimestamp: deliveredTime } : m
           )
         };
       });
+      setConversations(prev => prev.map(c => 
+        c.id === selectedConversation.id 
+          ? { ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: 'delivered' as const, deliveredAt: deliveredTime, statusTimestamp: deliveredTime } : m) }
+          : c
+      ));
       setIsSending(false);
     }, 1500);
 
     setTimeout(() => {
+      const readTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
       setSelectedConversation(prev => {
         if (!prev) return prev;
         return {
           ...prev,
           messages: prev.messages.map(m => 
-            m.id === newMessage.id ? { ...m, status: 'read' as const } : m
+            m.id === newMessage.id ? { ...m, status: 'read' as const, readAt: readTime, statusTimestamp: readTime } : m
           ),
           isTyping: true // Start typing indicator
         };
       });
+      setConversations(prev => prev.map(c => 
+        c.id === selectedConversation.id 
+          ? { ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: 'read' as const, readAt: readTime, statusTimestamp: readTime } : m) }
+          : c
+      ));
+      setIsReceiptSyncing(false);
     }, 2000);
   };
 
@@ -635,12 +710,16 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     const recording = await stopRecording();
     if (!recording) return;
 
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
     const newMessage: Message = {
       id: `voice-${Date.now()}`,
       senderId: 'me',
       text: 'Voice message',
-      timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+      timestamp: timeString,
       status: 'sending',
+      statusTimestamp: timeString,
       isVoice: true,
       voiceData: {
         audioUrl: recording.audioUrl,
@@ -659,27 +738,32 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     setConversations(prev => prev.map(c => 
       c.id === selectedConversation.id ? updatedConversation : c
     ));
+    setIsReceiptSyncing(true);
 
-    // Simulate status progression
+    // Simulate status progression with timestamps
     setTimeout(() => {
+      const sentTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
       setSelectedConversation(prev => prev ? {
         ...prev,
-        messages: prev.messages.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const } : m)
+        messages: prev.messages.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const, statusTimestamp: sentTime } : m)
       } : prev);
     }, 500);
 
     setTimeout(() => {
+      const deliveredTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
       setSelectedConversation(prev => prev ? {
         ...prev,
-        messages: prev.messages.map(m => m.id === newMessage.id ? { ...m, status: 'delivered' as const } : m)
+        messages: prev.messages.map(m => m.id === newMessage.id ? { ...m, status: 'delivered' as const, deliveredAt: deliveredTime, statusTimestamp: deliveredTime } : m)
       } : prev);
     }, 1500);
 
     setTimeout(() => {
+      const readTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
       setSelectedConversation(prev => prev ? {
         ...prev,
-        messages: prev.messages.map(m => m.id === newMessage.id ? { ...m, status: 'read' as const } : m)
+        messages: prev.messages.map(m => m.id === newMessage.id ? { ...m, status: 'read' as const, readAt: readTime, statusTimestamp: readTime } : m)
       } : prev);
+      setIsReceiptSyncing(false);
     }, 2500);
   };
 
@@ -717,6 +801,9 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
   const handleSendMedia = () => {
     if (!selectedConversation || selectedFiles.length === 0) return;
 
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
     const newMessages: Message[] = selectedFiles.map((file, index) => {
       const isImage = file.type.startsWith('image/');
       const mediaAttachment: MediaAttachment = {
@@ -732,8 +819,9 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
         id: `msg-media-${Date.now()}-${index}`,
         senderId: 'me',
         text: isImage ? '📷 Photo' : `📎 ${file.name}`,
-        timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+        timestamp: timeString,
         status: 'sending' as const,
+        statusTimestamp: timeString,
         isMedia: true,
         mediaData: mediaAttachment
       };
@@ -753,28 +841,36 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
       c.id === selectedConversation.id ? updatedConversation : c
     ));
     setSelectedFiles([]);
+    setIsReceiptSyncing(true);
 
-    // Simulate status progression for all messages
-    newMessages.forEach(msg => {
+    // Simulate status progression for all messages with timestamps
+    newMessages.forEach((msg, index) => {
       setTimeout(() => {
+        const sentTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
         setSelectedConversation(prev => prev ? {
           ...prev,
-          messages: prev.messages.map(m => m.id === msg.id ? { ...m, status: 'sent' as const } : m)
+          messages: prev.messages.map(m => m.id === msg.id ? { ...m, status: 'sent' as const, statusTimestamp: sentTime } : m)
         } : prev);
       }, 500);
 
       setTimeout(() => {
+        const deliveredTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
         setSelectedConversation(prev => prev ? {
           ...prev,
-          messages: prev.messages.map(m => m.id === msg.id ? { ...m, status: 'delivered' as const } : m)
+          messages: prev.messages.map(m => m.id === msg.id ? { ...m, status: 'delivered' as const, deliveredAt: deliveredTime, statusTimestamp: deliveredTime } : m)
         } : prev);
       }, 1500);
 
       setTimeout(() => {
+        const readTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
         setSelectedConversation(prev => prev ? {
           ...prev,
-          messages: prev.messages.map(m => m.id === msg.id ? { ...m, status: 'read' as const } : m)
+          messages: prev.messages.map(m => m.id === msg.id ? { ...m, status: 'read' as const, readAt: readTime, statusTimestamp: readTime } : m)
         } : prev);
+        // Only stop syncing after last message is read
+        if (index === newMessages.length - 1) {
+          setIsReceiptSyncing(false);
+        }
       }, 2500);
     });
   };
@@ -1233,7 +1329,11 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                             {message.timestamp}
                           </span>
                           {message.senderId === 'me' && (
-                            <MessageStatus status={message.status} />
+                            <MessageStatus 
+                              status={message.status} 
+                              deliveredAt={message.deliveredAt}
+                              readAt={message.readAt}
+                            />
                           )}
                         </div>
 
@@ -1270,6 +1370,9 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
                     )}
                   </div>
                 ))}
+
+                {/* Read Receipt Sync Indicator */}
+                {isReceiptSyncing && <ReadReceiptSyncIndicator isSyncing={isReceiptSyncing} />}
 
                 {/* Typing indicator */}
                 {selectedConversation.isTyping && <TypingIndicator />}
