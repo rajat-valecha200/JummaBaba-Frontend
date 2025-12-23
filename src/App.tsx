@@ -41,6 +41,7 @@ import AdminProducts from "./pages/admin/AdminProducts";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminCommissions from "./pages/admin/AdminCommissions";
+import AdminMessages from "./pages/admin/AdminMessages";
 
 import NotFound from "./pages/NotFound";
 
@@ -99,6 +100,7 @@ const App = () => (
             {/* Admin dashboard routes */}
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/messages" element={<AdminMessages />} />
               <Route path="/admin/vendors" element={<AdminVendors />} />
               <Route path="/admin/products" element={<AdminProducts />} />
               <Route path="/admin/users" element={<AdminUsers />} />
