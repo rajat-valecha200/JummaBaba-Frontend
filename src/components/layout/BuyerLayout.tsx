@@ -76,8 +76,10 @@ export function BuyerLayout() {
         {/* Sidebar - Desktop */}
         <aside className="hidden lg:flex flex-col w-64 bg-sidebar min-h-screen sticky top-0">
           <div className="p-4 border-b border-sidebar-border">
-            <Link to="/" className="text-xl font-bold text-neutral-950">
-              JummaBaba<span className="text-primary">.com</span>
+          <Link to="/" className="text-xl font-bold">
+              <span className="text-b2b-black"><span className="font-extrabold">J</span>umma</span>
+              <span className="text-b2b-black"><span className="font-extrabold text-blue-600">B</span>aba</span>
+              <span className="text-b2b-orange">.com</span>
             </Link>
             <p className="text-xs text-sidebar-foreground/70 mt-1">Buyer Account</p>
           </div>
