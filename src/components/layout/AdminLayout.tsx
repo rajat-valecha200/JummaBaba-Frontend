@@ -98,8 +98,10 @@ export function AdminLayout() {
         {/* Sidebar - Desktop */}
         <aside className="hidden lg:flex flex-col w-64 bg-sidebar min-h-screen sticky top-0">
           <div className="p-4 border-b border-sidebar-border">
-            <Link to="/" className="text-xl font-bold text-secondary-foreground">
-              JummaBaba<span className="text-primary">.com</span>
+          <Link to="/" className="text-xl font-bold">
+              <span className="text-b2b-black"><span className="font-extrabold">J</span>umma</span>
+              <span className="text-blue-600"><span className="font-extrabold">B</span>aba</span>
+              <span className="text-b2b-orange">.com</span>
             </Link>
             <p className="text-xs text-destructive font-medium mt-1">Admin Panel</p>
           </div>
