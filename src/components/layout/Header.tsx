@@ -1,45 +1,19 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  Search, 
-  Menu, 
-  X, 
-  ChevronDown, 
-  ShoppingCart, 
-  MessageSquare, 
-  User,
-  FileText,
-  Phone
-} from 'lucide-react';
+import { Search, Menu, X, ChevronDown, ShoppingCart, MessageSquare, User, FileText, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/Logo';
 import { Input } from '@/components/ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { categories } from '@/data/mockData';
 import { cn } from '@/lib/utils';
-
 export function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const location = useLocation();
-
   const isActive = (path: string) => location.pathname === path;
-
-  return (
-    <header className="sticky top-0 z-50 bg-card border-b shadow-sm">
+  return <header className="sticky top-0 z-50 bg-card border-b shadow-sm">
       {/* Top bar */}
       <div className="bg-secondary text-secondary-foreground">
         <div className="b2b-container py-1.5 flex items-center justify-between text-xs sm:text-sm">
@@ -52,7 +26,7 @@ export function Header() {
           </div>
           <div className="flex items-center gap-4">
             <Link to="/vendor/register" className="hover:underline">
-              Sell on <span className="font-semibold"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba</span>
+              Sell on <span className="font-semibold text-b2b-gst"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba</span>
             </Link>
             <Link to="/help" className="hidden sm:block hover:underline">
               Help
@@ -79,15 +53,9 @@ export function Header() {
                 <Link to="/" className="block py-2 font-medium">Home</Link>
                 <div className="space-y-2">
                   <p className="font-semibold text-muted-foreground text-sm">Categories</p>
-                  {categories.map(cat => (
-                    <Link 
-                      key={cat.id}
-                      to={`/category/${cat.slug}`}
-                      className="block py-1.5 pl-2 hover:text-primary"
-                    >
+                  {categories.map(cat => <Link key={cat.id} to={`/category/${cat.slug}`} className="block py-1.5 pl-2 hover:text-primary">
                       {cat.name}
-                    </Link>
-                  ))}
+                    </Link>)}
                 </div>
                 <div className="pt-4 border-t space-y-2">
                   <Link to="/login" className="block py-2">Login</Link>
@@ -118,19 +86,12 @@ export function Header() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56">
-                  {categories.map(cat => (
-                    <DropdownMenuItem key={cat.id} asChild>
+                  {categories.map(cat => <DropdownMenuItem key={cat.id} asChild>
                       <Link to={`/category/${cat.slug}`}>{cat.name}</Link>
-                    </DropdownMenuItem>
-                  ))}
+                    </DropdownMenuItem>)}
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Input
-                placeholder="Search products or suppliers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="rounded-none flex-1"
-              />
+              <Input placeholder="Search products or suppliers..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="rounded-none flex-1" />
               <Button className="rounded-l-none">
                 <Search className="h-4 w-4" />
               </Button>
@@ -140,12 +101,7 @@ export function Header() {
           {/* Actions */}
           <div className="flex items-center gap-1 sm:gap-2 ml-auto">
             {/* Mobile search toggle */}
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="md:hidden"
-              onClick={() => setIsSearchOpen(!isSearchOpen)}
-            >
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSearchOpen(!isSearchOpen)}>
               {isSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
             </Button>
 
@@ -200,44 +156,27 @@ export function Header() {
         </div>
 
         {/* Mobile search bar */}
-        {isSearchOpen && (
-          <div className="mt-3 md:hidden">
+        {isSearchOpen && <div className="mt-3 md:hidden">
             <div className="relative flex">
-              <Input
-                placeholder="Search products or suppliers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="rounded-r-none flex-1"
-              />
+              <Input placeholder="Search products or suppliers..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="rounded-r-none flex-1" />
               <Button className="rounded-l-none">
                 <Search className="h-4 w-4" />
               </Button>
             </div>
-          </div>
-        )}
+          </div>}
       </div>
 
       {/* Category navigation - Desktop */}
       <nav className="hidden lg:block border-t bg-muted/30">
         <div className="b2b-container">
           <ul className="flex items-center gap-1 overflow-x-auto scrollbar-hide py-2">
-            {categories.map(cat => (
-              <li key={cat.id}>
-                <Link
-                  to={`/category/${cat.slug}`}
-                  className={cn(
-                    'px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap transition-colors',
-                    'hover:bg-primary/10 hover:text-primary',
-                    isActive(`/category/${cat.slug}`) && 'bg-primary/10 text-primary'
-                  )}
-                >
+            {categories.map(cat => <li key={cat.id}>
+                <Link to={`/category/${cat.slug}`} className={cn('px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap transition-colors', 'hover:bg-primary/10 hover:text-primary', isActive(`/category/${cat.slug}`) && 'bg-primary/10 text-primary')}>
                   {cat.name}
                 </Link>
-              </li>
-            ))}
+              </li>)}
           </ul>
         </div>
       </nav>
-    </header>
-  );
+    </header>;
 }
