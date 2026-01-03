@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Save, Upload, CheckCircle, Clock, Building, MapPin, Phone, Mail, Globe, FileText } from 'lucide-react';
+import { Save, Upload, CheckCircle, Clock, Building, MapPin, Phone, Mail, Globe, FileText, Shield, Info, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Select,
   SelectContent,
@@ -13,6 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { TrustBadge } from '@/components/b2b/TrustBadge';
 import { useToast } from '@/hooks/use-toast';
@@ -144,6 +150,14 @@ export default function VendorProfile() {
           )}
         </div>
       </div>
+
+      {/* Communication Restriction Notice */}
+      <Alert className="bg-primary/5 border-primary/20">
+        <Info className="h-4 w-4 text-primary" />
+        <AlertDescription>
+          All buyer communications are handled by JummaBaba Support. Your contact details are not shared directly with buyers.
+        </AlertDescription>
+      </Alert>
 
       {/* Trust Badges Overview */}
       <Card>
@@ -409,37 +423,56 @@ export default function VendorProfile() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                GST Verification
+                GST & PAN Verification
               </CardTitle>
               <CardDescription>
-                Verify your GST to build trust with buyers
+                Verified documents build trust with buyers
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="gst">GST Number</Label>
-                <Input
-                  id="gst"
-                  value={profile.gstNumber}
-                  onChange={(e) => {
-                    updateField('gstNumber', e.target.value.toUpperCase());
-                    updateField('gstVerified', false);
-                  }}
-                  disabled={!isEditing || profile.gstVerified}
-                  placeholder="22AAAAA0000A1Z5"
-                  maxLength={15}
-                  className="mt-1 font-mono"
-                />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="gst">GST Number</Label>
+                  {profile.gstVerified && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge className="bg-success/10 text-success border-success/20 gap-1 cursor-help">
+                          <Shield className="h-3 w-3" />
+                          Verified
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        For security reasons, GST number cannot be edited after verification.
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+                <div className="relative mt-1">
+                  <Input
+                    id="gst"
+                    value={profile.gstNumber}
+                    onChange={(e) => {
+                      updateField('gstNumber', e.target.value.toUpperCase());
+                      updateField('gstVerified', false);
+                    }}
+                    disabled={profile.gstVerified}
+                    placeholder="22AAAAA0000A1Z5"
+                    maxLength={15}
+                    className="font-mono"
+                  />
+                  {profile.gstVerified && (
+                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
               </div>
 
               {profile.gstVerified ? (
-                <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg text-success">
-                  <CheckCircle className="h-5 w-5" />
-                  <div>
-                    <p className="font-medium">GST Verified</p>
-                    <p className="text-xs opacity-80">Your GST number has been verified</p>
-                  </div>
-                </div>
+                <Alert className="bg-success/5 border-success/20">
+                  <CheckCircle className="h-4 w-4 text-success" />
+                  <AlertDescription className="text-success">
+                    GST verified. For security reasons, this cannot be edited.
+                  </AlertDescription>
+                </Alert>
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg text-warning">
@@ -462,16 +495,37 @@ export default function VendorProfile() {
               <Separator />
 
               <div>
-                <Label htmlFor="pan">PAN Number</Label>
-                <Input
-                  id="pan"
-                  value={profile.panNumber}
-                  onChange={(e) => updateField('panNumber', e.target.value.toUpperCase())}
-                  disabled={!isEditing}
-                  placeholder="AAAAA1234A"
-                  maxLength={10}
-                  className="mt-1 font-mono"
-                />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="pan">PAN Number</Label>
+                  {profile.panNumber && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge className="bg-success/10 text-success border-success/20 gap-1 cursor-help">
+                          <Shield className="h-3 w-3" />
+                          Verified
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        For security reasons, PAN number cannot be edited after submission.
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+                <div className="relative mt-1">
+                  <Input
+                    id="pan"
+                    value={profile.panNumber}
+                    readOnly
+                    disabled
+                    placeholder="AAAAA1234A"
+                    maxLength={10}
+                    className="font-mono"
+                  />
+                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  For security reasons, PAN cannot be edited. Contact support to update.
+                </p>
               </div>
             </CardContent>
           </Card>

@@ -33,6 +33,8 @@ import VendorOrders from "./pages/vendor/VendorOrders";
 import VendorRfqs from "./pages/vendor/VendorRfqs";
 import VendorProfile from "./pages/vendor/VendorProfile";
 import VendorMessages from "./pages/vendor/VendorMessages";
+import VendorPayouts from "./pages/vendor/VendorPayouts";
+import VendorActivity from "./pages/vendor/VendorActivity";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -94,6 +96,8 @@ const App = () => (
               <Route path="/vendor/rfqs" element={<VendorRfqs />} />
               <Route path="/vendor/messages" element={<VendorMessages />} />
               <Route path="/vendor/profile" element={<VendorProfile />} />
+              <Route path="/vendor/payouts" element={<VendorPayouts />} />
+              <Route path="/vendor/activity" element={<VendorActivity />} />
               <Route path="/vendor/settings" element={<VendorDashboard />} />
             </Route>
 

@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle, ArrowLeft } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle, ArrowLeft, Upload, Info, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -19,6 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -139,6 +148,10 @@ export default function VendorOrders() {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [shippingCarrier, setShippingCarrier] = useState('');
   const [shippingNotes, setShippingNotes] = useState('');
+  const [shippingProof, setShippingProof] = useState<File | null>(null);
+  const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const shippingProofInputRef = useRef<HTMLInputElement>(null);
 
   const filteredOrders = orders.filter((o) => {
     const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
@@ -152,6 +165,41 @@ export default function VendorOrders() {
     toast({ title: `Order status updated to ${statusConfig[newStatus].label}` });
     if (selectedOrder?.id === orderId) {
       setSelectedOrder({ ...selectedOrder, status: newStatus });
+    }
+    // Reset shipping proof after marking as shipped
+    if (newStatus === 'shipped') {
+      setShippingProof(null);
+    }
+  };
+
+  const handleRequestCancellation = () => {
+    if (!selectedOrder || !cancelReason.trim()) {
+      toast({ title: 'Please provide a reason for cancellation', variant: 'destructive' });
+      return;
+    }
+    toast({ 
+      title: 'Cancellation request submitted', 
+      description: 'Admin will review your request and get back to you.' 
+    });
+    setCancelRequestOpen(false);
+    setCancelReason('');
+  };
+
+  const handleShippingProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (!validTypes.includes(file.type)) {
+        toast({ title: 'Please upload an image (JPG, PNG, WEBP) or PDF file', variant: 'destructive' });
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ title: 'File size must be less than 5MB', variant: 'destructive' });
+        return;
+      }
+      setShippingProof(file);
     }
   };
 
@@ -264,6 +312,27 @@ export default function VendorOrders() {
                         rows={2}
                       />
                     </div>
+                    {/* Shipping Proof Upload */}
+                    <div className="space-y-2">
+                      <Label htmlFor="shipping-proof">Upload Shipping Proof (Optional)</Label>
+                      <p className="text-xs text-muted-foreground">LR / Receipt - Image or PDF (max 5MB)</p>
+                      <input
+                        ref={shippingProofInputRef}
+                        type="file"
+                        id="shipping-proof"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        onChange={handleShippingProofChange}
+                        className="hidden"
+                      />
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => shippingProofInputRef.current?.click()}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        {shippingProof ? shippingProof.name : 'Choose File'}
+                      </Button>
+                    </div>
                   </div>
                 )}
 
@@ -293,18 +362,23 @@ export default function VendorOrders() {
                   </Button>
                 )}
 
-                {selectedOrder.status === 'pending' && (
+                {(selectedOrder.status === 'pending' || selectedOrder.status === 'confirmed') && (
                   <Button
                     variant="outline"
-                    className="w-full text-destructive hover:text-destructive"
-                    onClick={() => {
-                      updateOrderStatus(selectedOrder.id, 'cancelled');
-                    }}
+                    className="w-full text-warning hover:text-warning"
+                    onClick={() => setCancelRequestOpen(true)}
                   >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Cancel Order
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    Request Cancellation
                   </Button>
                 )}
+                
+                <Alert className="bg-muted/50">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    Cancellation requests are reviewed by admin. Direct order cancellation is not allowed.
+                  </AlertDescription>
+                </Alert>
               </CardContent>
             </Card>
 
@@ -511,6 +585,44 @@ export default function VendorOrders() {
           )}
         </CardContent>
       </Card>
+
+      {/* Cancellation Request Dialog */}
+      <Dialog open={cancelRequestOpen} onOpenChange={setCancelRequestOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Order Cancellation</DialogTitle>
+            <DialogDescription>
+              Submit a cancellation request for order {selectedOrder?.orderNumber}. Admin will review your request.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Alert className="bg-warning/10 border-warning/20">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              <AlertDescription>
+                Cancellation requests are reviewed by admin. Direct order cancellation is not allowed.
+              </AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+              <Label htmlFor="cancel-reason">Reason for Cancellation *</Label>
+              <Textarea
+                id="cancel-reason"
+                placeholder="Please explain why you want to cancel this order..."
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelRequestOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRequestCancellation}>
+              Submit Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
