@@ -100,7 +100,7 @@ export function AdminLayout() {
           <div className="p-4 border-b border-sidebar-border">
           <Link to="/" className="text-xl font-bold">
               <span className="text-b2b-black"><span className="font-extrabold">J</span>umma</span>
-              <span className="text-blue-600"><span className="font-extrabold">B</span>aba</span>
+              <span className="text-b2b-black"><span className="font-extrabold text-blue-600">B</span>aba</span>
               <span className="text-b2b-orange">.com</span>
             </Link>
             <p className="text-xs text-destructive font-medium mt-1">Admin Panel</p>
