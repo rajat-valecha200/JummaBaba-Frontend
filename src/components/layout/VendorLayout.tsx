@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, FileText, MessageSquare, Building, Settings, Menu, X, ChevronLeft } from 'lucide-react';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Package, ShoppingCart, FileText, MessageSquare, Building, Settings, Menu, X, ChevronLeft, LogOut, Bell, Activity, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 const vendorNavItems = [{
   icon: LayoutDashboard,
   label: 'Dashboard',
@@ -28,13 +30,41 @@ const vendorNavItems = [{
   label: 'Business Profile',
   path: '/vendor/profile'
 }, {
+  icon: DollarSign,
+  label: 'Payouts',
+  path: '/vendor/payouts'
+}, {
+  icon: Activity,
+  label: 'Activity Log',
+  path: '/vendor/activity'
+}, {
   icon: Settings,
   label: 'Settings',
   path: '/vendor/settings'
 }];
+
+// Mock notification counts
+const mockNotifications = {
+  newRfqs: 3,
+  orderUpdates: 2,
+  adminMessages: 1,
+};
 export function VendorLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  const totalNotifications = mockNotifications.newRfqs + mockNotifications.orderUpdates + mockNotifications.adminMessages;
+
+  const handleLogout = () => {
+    // Clear auth token (localStorage/sessionStorage)
+    localStorage.removeItem('authToken');
+    sessionStorage.removeItem('authToken');
+    toast({ title: 'Logged out successfully' });
+    navigate('/login');
+  };
+
   return <div className="min-h-screen bg-muted/30">
       {/* Mobile header */}
       <header className="lg:hidden sticky top-0 z-50 bg-card border-b px-4 py-3 flex items-center gap-4">
@@ -44,7 +74,17 @@ export function VendorLayout() {
         <Link to="/" className="text-xl font-bold text-primary">
           Jumma<span className="text-secondary">baba</span>
         </Link>
-        <span className="text-sm text-muted-foreground ml-auto">Vendor Panel</span>
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="relative">
+            <Bell className="h-5 w-5" />
+            {totalNotifications > 0 && (
+              <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs" variant="destructive">
+                {totalNotifications}
+              </Badge>
+            )}
+          </Button>
+          <span className="text-sm text-muted-foreground">Vendor Panel</span>
+        </div>
       </header>
 
       <div className="flex">
@@ -71,13 +111,23 @@ export function VendorLayout() {
 
         {/* Sidebar - Desktop */}
         <aside className="hidden lg:flex flex-col w-64 bg-sidebar min-h-screen sticky top-0">
-          <div className="p-4 border-b border-sidebar-border">
-          <Link to="/" className="text-xl font-bold">
-              <span className="text-b2b-black"><span className="font-extrabold">J</span>umma</span>
-              <span className="text-b2b-black"><span className="font-extrabold text-blue-600">B</span>aba</span>
-              <span className="text-b2b-orange">.com</span>
-            </Link>
-            <p className="text-xs text-sidebar-foreground/70 mt-1">Vendor Dashboard</p>
+          <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
+            <div>
+              <Link to="/" className="text-xl font-bold">
+                <span className="text-b2b-black"><span className="font-extrabold">J</span>umma</span>
+                <span className="text-b2b-black"><span className="font-extrabold text-blue-600">B</span>aba</span>
+                <span className="text-b2b-orange">.com</span>
+              </Link>
+              <p className="text-xs text-sidebar-foreground/70 mt-1">Vendor Dashboard</p>
+            </div>
+            <Button variant="ghost" size="icon" className="relative">
+              <Bell className="h-5 w-5" />
+              {totalNotifications > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs" variant="destructive">
+                  {totalNotifications}
+                </Badge>
+              )}
+            </Button>
           </div>
           <nav className="p-4 space-y-1 flex-1">
             {vendorNavItems.map(item => <Link key={item.path} to={item.path} className={cn('flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground transition-colors', location.pathname === item.path ? 'bg-sidebar-accent text-sidebar-primary' : 'hover:bg-sidebar-accent')}>
@@ -85,11 +135,15 @@ export function VendorLayout() {
                 <span>{item.label}</span>
               </Link>)}
           </nav>
-          <div className="p-4 border-t border-sidebar-border">
+          <div className="p-4 border-t border-sidebar-border space-y-2">
             <Link to="/" className="flex items-center gap-2 text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground">
               <ChevronLeft className="h-4 w-4" />
               Back to Marketplace
             </Link>
+            <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
           </div>
         </aside>
 

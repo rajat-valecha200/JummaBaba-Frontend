@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Search, Package, Eye } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Package, Eye, AlertCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -39,6 +40,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { products, categories, formatPrice } from '@/data/mockData';
 import { useToast } from '@/hooks/use-toast';
 
@@ -84,9 +90,33 @@ const emptyProduct: ProductFormData = {
   selectedSlabCount: 2,
 };
 
-const vendorProducts = products.slice(0, 6).map(p => ({
+// Extended product status to include 'rejected'
+type ProductStatus = 'active' | 'pending' | 'draft' | 'rejected';
+
+interface VendorProduct {
+  id: string;
+  name: string;
+  slug: string;
+  shortDescription: string;
+  description: string;
+  categoryId: string;
+  subcategoryId: string;
+  supplierId: string;
+  moq: number;
+  unit: string;
+  pricingSlabs: { minQty: number; maxQty: number | null; pricePerUnit: number }[];
+  images: string[];
+  specifications: Record<string, string>;
+  isVerified: boolean;
+  createdAt: string;
+  status: ProductStatus;
+  rejectionReason?: string;
+}
+
+const vendorProducts: VendorProduct[] = products.slice(0, 6).map((p, index) => ({
   ...p,
-  status: ['active', 'active', 'pending', 'active', 'draft', 'active'][Math.floor(Math.random() * 6)] as 'active' | 'pending' | 'draft',
+  status: (['active', 'active', 'pending', 'active', 'draft', 'rejected'] as ProductStatus[])[index % 6],
+  rejectionReason: index === 5 ? 'Insufficient product images. Please add at least 3 clear product photos.' : undefined,
 }));
 
 export default function VendorProducts() {
@@ -204,12 +234,27 @@ export default function VendorProducts() {
     setFormData({ ...formData, pricingSlabs: updated });
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: ProductStatus, rejectionReason?: string) => {
     switch (status) {
       case 'active':
         return <Badge className="bg-success/10 text-success border-success/20">Active</Badge>;
       case 'pending':
         return <Badge variant="secondary">Pending</Badge>;
+      case 'rejected':
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="destructive" className="cursor-help">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                Rejected
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p className="font-medium">Rejection Reason:</p>
+              <p className="text-sm">{rejectionReason || 'No reason provided'}</p>
+            </TooltipContent>
+          </Tooltip>
+        );
       default:
         return <Badge variant="outline">Draft</Badge>;
     }
@@ -228,7 +273,7 @@ export default function VendorProducts() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{productList.length}</div>
@@ -245,6 +290,12 @@ export default function VendorProducts() {
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-warning">{productList.filter(p => p.status === 'pending').length}</div>
             <p className="text-sm text-muted-foreground">Pending Approval</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-destructive">{productList.filter(p => p.status === 'rejected').length}</div>
+            <p className="text-sm text-muted-foreground">Rejected</p>
           </CardContent>
         </Card>
       </div>
@@ -302,12 +353,25 @@ export default function VendorProducts() {
                         : `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`
                       }
                     </TableCell>
-                    <TableCell>{getStatusBadge(product.status)}</TableCell>
+                    <TableCell>{getStatusBadge(product.status, product.rejectionReason)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(product)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        {product.status === 'rejected' ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="sm" variant="ghost" disabled className="opacity-50">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Editing disabled until admin allows resubmission
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(product)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button 
                           size="sm" 
                           variant="ghost" 

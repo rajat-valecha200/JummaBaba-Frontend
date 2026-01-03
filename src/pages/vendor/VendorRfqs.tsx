@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Eye, Search, Filter, MessageSquare, Clock, CheckCircle, Send } from 'lucide-react';
+import { Eye, Search, Filter, MessageSquare, Clock, CheckCircle, Send, Info, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -29,11 +30,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { formatPrice } from '@/data/mockData';
 import { useToast } from '@/hooks/use-toast';
 
-type RfqStatus = 'pending' | 'responded' | 'closed';
+// Extended RFQ status flow
+type RfqStatus = 'pending' | 'quoted' | 'admin_approved' | 'sent_to_buyer' | 'closed';
 
 interface RfqResponse {
   price: number;
@@ -98,7 +105,7 @@ const mockRfqs: Rfq[] = [
     targetPrice: 180,
     deliveryLocation: 'Ludhiana, Punjab',
     description: 'ISI certified industrial safety helmets. Prefer white and yellow colors. Need test certificates.',
-    status: 'responded',
+    status: 'quoted',
     createdAt: '2024-01-18T09:00:00Z',
     response: {
       price: 195,
@@ -118,7 +125,7 @@ const mockRfqs: Rfq[] = [
     targetPrice: 180,
     deliveryLocation: 'Nashik, Maharashtra',
     description: 'Looking for organic certified turmeric powder. Must have FSSAI certification. Packaging: 1kg packs.',
-    status: 'responded',
+    status: 'admin_approved',
     createdAt: '2024-01-17T11:45:00Z',
     response: {
       price: 200,
@@ -138,7 +145,7 @@ const mockRfqs: Rfq[] = [
     targetPrice: 45,
     deliveryLocation: 'Chennai, Tamil Nadu',
     description: 'Need ceramic floor tiles for commercial project. Prefer neutral colors. Anti-slip surface preferred.',
-    status: 'closed',
+    status: 'sent_to_buyer',
     createdAt: '2024-01-15T16:20:00Z',
     response: {
       price: 48,
@@ -196,7 +203,7 @@ export default function VendorRfqs() {
       r.id === selectedRfq.id 
         ? {
             ...r,
-            status: 'responded' as RfqStatus,
+            status: 'quoted' as RfqStatus,
             response: {
               price: responseForm.price,
               deliveryDays: responseForm.deliveryDays,
@@ -207,24 +214,41 @@ export default function VendorRfqs() {
         : r
     ));
 
-    toast({ title: 'Quote sent successfully!' });
+    toast({ title: 'Quote submitted! Awaiting admin approval before being sent to buyer.' });
     setResponseOpen(false);
     setSelectedRfq(null);
   };
 
   const getStatusBadge = (status: RfqStatus) => {
     switch (status) {
-      case 'responded':
-        return <Badge className="bg-success/10 text-success border-success/20"><CheckCircle className="h-3 w-3 mr-1" />Responded</Badge>;
+      case 'quoted':
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge className="bg-warning/10 text-warning border-warning/20 cursor-help">
+                <Clock className="h-3 w-3 mr-1" />
+                Waiting Approval
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              Your quote will be shared with the buyer after admin approval.
+            </TooltipContent>
+          </Tooltip>
+        );
+      case 'admin_approved':
+        return <Badge className="bg-secondary/10 text-secondary border-secondary/20"><CheckCircle className="h-3 w-3 mr-1" />Admin Approved</Badge>;
+      case 'sent_to_buyer':
+        return <Badge className="bg-success/10 text-success border-success/20"><CheckCircle className="h-3 w-3 mr-1" />Sent to Buyer</Badge>;
       case 'closed':
         return <Badge variant="secondary">Closed</Badge>;
       default:
-        return <Badge className="bg-warning/10 text-warning border-warning/20"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+        return <Badge className="bg-primary/10 text-primary border-primary/20"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
     }
   };
 
   const pendingCount = rfqs.filter(r => r.status === 'pending').length;
-  const respondedCount = rfqs.filter(r => r.status === 'responded').length;
+  const quotedCount = rfqs.filter(r => r.status === 'quoted').length;
+  const approvedCount = rfqs.filter(r => r.status === 'admin_approved' || r.status === 'sent_to_buyer').length;
 
   return (
     <div className="space-y-6">
@@ -233,7 +257,22 @@ export default function VendorRfqs() {
         <p className="text-muted-foreground">Respond to buyer inquiries and send quotes</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <Alert className="bg-primary/5 border-primary/20">
+        <Info className="h-4 w-4 text-primary" />
+        <AlertDescription className="flex items-center gap-1">
+          Your quotes will be shared with buyers after admin approval.
+          <Tooltip>
+            <TooltipTrigger>
+              <HelpCircle className="h-4 w-4 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              JummaBaba Support reviews all quotes before sending to buyers to ensure quality and fair pricing.
+            </TooltipContent>
+          </Tooltip>
+        </AlertDescription>
+      </Alert>
+
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -250,8 +289,8 @@ export default function VendorRfqs() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-warning/10 rounded-lg">
-                <Clock className="h-5 w-5 text-warning" />
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Clock className="h-5 w-5 text-primary" />
               </div>
               <div>
                 <div className="text-2xl font-bold">{pendingCount}</div>
@@ -263,12 +302,25 @@ export default function VendorRfqs() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
+              <div className="p-2 bg-warning/10 rounded-lg">
+                <Clock className="h-5 w-5 text-warning" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{quotedCount}</div>
+                <p className="text-sm text-muted-foreground">Waiting Approval</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
               <div className="p-2 bg-success/10 rounded-lg">
                 <CheckCircle className="h-5 w-5 text-success" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{respondedCount}</div>
-                <p className="text-sm text-muted-foreground">Responded</p>
+                <div className="text-2xl font-bold">{approvedCount}</div>
+                <p className="text-sm text-muted-foreground">Approved</p>
               </div>
             </div>
           </CardContent>
