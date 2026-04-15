@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Eye, Search, Filter } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -44,29 +47,40 @@ interface ProductWithStatus {
   submittedAt: string;
 }
 
-const mockProducts: ProductWithStatus[] = products.map((p, i) => {
-  const supplier = getSupplierById(p.supplierId);
-  const statuses: ProductStatus[] = ['pending', 'pending', 'pending', 'approved', 'rejected'];
-  return {
-    id: p.id,
-    name: p.name,
-    image: p.images[0],
-    category: p.categoryId,
-    supplierId: p.supplierId,
-    supplierName: supplier?.companyName || 'Unknown',
-    minPrice: p.pricingSlabs[0].pricePerUnit,
-    moq: p.moq,
-    status: statuses[i % statuses.length],
-    submittedAt: new Date(Date.now() - i * 43200000).toISOString(),
-  };
-});
-
 export default function AdminProducts() {
-  const [productList, setProductList] = useState<ProductWithStatus[]>(mockProducts);
+  const { toast } = useToast();
+  const [productList, setProductList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState<ProductWithStatus | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const data = await api.products.list();
+      setProductList(data.map((p: any) => ({
+        ...p,
+        supplierName: p.supplier_name || 'System Vendor',
+        category: p.category_id || p.category,
+        image: p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600',
+        submittedAt: p.created_at,
+        minPrice: p.pricing_slabs?.[0]?.pricePerUnit || p.minPrice || 0
+      })));
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const filteredProducts = productList.filter((p) => {
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
@@ -76,14 +90,35 @@ export default function AdminProducts() {
     return matchesStatus && matchesSearch;
   });
 
-  const handleApprove = (productId: string) => {
-    setProductList(productList.map(p => p.id === productId ? { ...p, status: 'approved' as ProductStatus } : p));
+  const handleApprove = async (productId: string) => {
+    try {
+      await api.products.updateStatus(productId, 'approved');
+      setProductList(productList.map(p => p.id === productId ? { ...p, status: 'approved' as ProductStatus } : p));
+      toast({ title: 'Product Approved' });
+    } catch (error: any) {
+      toast({ title: 'Approval Failed', description: error.message, variant: 'destructive' });
+    }
     setDetailsOpen(false);
   };
 
-  const handleReject = (productId: string) => {
-    setProductList(productList.map(p => p.id === productId ? { ...p, status: 'rejected' as ProductStatus } : p));
-    setDetailsOpen(false);
+  const handleOpenReject = (productId: string) => {
+    setRejectingId(productId);
+    setRejectionReason('');
+    setRejectDialogOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectingId) return;
+    try {
+      await api.products.updateStatus(rejectingId, 'rejected', rejectionReason);
+      setProductList(productList.map(p => p.id === rejectingId ? { ...p, status: 'rejected' as ProductStatus, rejection_reason: rejectionReason } : p));
+      toast({ title: 'Product Rejected' });
+      setRejectDialogOpen(false);
+      setRejectingId(null);
+      setDetailsOpen(false);
+    } catch (error: any) {
+      toast({ title: 'Rejection Failed', description: error.message, variant: 'destructive' });
+    }
   };
 
   const getStatusBadge = (status: ProductStatus) => {
@@ -204,7 +239,7 @@ export default function AdminProducts() {
                       </Button>
                       {product.status === 'pending' && (
                         <>
-                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleReject(product.id)}>
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleOpenReject(product.id)}>
                             <XCircle className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="ghost" className="text-success hover:text-success" onClick={() => handleApprove(product.id)}>
@@ -271,7 +306,7 @@ export default function AdminProducts() {
           <DialogFooter>
             {selectedProduct?.status === 'pending' && (
               <>
-                <Button variant="outline" onClick={() => handleReject(selectedProduct.id)}>
+                <Button variant="outline" onClick={() => handleOpenReject(selectedProduct.id)}>
                   <XCircle className="h-4 w-4 mr-2" />
                   Reject
                 </Button>
@@ -281,6 +316,27 @@ export default function AdminProducts() {
                 </Button>
               </>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Product</DialogTitle>
+            <DialogDescription>Please provide a reason for rejecting this product listing.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input 
+              placeholder="e.g., Image quality is low, Price is unrealistic..." 
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmReject} disabled={!rejectionReason.trim()}>
+              Confirm Rejection
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

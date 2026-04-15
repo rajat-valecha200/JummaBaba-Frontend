@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/ui/Logo';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   buyerStep1EmailSchema,
   buyerStep1PhoneSchema,
@@ -225,13 +226,41 @@ export default function BuyerRegisterPage() {
     setStep(step + 1);
   };
 
-  const handleRegister = () => {
+  const { register, login } = useAuth();
+
+  const handleRegister = async () => {
     if (!agreedToTerms) {
       toast({ title: 'Terms Required', description: 'Please agree to the terms and conditions', variant: 'destructive' });
       return;
     }
-    toast({ title: 'Registration Successful!', description: 'Welcome to JummaBaba.com! You can now start buying.' });
-    navigate('/buyer/dashboard');
+
+    try {
+      await register({
+        full_name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        role: 'buyer',
+        business_name: formData.businessName,
+        business_details: {
+          businessType: formData.businessType,
+          gstNumber: formData.gstNumber,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          pincode: formData.pincode
+        }
+      });
+
+      toast({ title: 'Registration Successful!', description: 'Welcome to JummaBaba.com! You can now start buying.' });
+      navigate('/buyer/dashboard');
+    } catch (error: any) {
+      toast({
+        title: 'Registration Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
   return (

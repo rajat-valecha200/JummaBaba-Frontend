@@ -8,11 +8,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { categories } from '@/data/mockData';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+
 export function Header() {
+  const { user, signOut } = useAuth();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
+
   return <header className="sticky top-0 z-50 bg-card border-b shadow-sm">
       {/* Top bar */}
       <div className="bg-secondary text-secondary-foreground">
@@ -25,9 +29,11 @@ export function Header() {
             <span>India's #1 B2B Marketplace</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link to="/vendor/register" className="hover:underline">
-              Sell on <span className="font-semibold text-b2b-gst"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba</span>
-            </Link>
+            {(!user || user.role === 'buyer') && (
+              <Link to="/vendor/register" className="hover:underline">
+                Sell on <span className="font-semibold text-b2b-gst"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba</span>
+              </Link>
+            )}
             <Link to="/help" className="hidden sm:block hover:underline">
               Help
             </Link>
@@ -58,8 +64,23 @@ export function Header() {
                     </Link>)}
                 </div>
                 <div className="pt-4 border-t space-y-2">
-                  <Link to="/login" className="block py-2">Login</Link>
-                  <Link to="/register" className="block py-2">Register</Link>
+                  {!user ? (
+                    <>
+                      <Link to="/login" className="block py-2">Login</Link>
+                      <Link to="/register" className="block py-2">Register</Link>
+                    </>
+                  ) : (
+                    <>
+                      <div className="py-2 font-medium text-sm text-muted-foreground border-b mb-2">Welcome, {user.full_name || user.email.split('@')[0]}</div>
+                      <Link to="/" className="block py-2 text-primary font-bold">
+                        Browse Marketplace
+                      </Link>
+                      <Link to={user.role === 'admin' ? '/admin' : user.role === 'vendor' ? '/vendor/dashboard' : '/buyer/dashboard'} className="block py-2">
+                        My Dashboard
+                      </Link>
+                      <button onClick={signOut} className="block w-full text-left py-2 text-destructive">Logout</button>
+                    </>
+                  )}
                   <Link to="/post-requirement" className="block py-2 text-primary font-medium">
                     Post Your Requirement
                   </Link>
@@ -77,10 +98,16 @@ export function Header() {
 
           {/* Search bar - Desktop */}
           <div className="hidden md:flex flex-1 max-w-2xl mx-4">
-            <div className="relative w-full flex">
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (searchQuery.trim()) window.location.href = `/products?q=${encodeURIComponent(searchQuery)}`;
+              }}
+              className="relative w-full flex"
+            >
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="rounded-r-none border-r-0 px-3">
+                  <Button type="button" variant="outline" className="rounded-r-none border-r-0 px-3">
                     All Categories
                     <ChevronDown className="ml-1 h-4 w-4" />
                   </Button>
@@ -91,11 +118,16 @@ export function Header() {
                     </DropdownMenuItem>)}
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Input placeholder="Search products or suppliers..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="rounded-none flex-1" />
-              <Button className="rounded-l-none">
+              <Input 
+                placeholder="Search products or suppliers..." 
+                value={searchQuery} 
+                onChange={e => setSearchQuery(e.target.value)} 
+                className="rounded-none flex-1" 
+              />
+              <Button type="submit" className="rounded-l-none">
                 <Search className="h-4 w-4" />
               </Button>
-            </div>
+            </form>
           </div>
 
           {/* Actions */}
@@ -105,13 +137,13 @@ export function Header() {
               {isSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
             </Button>
 
-            <Button variant="ghost" size="icon" asChild>
+            <Button variant="ghost" size="icon" asChild title="Messages">
               <Link to="/messages">
                 <MessageSquare className="h-5 w-5" />
               </Link>
             </Button>
 
-            <Button variant="ghost" size="icon" asChild>
+            <Button variant="ghost" size="icon" asChild title="Cart">
               <Link to="/buyer/cart">
                 <ShoppingCart className="h-5 w-5" />
               </Link>
@@ -119,30 +151,52 @@ export function Header() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" className={user ? "text-primary" : ""}>
                   <User className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem asChild>
-                  <Link to="/login">Login</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/register">Register as Buyer</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/vendor/register">Register as Seller</Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link to="/buyer/dashboard">Buyer Dashboard</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/vendor/dashboard">Vendor Dashboard</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/admin">Admin Panel</Link>
-                </DropdownMenuItem>
+              <DropdownMenuContent align="end" className="w-56">
+                {!user ? (
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link to="/login">Login</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/register">Register as Buyer</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/vendor/register">Register as Seller</Link>
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-b mb-1">
+                      {user.email} ({user.role})
+                    </div>
+                    {user.role === 'admin' && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin">Admin Panel</Link>
+                      </DropdownMenuItem>
+                    )}
+                    {user.role === 'vendor' && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/vendor/dashboard">Vendor Dashboard</Link>
+                      </DropdownMenuItem>
+                    )}
+                    {user.role === 'buyer' && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/buyer/dashboard">Buyer Dashboard</Link>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem asChild>
+                      <Link to="/profile">My Profile</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={signOut} className="text-destructive">
+                      Logout
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 

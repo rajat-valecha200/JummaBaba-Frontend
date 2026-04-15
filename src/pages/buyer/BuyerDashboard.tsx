@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/lib/api';
 import { 
   Package, 
   ShoppingCart, 
@@ -7,13 +9,24 @@ import {
   MessageSquare,
   TrendingUp,
   Clock,
-  Eye
+  Eye,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatsCard } from '@/components/b2b/StatsCard';
-import { orders, rfqs, formatPrice, formatNumber } from '@/data/mockData';
+import { ProductCard } from '@/components/b2b/ProductCard';
+import { CategoryCard } from '@/components/b2b/CategoryCard';
+import { 
+  orders, 
+  rfqs, 
+  products, 
+  categories, 
+  getSupplierById, 
+  formatPrice, 
+  formatNumber 
+} from '@/data/mockData';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-warning/10 text-warning',
@@ -26,14 +39,47 @@ const statusColors: Record<string, string> = {
 };
 
 export default function BuyerDashboard() {
+  const { user } = useAuth();
+  const [stats, setStats] = useState<any>(null);
+  const [liveRfqs, setLiveRfqs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [statsData, rfqData] = await Promise.all([
+          api.stats.get('buyer'),
+          api.rfqs.list()
+        ]);
+        setStats(statsData);
+        setLiveRfqs(rfqData);
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
   const recentOrders = orders.slice(0, 3);
-  const recentRfqs = rfqs.slice(0, 3);
+  const displayedRfqs = liveRfqs.length > 0 ? liveRfqs.slice(0, 3) : [];
+  const featuredProducts = products.slice(0, 4);
+  const topCategories = categories.slice(0, 6);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6 px-1 sm:px-0">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Welcome back, Amit!</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Welcome back, {user?.full_name || user?.email.split('@')[0]}!</h1>
         <p className="text-sm sm:text-base text-muted-foreground">Here's what's happening with your account</p>
       </div>
 
@@ -41,41 +87,41 @@ export default function BuyerDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatsCard
           title="Total Orders"
-          value={orders.length}
+          value={stats?.orders || 0}
           icon={ShoppingCart}
           trend={{ value: 12, isPositive: true }}
         />
         <StatsCard
           title="RFQs Sent"
-          value={rfqs.length}
+          value={stats?.rfqs || 0}
           icon={FileText}
           iconClassName="bg-secondary/10 text-secondary"
         />
         <StatsCard
           title="Messages"
-          value={5}
+          value={stats?.messages || 0}
           icon={MessageSquare}
           iconClassName="bg-accent/10 text-accent"
         />
         <StatsCard
           title="Total Spent"
-          value={formatPrice(3094000)}
+          value={formatPrice(stats?.totalSpent || 0)}
           icon={TrendingUp}
           iconClassName="bg-success/10 text-success"
         />
       </div>
 
-      {/* Orders & RFQs - Stack on mobile, side by side on desktop */}
+      {/* Main Content - Orders & RFQs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Recent Orders */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
+          <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-2 border-b">
             <CardTitle className="text-base sm:text-lg">Recent Orders</CardTitle>
             <Button asChild variant="ghost" size="sm" className="text-xs sm:text-sm">
               <Link to="/buyer/orders">View All</Link>
             </Button>
           </CardHeader>
-          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+          <CardContent className="p-4 sm:p-6">
             <div className="space-y-3 sm:space-y-4">
               {recentOrders.map(order => (
                 <div key={order.id} className="flex items-start sm:items-center justify-between p-2.5 sm:p-3 bg-muted/50 rounded-lg gap-3">
@@ -99,68 +145,97 @@ export default function BuyerDashboard() {
 
         {/* Recent RFQs */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
-            <CardTitle className="text-base sm:text-lg">My RFQs</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-2 border-b">
+            <CardTitle className="text-base sm:text-lg">Active RFQs</CardTitle>
             <Button asChild variant="ghost" size="sm" className="text-xs sm:text-sm">
               <Link to="/buyer/rfqs">View All</Link>
             </Button>
           </CardHeader>
-          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+          <CardContent className="p-4 sm:p-6">
             <div className="space-y-3 sm:space-y-4">
-              {recentRfqs.map(rfq => (
+              {displayedRfqs.length > 0 ? displayedRfqs.map(rfq => (
                 <div key={rfq.id} className="flex items-start sm:items-center justify-between p-2.5 sm:p-3 bg-muted/50 rounded-lg gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm sm:text-base truncate">{rfq.productName}</p>
+                    <p className="font-medium text-sm sm:text-base truncate">{rfq.product_name || rfq.productName}</p>
                     <p className="text-xs sm:text-sm text-muted-foreground">
                       {rfq.quantity} {rfq.unit}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <Badge className={`${statusColors[rfq.status]} text-xs`} variant="secondary">
+                    <Badge className={`${statusColors[rfq.status] || 'bg-muted'} text-xs`} variant="secondary">
                       {rfq.status}
                     </Badge>
                     <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                      {rfq.responses.length} responses
+                      {rfq.responses?.length || 0} responses
                     </p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="text-center py-8 text-muted-foreground text-sm">No active RFQs found</div>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Actions - Responsive */}
+      {/* Quick Actions */}
       <Card>
         <CardHeader className="p-4 sm:p-6">
-          <CardTitle className="text-base sm:text-lg">Quick Actions</CardTitle>
+          <CardTitle className="text-base sm:text-lg">Account Management</CardTitle>
         </CardHeader>
         <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
             <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Link to="/post-requirement">
-                <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span>Post RFQ</span>
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                <span>New RFQ</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Link to="/buyer/cart">
-                <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span>View Cart</span>
+                <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-secondary" />
+                <span>My Cart</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
-              <Link to="/products">
-                <Package className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span>Browse</span>
+              <Link to="/">
+                <Package className="h-4 w-4 sm:h-5 sm:w-5 text-success" />
+                <span>Marketplace</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Link to="/buyer/messages">
-                <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span>Messages</span>
+                <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-accent" />
+                <span>Support</span>
               </Link>
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* My RFQs - Full Width Row */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
+          <CardTitle className="text-base sm:text-lg">My Active RFQs</CardTitle>
+          <Button asChild variant="ghost" size="sm" className="text-xs sm:text-sm">
+            <Link to="/buyer/rfqs">View All</Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {displayedRfqs.length > 0 ? displayedRfqs.map(rfq => (
+              <div key={rfq.id} className="p-3 border rounded-lg hover:border-primary/50 transition-colors">
+                <p className="font-medium text-sm truncate">{rfq.product_name || rfq.productName}</p>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-xs text-muted-foreground">{rfq.quantity} {rfq.unit}</span>
+                  <Badge className={`${statusColors[rfq.status] || 'bg-muted'} text-[10px]`} variant="secondary">
+                    {rfq.status}
+                  </Badge>
+                </div>
+              </div>
+            )) : (
+              <div className="text-center py-8 text-muted-foreground text-sm col-span-full">No active RFQs found</div>
+            )}
           </div>
         </CardContent>
       </Card>

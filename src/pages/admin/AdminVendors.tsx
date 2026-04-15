@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Eye, Search, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,80 +27,71 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { suppliers } from '@/data/mockData';
+import { useToast } from '@/hooks/use-toast';
+import { api } from '@/lib/api';
 import { TrustBadge } from '@/components/b2b/TrustBadge';
 
 type VendorStatus = 'pending' | 'approved' | 'rejected';
 
-interface VendorWithStatus {
-  id: string;
-  companyName: string;
-  logo: string;
-  location: string;
-  gstNumber: string;
-  establishedYear: number;
-  totalProducts: number;
-  status: VendorStatus;
-  submittedAt: string;
-}
-
-const mockVendors: VendorWithStatus[] = [
-  ...suppliers.map((s, i) => ({
-    id: s.id,
-    companyName: s.companyName,
-    logo: s.logo,
-    location: s.location,
-    gstNumber: `27AABCT${1234 + i}D1ZA`,
-    establishedYear: s.yearEstablished,
-    totalProducts: s.totalProducts,
-    status: 'pending' as VendorStatus,
-    submittedAt: new Date(Date.now() - i * 86400000).toISOString(),
-  })),
-  {
-    id: 'v-approved-1',
-    companyName: 'Verified Electronics Ltd',
-    logo: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
-    location: 'Bengaluru, Karnataka',
-    gstNumber: '29AABCT5678D1ZB',
-    establishedYear: 2015,
-    totalProducts: 150,
-    status: 'approved' as VendorStatus,
-    submittedAt: new Date(Date.now() - 10 * 86400000).toISOString(),
-  },
-  {
-    id: 'v-rejected-1',
-    companyName: 'Quick Traders',
-    logo: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=100&h=100&fit=crop',
-    location: 'Hyderabad, Telangana',
-    gstNumber: 'INVALID123',
-    establishedYear: 2022,
-    totalProducts: 0,
-    status: 'rejected' as VendorStatus,
-    submittedAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
-];
-
 export default function AdminVendors() {
-  const [vendors, setVendors] = useState<VendorWithStatus[]>(mockVendors);
+  const { toast } = useToast();
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedVendor, setSelectedVendor] = useState<VendorWithStatus | null>(null);
+  const [selectedVendor, setSelectedVendor] = useState<any | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const fetchVendors = async () => {
+    try {
+      const data = await api.profiles.list('vendor');
+      setVendors(data.map((v: any) => ({
+        ...v,
+        companyName: v.business_name || v.full_name,
+        logo: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
+        location: 'Not Specified',
+        gstNumber: 'N/A',
+        establishedYear: 2024,
+        totalProducts: 0,
+        submittedAt: v.created_at,
+      })));
+    } catch (error) {
+      console.error('Failed to fetch vendors:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVendors();
+  }, []);
 
   const filteredVendors = vendors.filter((v) => {
     const matchesStatus = statusFilter === 'all' || v.status === statusFilter;
     const matchesSearch = v.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.location.toLowerCase().includes(searchQuery.toLowerCase());
+      v.email.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
-  const handleApprove = (vendorId: string) => {
-    setVendors(vendors.map(v => v.id === vendorId ? { ...v, status: 'approved' as VendorStatus } : v));
+  const handleApprove = async (vendorId: string) => {
+    try {
+      await api.profiles.updateStatus(vendorId, 'approved');
+      toast({ title: 'Vendor Approved' });
+      fetchVendors();
+    } catch (error: any) {
+      toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
+    }
     setDetailsOpen(false);
   };
 
-  const handleReject = (vendorId: string) => {
-    setVendors(vendors.map(v => v.id === vendorId ? { ...v, status: 'rejected' as VendorStatus } : v));
+  const handleReject = async (vendorId: string) => {
+    try {
+      await api.profiles.updateStatus(vendorId, 'rejected');
+      toast({ title: 'Vendor Rejected' });
+      fetchVendors();
+    } catch (error: any) {
+      toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
+    }
     setDetailsOpen(false);
   };
 

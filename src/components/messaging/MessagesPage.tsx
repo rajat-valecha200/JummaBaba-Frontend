@@ -55,6 +55,8 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/lib/api';
 import {
   Dialog,
   DialogContent,
@@ -263,9 +265,11 @@ function NotificationButton({
 
 interface MessagesPageProps {
   userType: 'buyer' | 'vendor';
+  rfqId?: string; // Optional RFQ context
 }
 
-export default function MessagesPage({ userType }: MessagesPageProps) {
+export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
+  const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>(() => getAdminConversation(userType));
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messageInput, setMessageInput] = useState('');
@@ -506,16 +510,37 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  // Auto-scroll to latest message when conversation changes or new message arrives
+  // Real Messaging Integration
   useEffect(() => {
-    if (selectedConversation) {
-      // Use a small timeout to ensure DOM is updated
-      const timer = setTimeout(() => {
-        scrollToBottom();
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [selectedConversation, selectedConversation?.messages.length, scrollToBottom]);
+    const fetchRealMessages = async () => {
+      if (!rfqId) return;
+      try {
+        const data = await api.messages.list(rfqId);
+        if (data && data.length > 0) {
+          const transformedMessages: Message[] = data.map((m: any) => ({
+            id: m.id,
+            senderId: m.sender_id === user?.id ? 'me' : 'other',
+            text: m.message_text,
+            timestamp: new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+            status: 'read' // Placeholder for prototype
+          }));
+          
+          setConversations(prev => prev.map(c => {
+            if (c.id === 'admin-support') {
+              return { ...c, messages: transformedMessages };
+            }
+            return c;
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to fetch real messages:', error);
+      }
+    };
+
+    fetchRealMessages();
+    const interval = setInterval(fetchRealMessages, 5000); // Polling for prototype
+    return () => clearInterval(interval);
+  }, [rfqId, user]);
 
   // Simulate incoming messages for demo
   const simulateIncomingMessage = useCallback((conv: Conversation) => {
@@ -585,9 +610,23 @@ export default function MessagesPage({ userType }: MessagesPageProps) {
     }
   }, [selectedConversation?.isTyping, simulateIncomingMessage]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation || isSending) return;
     
+    // If we have an RFQ context, send to backend
+    if (rfqId && user) {
+      try {
+        await api.messages.send({
+          rfq_id: parseInt(rfqId),
+          sender_id: user.id,
+          receiver_id: 1, // Placeholder: In real flow, get from RFQ
+          message_text: messageInput.trim()
+        });
+      } catch (error) {
+        console.error('Failed to send message to backend:', error);
+      }
+    }
+
     const now = new Date();
     const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     

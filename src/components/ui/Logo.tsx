@@ -12,13 +12,15 @@ export function Logo({
     md: 'text-xl sm:text-2xl',
     lg: 'text-2xl sm:text-3xl'
   };
-  return <span className={cn('font-bold tracking-tight', sizeClasses[size], className)}>
+  return (
+    <span className={cn('font-bold tracking-tight', sizeClasses[size], className)}>
       <span className="text-b2b-black">
-        <span className="font-extrabold">J</span>umma
+        <span className="font-extrabold text-black">J</span>umma
       </span>
-      <span className="text-b2b-black">
-        <span className="font-extrabold text-b2b-gst">B</span>aba
+      <span className="text-b2b-gst">
+        <span className="font-extrabold">B</span>aba
       </span>
       <span className="text-b2b-orange">.com</span>
-    </span>;
+    </span>
+  );
 }

@@ -307,6 +307,37 @@ export const suppliers: Supplier[] = [
 // Products
 export const products: Product[] = [
   {
+    id: 'prod-8',
+    name: 'Silk Sarees Wholesale Lot',
+    slug: 'silk-sarees-wholesale-lot',
+    description: 'Premium Kanchipuram silk sarees in assorted designs. Ideal for retailers and wedding bulk buyers.',
+    shortDescription: 'Pure Silk, Traditional Designs, Zari Work',
+    images: [
+      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=600',
+      'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=600',
+    ],
+    categoryId: 'cat-2',
+    subcategoryId: 'sub-2-3',
+    supplierId: 'sup-2',
+    moq: 25,
+    unit: 'pieces',
+    pricingSlabs: [
+      { minQty: 25, maxQty: 49, pricePerUnit: 8500 },
+      { minQty: 50, maxQty: 99, pricePerUnit: 7800 },
+      { minQty: 100, maxQty: null, pricePerUnit: 7200 },
+    ],
+    specifications: {
+      'Material': 'Pure Silk',
+      'Length': '6.3 meters',
+      'Blouse Piece': 'Included',
+      'Work': 'Zari Borders',
+      'Origin': 'Kanchipuram',
+      'Care': 'Dry Clean only',
+    },
+    isVerified: true,
+    createdAt: '2024-01-20',
+  },
+  {
     id: 'prod-1',
     name: 'Samsung Galaxy A54 5G Bulk Pack',
     slug: 'samsung-galaxy-a54-5g-bulk-pack',
@@ -523,37 +554,6 @@ export const products: Product[] = [
     },
     isVerified: true,
     createdAt: '2024-01-20',
-  },
-  {
-    id: 'prod-8',
-    name: 'Silk Sarees Wholesale Lot',
-    slug: 'silk-sarees-wholesale-lot',
-    description: 'Premium Kanchipuram silk sarees in assorted designs. Ideal for retailers and wedding bulk buyers.',
-    shortDescription: 'Pure Silk, Traditional Designs, Zari Work',
-    images: [
-      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=600',
-      'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=600',
-    ],
-    categoryId: 'cat-2',
-    subcategoryId: 'sub-2-3',
-    supplierId: 'sup-2',
-    moq: 25,
-    unit: 'pieces',
-    pricingSlabs: [
-      { minQty: 25, maxQty: 49, pricePerUnit: 8500 },
-      { minQty: 50, maxQty: 99, pricePerUnit: 7800 },
-      { minQty: 100, maxQty: null, pricePerUnit: 7200 },
-    ],
-    specifications: {
-      'Material': 'Pure Silk',
-      'Length': '6.3 meters',
-      'Blouse Piece': 'Included',
-      'Zari': 'Gold Plated',
-      'Origin': 'Kanchipuram',
-      'Wash Care': 'Dry Clean Only',
-    },
-    isVerified: true,
-    createdAt: '2024-01-22',
   },
 ];
 

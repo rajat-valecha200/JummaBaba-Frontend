@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Search, Package, Eye, AlertCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +47,9 @@ import {
 } from '@/components/ui/tooltip';
 import { products, categories, formatPrice } from '@/data/mockData';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabaseClient';
+import { api } from '@/lib/api';
 
 interface PricingSlab {
   minQty: number;
@@ -113,21 +116,41 @@ interface VendorProduct {
   rejectionReason?: string;
 }
 
-const vendorProducts: VendorProduct[] = products.slice(0, 6).map((p, index) => ({
-  ...p,
-  status: (['active', 'active', 'pending', 'active', 'draft', 'rejected'] as ProductStatus[])[index % 6],
-  rejectionReason: index === 5 ? 'Insufficient product images. Please add at least 3 clear product photos.' : undefined,
-}));
-
 export default function VendorProducts() {
   const { toast } = useToast();
-  const [productList, setProductList] = useState(vendorProducts);
+  const { user } = useAuth();
+  const [productList, setProductList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductFormData | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formData, setFormData] = useState<ProductFormData>(emptyProduct);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      if (!user) return;
+      setLoading(true);
+      try {
+        // Fetch products for this supplier
+        const data = await api.products.list();
+        const myProducts = data.filter((p: any) => p.supplier_id === user.id);
+        
+        setProductList(myProducts.map((p: any) => ({
+          ...p,
+          shortDescription: p.short_description,
+          pricingSlabs: typeof p.pricing_slabs === 'string' ? JSON.parse(p.pricing_slabs) : p.pricing_slabs,
+          rejectionReason: p.rejection_reason,
+        })));
+      } catch (error) {
+        console.error('Failed to fetch vendor products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProducts();
+  }, [user]);
 
   const filteredProducts = productList.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -139,7 +162,7 @@ export default function VendorProducts() {
     setFormOpen(true);
   };
 
-  const handleOpenEdit = (product: typeof vendorProducts[0]) => {
+  const handleOpenEdit = (product: any) => {
     const slabCount = Math.min(4, Math.max(2, product.pricingSlabs.length));
     setEditingProduct({
       id: product.id,
@@ -168,42 +191,63 @@ export default function VendorProducts() {
     setFormOpen(true);
   };
 
-  const handleSave = () => {
+
+  const handleSave = async () => {
     if (!formData.name || !formData.categoryId) {
       toast({ title: 'Please fill required fields', variant: 'destructive' });
       return;
     }
 
-    if (editingProduct?.id) {
-      setProductList(productList.map(p => 
-        p.id === editingProduct.id 
-          ? { ...p, ...formData, pricingSlabs: formData.pricingSlabs }
-          : p
-      ));
-      toast({ title: 'Product updated successfully' });
-    } else {
-      const newProduct = {
-        id: `prod-new-${Date.now()}`,
-        name: formData.name,
-        slug: formData.name.toLowerCase().replace(/\s+/g, '-'),
-        shortDescription: formData.shortDescription,
-        description: formData.description,
-        categoryId: formData.categoryId,
-        subcategoryId: '',
-        supplierId: 'sup-1',
-        moq: formData.moq,
-        unit: formData.unit,
-        pricingSlabs: formData.pricingSlabs,
-        images: formData.images.length > 0 ? formData.images : ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600'],
-        specifications: {},
-        isVerified: false,
-        createdAt: new Date().toISOString(),
-        status: 'pending' as const,
-      };
-      setProductList([newProduct, ...productList]);
-      toast({ title: 'Product added successfully' });
+    setLoading(true);
+    const productData = {
+      name: formData.name,
+      slug: formData.name.toLowerCase().replace(/\s+/g, '-'),
+      short_description: formData.shortDescription,
+      description: formData.description,
+      category_id: formData.categoryId,
+      supplier_id: user?.id,
+      moq: formData.moq,
+      unit: formData.unit,
+      pricing_slabs: formData.pricingSlabs,
+      images: formData.images.length > 0 ? formData.images : ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600'],
+      status: 'pending' as const,
+    };
+
+    try {
+      if (editingProduct?.id) {
+        await api.products.updateStatus(editingProduct.id, 'pending'); // Re-submit
+        toast({ title: 'Product updated and re-submitted for approval' });
+        
+        setProductList(productList.map(p => p.id === editingProduct.id ? { 
+          ...p, 
+          ...productData,
+          shortDescription: productData.short_description,
+          pricingSlabs: productData.pricing_slabs,
+        } : p));
+      } else {
+        const result = await api.products.create(productData);
+        toast({ title: 'Product submitted successfully!' });
+        
+        // Transform backend result to frontend format
+        const newProduct = {
+          ...result,
+          shortDescription: result.short_description,
+          pricingSlabs: typeof result.pricing_slabs === 'string' ? JSON.parse(result.pricing_slabs) : result.pricing_slabs,
+          createdAt: new Date().toISOString()
+        };
+        
+        setProductList([newProduct, ...productList]);
+      }
+    } catch (error: any) {
+      toast({ 
+        title: editingProduct?.id ? 'Update Failed' : 'Creation Failed', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+    } finally {
+      setLoading(false);
+      setFormOpen(false);
     }
-    setFormOpen(false);
   };
 
   const handleDelete = () => {

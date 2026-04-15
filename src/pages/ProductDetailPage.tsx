@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { 
   ChevronRight, 
   MessageSquare, 
@@ -11,7 +11,8 @@ import {
   Star,
   Building,
   Package,
-  Send
+  Send,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +40,9 @@ import { PricingSlabsTable, CompactPricing } from '@/components/b2b/PricingSlabs
 import { ProductCard } from '@/components/b2b/ProductCard';
 import { useToast } from '@/hooks/use-toast';
 import { useWishlist } from '@/contexts/WishlistContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabaseClient';
+import { api } from '@/lib/api';
 import { 
   products, 
   getSupplierById, 
@@ -49,11 +53,13 @@ import {
 
 export default function ProductDetailPage() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState('');
   const [rfqOpen, setRfqOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [rfqForm, setRfqForm] = useState({
     quantity: '',
     unit: 'pieces',
@@ -72,7 +78,18 @@ export default function ProductDetailPage() {
     ? new Date().getFullYear() - supplier.yearEstablished 
     : 0;
 
+  const { user, profile } = useAuth();
+  
   const handleOpenRfq = () => {
+    if (!user) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please login to request a quotation.',
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
     setRfqForm({
       quantity: quantity || String(product.moq),
       unit: product.unit,
@@ -83,16 +100,36 @@ export default function ProductDetailPage() {
     setRfqOpen(true);
   };
 
-  const handleSubmitRfq = () => {
+  const handleSubmitRfq = async () => {
     if (!rfqForm.quantity || !rfqForm.deliveryLocation) {
       toast({ title: 'Please fill required fields', variant: 'destructive' });
       return;
     }
-    toast({ 
-      title: 'RFQ Submitted Successfully!', 
-      description: 'The supplier will respond to your inquiry soon.' 
-    });
-    setRfqOpen(false);
+
+    setLoading(true);
+    try {
+      await api.rfqs.create({
+        product_id: product.id,
+        buyer_id: user?.id,
+        quantity: parseInt(rfqForm.quantity),
+        unit: rfqForm.unit,
+        target_price: rfqForm.targetPrice ? parseFloat(rfqForm.targetPrice) : null,
+        delivery_location: rfqForm.deliveryLocation,
+        description: rfqForm.description
+      });
+      toast({ 
+        title: 'RFQ Submitted Successfully!', 
+        description: 'Your request has been sent to our admin team for mediation.' 
+      });
+      setRfqOpen(false);
+    } catch (error: any) {
+      toast({
+        title: 'Submission Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+    setLoading(false);
   };
 
   return (

@@ -11,6 +11,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/ui/Logo';
+import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/lib/api';
 import {
   sellerStep1EmailSchema,
   sellerStep1PhoneSchema,
@@ -65,6 +67,7 @@ function FieldError({ error }: FieldErrorProps) {
 
 export default function SellerRegisterPage() {
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [authMethod, setAuthMethod] = useState('email');
   const [otp, setOtp] = useState('');
@@ -388,16 +391,55 @@ export default function SellerRegisterPage() {
     setStep(step + 1);
   };
 
-  const handleRegister = () => {
+  const { register } = useAuth();
+
+  const handleRegister = async () => {
     if (!agreedToTerms) {
       toast({ title: 'Terms Required', description: 'Please agree to the terms and conditions', variant: 'destructive' });
       return;
     }
-    toast({ 
-      title: 'Registration Submitted!', 
-      description: 'Your seller account is under review. We\'ll notify you once approved.' 
-    });
-    navigate('/vendor/dashboard');
+
+    setLoading(true);
+    try {
+      await register({
+        full_name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        role: 'vendor',
+        business_name: formData.businessName,
+        business_details: {
+          business_type: formData.businessType,
+          gst_number: formData.gstNumber,
+          pan_number: formData.panNumber,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          pincode: formData.pincode,
+          description: formData.businessDescription,
+          categories: selectedCategories,
+          yearsInBusiness: formData.yearsInBusiness,
+          employeeCount: formData.employeeCount,
+          annualTurnover: formData.annualTurnover,
+          bankDetails: {
+            bankAccountName: formData.bankAccountName,
+            bankName: formData.bankName,
+            accountNumber: formData.accountNumber,
+            ifscCode: formData.ifscCode
+          }
+        }
+      });
+      
+      toast({ 
+        title: 'Registration Submitted!', 
+        description: 'Your seller account is under review. We\'ll notify you once approved.' 
+      });
+      navigate('/vendor/dashboard');
+    } catch (error: any) {
+      toast({ title: 'Registration Failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const totalSteps = 5;

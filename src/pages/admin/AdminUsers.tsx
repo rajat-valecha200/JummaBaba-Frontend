@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Eye, Search, Filter, Shield, ShoppingCart, Store } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Eye, Search, Filter, Shield, ShoppingCart, Store, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { users } from '@/data/mockData';
+import { api } from '@/lib/api';
 import { TrustBadge } from '@/components/b2b/TrustBadge';
 
 type UserRole = 'buyer' | 'vendor' | 'admin';
@@ -42,24 +42,41 @@ const getRoleBadge = (role: UserRole) => {
   }
 };
 
-const getStatusBadge = (isVerified: boolean) => {
-  return isVerified 
+const getStatusBadge = (status: string) => {
+  return status === 'approved' || status === 'verified'
     ? <Badge className="bg-success/10 text-success border-success/20">Verified</Badge>
     : <Badge variant="secondary">Pending</Badge>;
 };
 
 export default function AdminUsers() {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedUser, setSelectedUser] = useState<typeof users[0] | null>(null);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await api.profiles.list();
+      setUsers(data);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   const filteredUsers = users.filter((u) => {
     const matchesRole = roleFilter === 'all' || u.role === roleFilter;
-    const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.phone.includes(searchQuery);
+    const nameStr = u.full_name || u.business_name || '';
+    const matchesSearch = nameStr.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesRole && matchesSearch;
   });
 
