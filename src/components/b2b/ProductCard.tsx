@@ -4,8 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TrustBadges } from './TrustBadge';
-import { formatPrice } from '@/data/mockData';
-import { cn } from '@/lib/utils';
+import { formatPrice, cn } from '@/lib/utils';
 import { useWishlist } from '@/contexts/WishlistContext';
 
 interface ProductCardProps {
@@ -38,6 +37,7 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
           <img
             src={product.images?.[0] || product.image || 'https://images.unsplash.com/photo-1582234057117-9c9ae625b035?w=600'}
             alt={product.name}
+            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1582234057117-9c9ae625b035?w=600'; }}
             className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out"
             loading="lazy"
           />
@@ -81,16 +81,11 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
           {product.shortDescription || product.short_description || 'Quality wholesale catalog item'}
         </p>
 
-        {/* Price Range */}
+        {/* Price Display: Lowest Price (Tier 4) */}
         <div className="mb-2 flex flex-wrap items-baseline gap-1">
-          <span className="text-lg font-extrabold text-foreground">
+          <span className="text-xl font-extrabold text-foreground">
             {formatPrice(lowestPrice)}
           </span>
-          {lowestPrice !== highestPrice && lowestPrice > 0 && (
-            <span className="text-xs text-muted-foreground font-medium">
-              - {formatPrice(highestPrice)}
-            </span>
-          )}
           <span className="text-[10px] text-muted-foreground uppercase font-bold">/ {product.unit || 'Unit'}</span>
         </div>
 
@@ -117,6 +112,7 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
         <Button 
           variant="outline" 
           size="sm" 
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
           className="w-full relative overflow-hidden group/btn font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-white border-primary/20 hover:border-primary transition-all duration-300"
         >
           <span className="flex items-center gap-2 z-10 relative">

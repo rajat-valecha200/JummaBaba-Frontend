@@ -1,4 +1,4 @@
-import { PricingSlab, formatPrice } from '@/data/mockData';
+import { formatPrice } from '@/lib/utils';
 import {
   Table,
   TableBody,
@@ -8,6 +8,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+
+interface PricingSlab {
+  minQty: number;
+  maxQty: number | null;
+  pricePerUnit: number;
+}
 
 interface PricingSlabsTableProps {
   slabs: PricingSlab[];
@@ -27,7 +33,7 @@ export function PricingSlabsTable({ slabs, unit, className }: PricingSlabsTableP
         </TableHeader>
         <TableBody>
           {slabs.map((slab, index) => (
-            <TableRow 
+            <TableRow
               key={index}
               className={cn(
                 index === slabs.length - 1 && 'bg-primary/5'

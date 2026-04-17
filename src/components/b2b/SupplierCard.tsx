@@ -3,11 +3,10 @@ import { MapPin, Star, Package, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { TrustBadges } from './TrustBadge';
-import { Supplier, formatNumber } from '@/data/mockData';
-import { cn } from '@/lib/utils';
+import { formatNumber, cn } from '@/lib/utils';
 
 interface SupplierCardProps {
-  supplier: Supplier;
+  supplier: any;
   className?: string;
 }
 

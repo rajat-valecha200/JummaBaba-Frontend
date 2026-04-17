@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   ChevronRight, 
@@ -26,13 +26,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { products, getSupplierById, formatPrice } from '@/data/mockData';
+import { api } from '@/lib/api';
+import { formatPrice } from '@/lib/utils';
 
-// Mock cart items (same as BuyerCart)
-const cartItems = [
-  { productId: 'prod-1', quantity: 100 },
-  { productId: 'prod-2', quantity: 500 },
-];
+// Cart items are derived from the same source as BuyerCart (Hardened)
 
 // Indian states for dropdown
 const indianStates = [
@@ -86,12 +83,32 @@ export default function CheckoutPage() {
     pincode: ''
   });
 
+  const [dbCartItems, setDbCartItems] = useState<any[]>([]);
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchCheckout = async () => {
+      try {
+        const prodRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/products/public`);
+        if (prodRes.ok) setDbProducts(await prodRes.json());
+        const saved = localStorage.getItem('jummababa_cart');
+        if (saved) setDbCartItems(JSON.parse(saved));
+      } catch (e) {
+        console.error('Checkout sync failed');
+      }
+    };
+    fetchCheckout();
+  }, []);
+
   // Calculate order totals
-  const cartWithProducts = cartItems.map(item => {
-    const product = products.find(p => p.id === item.productId);
-    const slab = product?.pricingSlabs.find(s => 
+  const cartWithProducts = dbCartItems.map(item => {
+    const product = dbProducts.find(p => p.id === item.productId || p.slug === item.productId);
+    if (!product) return null;
+    
+    const slabs = product.pricing_slabs || product.pricingSlabs || [];
+    const slab = slabs.find((s: any) => 
       item.quantity >= s.minQty && (!s.maxQty || item.quantity <= s.maxQty)
-    ) || product?.pricingSlabs[0];
+    ) || slabs[0];
     
     return {
       ...item,
@@ -99,7 +116,7 @@ export default function CheckoutPage() {
       pricePerUnit: slab?.pricePerUnit || 0,
       total: (slab?.pricePerUnit || 0) * item.quantity,
     };
-  }).filter(item => item.product);
+  }).filter(item => item !== null);
 
   const subtotal = cartWithProducts.reduce((sum, item) => sum + item.total, 0);
   const gst = subtotal * 0.18;

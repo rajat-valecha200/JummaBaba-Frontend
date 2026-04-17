@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Eye, Download, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -19,7 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { orders, formatPrice, suppliers } from '@/data/mockData';
+import { formatPrice } from '@/lib/utils';
+import { api } from '@/lib/api';
 import { OrderTracking } from '@/components/orders/OrderTracking';
 
 type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
@@ -34,9 +35,25 @@ const statusColors: Record<string, string> = {
 
 export default function BuyerOrders() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [dbOrders, setDbOrders] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const selectedOrder = orders.find(o => o.id === selectedOrderId);
-  const supplier = selectedOrder ? suppliers.find(s => s.id === selectedOrder.vendorId) : null;
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/orders/buyer`);
+        if (res.ok) setDbOrders(await res.json());
+      } catch (e) {
+        console.error('Orders fetch failed');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchOrders();
+  }, []);
+
+  const selectedOrder = dbOrders.find(o => o.id === selectedOrderId);
+  const supplier = selectedOrder?.vendor || { companyName: 'Verified Supplier' };
 
   if (selectedOrder) {
     return (
@@ -140,7 +157,7 @@ export default function BuyerOrders() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">My Orders</h1>
-          <p className="text-muted-foreground">{orders.length} orders found</p>
+          <p className="text-muted-foreground">{dbOrders.length} orders found</p>
         </div>
         <div className="flex gap-2">
           <Select defaultValue="all">
@@ -173,7 +190,7 @@ export default function BuyerOrders() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders.map(order => (
+                {dbOrders.map(order => (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">
                       {order.orderNumber}

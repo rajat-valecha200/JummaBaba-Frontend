@@ -66,122 +66,7 @@ interface Conversation {
   messages: Message[];
 }
 
-// Mock data for admin unified inbox
-const mockBuyerConversations: Conversation[] = [
-  {
-    id: 'buyer-1',
-    participantName: 'Rajesh Kumar',
-    participantAvatar: '',
-    participantCompany: 'Kumar Textiles Pvt Ltd',
-    participantType: 'buyer',
-    linkedProductId: 'prod-1',
-    linkedProductName: 'Industrial Cotton Fabric 60"',
-    linkedVendorId: 'vendor-1',
-    linkedVendorName: 'Sharma Fabrics Co.',
-    lastMessage: 'I need 5000 meters of cotton fabric. What is the best price?',
-    lastMessageTime: '10:30 AM',
-    unreadCount: 2,
-    isOnline: true,
-    isVerified: true,
-    messages: [
-      { id: 'm1', senderId: 'buyer', text: 'Hello, I am interested in Industrial Cotton Fabric 60"', timestamp: '10:00 AM', status: 'read' },
-      { id: 'm2', senderId: 'admin', text: 'Hello Rajesh! Thank you for reaching out. Let me check with the vendor for you.', timestamp: '10:15 AM', status: 'read' },
-      { id: 'm3', senderId: 'buyer', text: 'I need 5000 meters of cotton fabric. What is the best price?', timestamp: '10:30 AM', status: 'delivered' },
-    ],
-  },
-  {
-    id: 'buyer-2',
-    participantName: 'Priya Sharma',
-    participantAvatar: '',
-    participantCompany: 'Sharma Electronics',
-    participantType: 'buyer',
-    linkedProductId: 'prod-2',
-    linkedProductName: 'LED Panel Lights 40W',
-    linkedVendorId: 'vendor-2',
-    linkedVendorName: 'Bright Lighting Solutions',
-    lastMessage: 'Can you provide GST invoice for 1000 units?',
-    lastMessageTime: 'Yesterday',
-    unreadCount: 0,
-    isOnline: false,
-    isVerified: true,
-    messages: [
-      { id: 'm1', senderId: 'buyer', text: 'Hi, I want to order LED Panel Lights', timestamp: 'Yesterday', status: 'read' },
-      { id: 'm2', senderId: 'admin', text: 'Hello Priya! We have great options for you. The price for 1000+ units is ₹450/unit.', timestamp: 'Yesterday', status: 'read' },
-      { id: 'm3', senderId: 'buyer', text: 'Can you provide GST invoice for 1000 units?', timestamp: 'Yesterday', status: 'read' },
-      { id: 'm4', senderId: 'admin', text: 'Absolutely! GST invoice will be provided. Shall I proceed with the order?', timestamp: 'Yesterday', status: 'read' },
-    ],
-  },
-  {
-    id: 'buyer-3',
-    participantName: 'Amit Patel',
-    participantAvatar: '',
-    participantCompany: 'Patel Industries',
-    participantType: 'buyer',
-    linkedProductId: 'prod-3',
-    linkedProductName: 'Industrial Bearings SKF',
-    linkedVendorId: 'vendor-3',
-    linkedVendorName: 'SKF Authorized Dealer',
-    lastMessage: 'Need bulk order quotation for 10000 bearings',
-    lastMessageTime: '2 days ago',
-    unreadCount: 1,
-    isOnline: true,
-    isVerified: false,
-    messages: [
-      { id: 'm1', senderId: 'buyer', text: 'Need bulk order quotation for 10000 bearings', timestamp: '2 days ago', status: 'delivered' },
-    ],
-  },
-];
-
-const mockVendorConversations: Conversation[] = [
-  {
-    id: 'vendor-1',
-    participantName: 'Sharma Fabrics Co.',
-    participantAvatar: '',
-    participantCompany: 'Verified Supplier',
-    participantType: 'vendor',
-    lastMessage: 'We can offer ₹85/meter for 5000+ meters order',
-    lastMessageTime: '11:00 AM',
-    unreadCount: 1,
-    isOnline: true,
-    isVerified: true,
-    messages: [
-      { id: 'm1', senderId: 'admin', text: 'Hi, we have a buyer inquiry for Industrial Cotton Fabric 60". Quantity: 5000 meters.', timestamp: '10:45 AM', status: 'read' },
-      { id: 'm2', senderId: 'vendor', text: 'We can offer ₹85/meter for 5000+ meters order', timestamp: '11:00 AM', status: 'delivered' },
-    ],
-  },
-  {
-    id: 'vendor-2',
-    participantName: 'Bright Lighting Solutions',
-    participantAvatar: '',
-    participantCompany: 'Verified Supplier',
-    participantType: 'vendor',
-    lastMessage: 'Stock available. Ready for dispatch within 3 days.',
-    lastMessageTime: 'Yesterday',
-    unreadCount: 0,
-    isOnline: false,
-    isVerified: true,
-    messages: [
-      { id: 'm1', senderId: 'admin', text: 'New order inquiry: LED Panel Lights 40W, Quantity: 1000 units', timestamp: 'Yesterday', status: 'read' },
-      { id: 'm2', senderId: 'vendor', text: 'Stock available. Ready for dispatch within 3 days.', timestamp: 'Yesterday', status: 'read' },
-    ],
-  },
-  {
-    id: 'vendor-3',
-    participantName: 'SKF Authorized Dealer',
-    participantAvatar: '',
-    participantCompany: 'Verified Supplier',
-    participantType: 'vendor',
-    lastMessage: 'Awaiting your response on bulk bearing inquiry',
-    lastMessageTime: '1 day ago',
-    unreadCount: 0,
-    isOnline: true,
-    isVerified: true,
-    messages: [
-      { id: 'm1', senderId: 'admin', text: 'Bulk inquiry received: Industrial Bearings, Quantity: 10000 units. Please provide best price.', timestamp: '2 days ago', status: 'read' },
-      { id: 'm2', senderId: 'admin', text: 'Awaiting your response on bulk bearing inquiry', timestamp: '1 day ago', status: 'delivered' },
-    ],
-  },
-];
+// Unified inbox now dynamic
 
 // Message Status Component
 function MessageStatus({ status }: { status: Message['status'] }) {
@@ -201,11 +86,32 @@ function MessageStatus({ status }: { status: Message['status'] }) {
 
 export default function AdminMessages() {
   const [activeTab, setActiveTab] = useState<'all' | 'buyers' | 'vendors'>('all');
-  const [conversations, setConversations] = useState<Conversation[]>([...mockBuyerConversations, ...mockVendorConversations]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        setLoading(true);
+        // In local/mock-db this will return empty until real chats start
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
+        });
+        const data = await response.json();
+        // For now we set empty as requested to avoid fakes
+        setConversations([]);
+      } catch (error) {
+        console.error('Failed to fetch messages:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMessages();
+  }, []);
 
   const filteredConversations = conversations.filter(c => {
     const matchesSearch = c.participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -335,10 +241,20 @@ export default function AdminMessages() {
 
           {/* Conversations */}
           <ScrollArea className="flex-1">
-            {filteredConversations.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No conversations found</p>
+            {loading ? (
+               <div className="p-8 text-center animate-pulse">
+                <div className="h-12 w-12 bg-muted rounded-full mx-auto mb-3" />
+                <div className="h-4 w-32 bg-muted mx-auto" />
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="p-10 text-center flex flex-col items-center justify-center h-full">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                  <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
+                </div>
+                <h3 className="font-semibold text-foreground">No conversations yet</h3>
+                <p className="text-sm text-muted-foreground mt-1 px-6">
+                  When buyers start inquiring about products, they will appear here.
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-border">

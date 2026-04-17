@@ -32,19 +32,15 @@ import {
 } from '@/components/ui/sheet';
 import { ProductCard } from '@/components/b2b/ProductCard';
 import { api } from '@/lib/api';
-import {
-  categories,
-  products as mockProducts,
-  suppliers as mockSuppliers,
-  getSupplierById,
-  formatPrice
-} from '@/data/mockData';
+import { formatPrice, cn } from '@/lib/utils';
 
 export default function CategoryPage() {
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
   const [dbProducts, setDbProducts] = useState<any[]>([]);
+  const [dbCategories, setDbCategories] = useState<any[]>([]);
+  const [dbProfiles, setDbProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('relevance');
@@ -57,36 +53,43 @@ export default function CategoryPage() {
     setTempPriceRange(priceRange);
   }, [priceRange]);
 
-  const category = categories.find(c => c.slug === slug);
+  const category = dbCategories.find(c => c.slug === slug || c.id === slug);
 
-  const fetchProducts = async () => {
+  const fetchAllData = async () => {
     try {
       setLoading(true);
-      const data = await api.products.list('approved');
+      
+      // 1. Fetch Categories
+      const catRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`);
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        setDbCategories(catData);
+      }
 
-      // Transform backend products to match frontend expectations
+      // 2. Fetch Products
+      const data = await api.products.list('approved');
       const transformed = data.map((p: any) => ({
         ...p,
         shortDescription: p.short_description,
         supplierId: p.supplier_id,
-        category: p.category_id || p.category,
+        category: p.category_id,
+        pricingSlabs: typeof p.pricing_slabs === 'string' ? JSON.parse(p.pricing_slabs) : p.pricing_slabs,
         image: p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600',
-        isVerified: p.status === 'approved' || p.is_verified
+        isVerified: p.status === 'approved'
       }));
       setDbProducts(transformed);
     } catch (error) {
-      console.error('Failed to fetch category products:', error);
+      console.error('Failed to fetch category data:', error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProducts();
+    fetchAllData();
   }, [slug]);
 
-  // Combine DB and Mock products for the demonstration
-  const allProducts = [...dbProducts, ...mockProducts.filter(mp => !dbProducts.find(dp => dp.id === mp.id))];
+  const allProducts = dbProducts;
 
   // Apply Client-side Filtering
   const filteredProducts = allProducts.filter(p => {
@@ -126,7 +129,7 @@ export default function CategoryPage() {
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </h3>
           <div className="space-y-1">
-            {category.subcategories.map(sub => (
+            {category.subcategories?.map((sub: any) => (
               <Link
                 key={sub.id}
                 to={`/category/${category.slug}/${sub.slug}`}
@@ -136,6 +139,9 @@ export default function CategoryPage() {
                 {sub.name}
               </Link>
             ))}
+            {(!category.subcategories || category.subcategories.length === 0) && (
+              <p className="text-xs text-muted-foreground px-2">No subcategories</p>
+            )}
           </div>
         </div>
       )}
@@ -235,12 +241,8 @@ export default function CategoryPage() {
             <Link to="/" className="hover:text-primary transition-colors">Home</Link>
             <ChevronRight className="h-3 w-3" />
             <Link to="/categories" className="hover:text-primary transition-colors">Categories</Link>
-            {category && (
-              <>
-                <ChevronRight className="h-3 w-3" />
-                <span className="text-primary font-bold">{category.name}</span>
-              </>
-            )}
+            <ChevronRight className="h-3 w-3" />
+            <span className="text-primary font-bold">{category?.name || 'All Products'}</span>
           </nav>
         </div>
       </div>
@@ -343,17 +345,20 @@ export default function CategoryPage() {
 
             {/* Products Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredProducts.map(product => {
-                const supplier = getSupplierById(product.supplier_id || product.supplierId) || mockSuppliers[0];
-                return (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    supplier={supplier}
-                    className="animate-in fade-in slide-in-from-bottom-4 duration-500"
-                  />
-                );
-              })}
+              {filteredProducts.map(p => (
+                <ProductCard 
+                  key={p.id} 
+                  product={p} 
+                  supplier={{
+                    id: p.supplier_id,
+                    companyName: p.business_name || p.supplier_name || 'Verified Supplier',
+                    logo: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
+                    location: 'India',
+                    is_top_supplier: p.is_top_supplier
+                  }} 
+                  className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+                />
+              ))}
             </div>
 
             {filteredProducts.length === 0 && (

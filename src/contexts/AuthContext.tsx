@@ -69,6 +69,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     api.auth.logout();
     setUser(null);
     setProfile(null);
+    // Use replace to ensure the user cannot go back to protected pages
+    window.location.replace('/');
   };
 
   return (

@@ -45,7 +45,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { products, categories, formatPrice } from '@/data/mockData';
+import { formatPrice } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -70,12 +70,12 @@ interface ProductFormData {
   selectedSlabCount: number;
 }
 
-// Fixed quantity categories
-const FIXED_QUANTITY_SLABS = [
-  { minQty: 1, maxQty: 500, label: '1 – 500' },
-  { minQty: 501, maxQty: 1000, label: '501 – 1000' },
-  { minQty: 1001, maxQty: 5000, label: '1001 – 5000' },
-  { minQty: 5001, maxQty: 20000, label: '5001 – 20000' },
+// Default slab templates
+const DEFAULT_SLAB_TEMPLATES = [
+  { minQty: 1, maxQty: 100 },
+  { minQty: 101, maxQty: 500 },
+  { minQty: 501, maxQty: 1000 },
+  { minQty: 1001, maxQty: null },
 ];
 
 const emptyProduct: ProductFormData = {
@@ -86,8 +86,8 @@ const emptyProduct: ProductFormData = {
   moq: 1,
   unit: 'pieces',
   pricingSlabs: [
-    { minQty: 1, maxQty: 500, pricePerUnit: 0 },
-    { minQty: 501, maxQty: 1000, pricePerUnit: 0 },
+    { minQty: 1, maxQty: 100, pricePerUnit: 0 },
+    { minQty: 101, maxQty: 500, pricePerUnit: 0 },
   ],
   images: [],
   selectedSlabCount: 2,
@@ -127,6 +127,19 @@ export default function VendorProducts() {
   const [editingProduct, setEditingProduct] = useState<ProductFormData | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formData, setFormData] = useState<ProductFormData>(emptyProduct);
+  const [categories, setCategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchDependencies = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`);
+        if (res.ok) setCategories(await res.json());
+      } catch (err) {
+        console.error('Failed to fetch categories', err);
+      }
+    };
+    fetchDependencies();
+  }, []);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -215,14 +228,15 @@ export default function VendorProducts() {
 
     try {
       if (editingProduct?.id) {
-        await api.products.updateStatus(editingProduct.id, 'pending'); // Re-submit
-        toast({ title: 'Product updated and re-submitted for approval' });
+        await api.products.update(editingProduct.id, productData);
+        toast({ title: 'Product updated successfully and submitted for review' });
         
         setProductList(productList.map(p => p.id === editingProduct.id ? { 
           ...p, 
           ...productData,
           shortDescription: productData.short_description,
           pricingSlabs: productData.pricing_slabs,
+          status: 'pending'
         } : p));
       } else {
         const result = await api.products.create(productData);
@@ -260,7 +274,7 @@ export default function VendorProducts() {
   };
 
   const handleSlabCountChange = (count: number) => {
-    const newSlabs = FIXED_QUANTITY_SLABS.slice(0, count).map((slab, index) => ({
+    const newSlabs = DEFAULT_SLAB_TEMPLATES.slice(0, count).map((slab, index) => ({
       minQty: slab.minQty,
       maxQty: slab.maxQty,
       pricePerUnit: formData.pricingSlabs[index]?.pricePerUnit || 0,
@@ -272,9 +286,9 @@ export default function VendorProducts() {
     });
   };
 
-  const updateSlabPrice = (index: number, price: number) => {
+  const updateSlabField = (index: number, field: keyof PricingSlab, value: any) => {
     const updated = [...formData.pricingSlabs];
-    updated[index] = { ...updated[index], pricePerUnit: price };
+    updated[index] = { ...updated[index], [field]: value };
     setFormData({ ...formData, pricingSlabs: updated });
   };
 
@@ -567,24 +581,38 @@ export default function VendorProducts() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
-                        <TableHead className="font-semibold">Quantity Range</TableHead>
+                        <TableHead className="font-semibold">Min Qty</TableHead>
+                        <TableHead className="font-semibold">Max Qty (null = Unlimited)</TableHead>
                         <TableHead className="font-semibold">Price per {formData.unit} (₹)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {formData.pricingSlabs.map((slab, index) => (
                         <TableRow key={index}>
-                          <TableCell className="font-medium">
-                            {FIXED_QUANTITY_SLABS[index]?.label || `${slab.minQty} - ${slab.maxQty}`}
+                          <TableCell>
+                            <Input
+                              type="number"
+                              value={slab.minQty}
+                              onChange={(e) => updateSlabField(index, 'minQty', parseInt(e.target.value) || 0)}
+                              className="w-24"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              value={slab.maxQty || ''}
+                              onChange={(e) => updateSlabField(index, 'maxQty', e.target.value ? parseInt(e.target.value) : null)}
+                              placeholder="Unlimited"
+                              className="w-24"
+                            />
                           </TableCell>
                           <TableCell>
                             <Input
                               type="number"
                               value={slab.pricePerUnit || ''}
-                              onChange={(e) => updateSlabPrice(index, parseFloat(e.target.value) || 0)}
-                              placeholder="Enter price"
-                              min={0}
-                              className="w-32"
+                              onChange={(e) => updateSlabField(index, 'pricePerUnit', parseFloat(e.target.value) || 0)}
+                              placeholder="Price"
+                              className="w-24"
                             />
                           </TableCell>
                         </TableRow>

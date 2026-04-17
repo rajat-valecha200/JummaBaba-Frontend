@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Trash2, ShoppingCart, MessageSquare, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,12 +16,29 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useWishlist } from '@/contexts/WishlistContext';
-import { products, suppliers, formatPrice } from '@/data/mockData';
+import { api } from '@/lib/api';
+import { formatPrice } from '@/lib/utils';
 
 export default function BuyerWishlist() {
   const { wishlist, removeFromWishlist, clearWishlist } = useWishlist();
-  
-  const wishlistProducts = products.filter(p => wishlist.includes(p.id));
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProds = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/products/public`);
+        if (res.ok) setDbProducts(await res.json());
+      } catch (e) {
+        console.error('Wishlist prod fetch failed');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProds();
+  }, []);
+
+  const wishlistProducts = dbProducts.filter(p => wishlist.includes(p.id) || wishlist.includes(p.slug));
 
   if (wishlistProducts.length === 0) {
     return (
@@ -80,8 +97,9 @@ export default function BuyerWishlist() {
 
       <div className="grid gap-4">
         {wishlistProducts.map(product => {
-          const supplier = suppliers.find(s => s.id === product.supplierId);
-          const lowestPrice = product.pricingSlabs[product.pricingSlabs.length - 1].pricePerUnit;
+          const supplier = product.vendor || { companyName: 'Verified Supplier' };
+          const slabs = product.pricing_slabs || product.pricingSlabs || [];
+          const lowestPrice = slabs.length > 0 ? slabs[slabs.length - 1].pricePerUnit : 0;
           
           return (
             <Card key={product.id} className="overflow-hidden">

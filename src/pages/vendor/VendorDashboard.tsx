@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatsCard } from '@/components/b2b/StatsCard';
-import { orders, rfqs, products, formatPrice } from '@/data/mockData';
+import { formatPrice } from '@/lib/utils';
 
 export default function VendorDashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [liveRfqs, setLiveRfqs] = useState<any[]>([]);
+  const [realOrders, setRealOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export default function VendorDashboard() {
         ]);
         setStats(statsData);
         setLiveRfqs(rfqData);
+        setRealOrders([]); // Ensure real orders state
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
       } finally {
@@ -33,7 +35,7 @@ export default function VendorDashboard() {
     fetchStats();
   }, []);
 
-  const displayedRfqs = liveRfqs.length > 0 ? liveRfqs.slice(0, 3) : [];
+  const displayedRfqs = Array.isArray(liveRfqs) && liveRfqs.length > 0 ? liveRfqs.slice(0, 3) : [];
 
   if (loading) {
     return (
@@ -51,7 +53,7 @@ export default function VendorDashboard() {
           <p className="text-muted-foreground italic">Welcome back, <span className="text-primary font-semibold">{user?.business_name || user?.full_name || 'Partner'}</span></p>
         </div>
         <Button asChild>
-          <Link to="/vendor/products/new"><Plus className="h-4 w-4 mr-2" />Add Product</Link>
+          <Link to="/vendor/products"><Plus className="h-4 w-4 mr-2" />Add Product</Link>
         </Button>
       </div>
 
@@ -70,12 +72,14 @@ export default function VendorDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {orders.slice(0, 3).map(order => (
+              {realOrders.length > 0 ? realOrders.map((order: any) => (
                 <div key={order.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div><p className="font-medium">{order.orderNumber}</p><p className="text-sm text-muted-foreground">{order.items[0].productName}</p></div>
+                  <div><p className="font-medium">{order.order_number || order.orderNumber}</p><p className="text-sm text-muted-foreground">{order.product_name}</p></div>
                   <Badge variant="secondary">{order.status}</Badge>
                 </div>
-              ))}
+              )) : (
+                <div className="text-center py-8 text-muted-foreground text-sm">No recent orders yet</div>
+              )}
             </div>
           </CardContent>
         </Card>

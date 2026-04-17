@@ -11,10 +11,25 @@ import {
   Award,
   CheckCircle
 } from 'lucide-react';
-import { categories } from '@/data/mockData';
 import { Logo } from '@/components/ui/Logo';
+import { useState, useEffect } from 'react';
 
 export function Footer() {
+  const [dbCategories, setDbCategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchCats = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`);
+        if (res.ok) setDbCategories(await res.json());
+      } catch (e) {
+        console.error('Footer cats failed');
+      }
+    };
+    fetchCats();
+  }, []);
+
+  const displayCategories = dbCategories.slice(0, 6);
   return (
     <footer className="bg-secondary text-secondary-foreground">
       {/* Trust badges */}
@@ -77,7 +92,7 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">Top Categories</h3>
             <ul className="space-y-2 text-sm text-secondary-foreground/80">
-              {categories.slice(0, 6).map(cat => (
+              {displayCategories.map(cat => (
                 <li key={cat.id}>
                   <Link to={`/category/${cat.slug}`} className="hover:text-primary transition-colors">
                     {cat.name}
@@ -125,7 +140,7 @@ export function Footer() {
       <div className="border-t border-secondary-foreground/10">
         <div className="b2b-container py-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-secondary-foreground/70">
-            <p>© 2024 JummaBaba.com. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} JummaBaba.com. All rights reserved.</p>
             <div className="flex gap-4">
               <Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
               <Link to="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>

@@ -19,14 +19,10 @@ import { StatsCard } from '@/components/b2b/StatsCard';
 import { ProductCard } from '@/components/b2b/ProductCard';
 import { CategoryCard } from '@/components/b2b/CategoryCard';
 import { 
-  orders, 
-  rfqs, 
-  products, 
-  categories, 
-  getSupplierById, 
   formatPrice, 
-  formatNumber 
-} from '@/data/mockData';
+  formatNumber,
+  cn
+} from '@/lib/utils';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-warning/10 text-warning',
@@ -44,28 +40,35 @@ export default function BuyerDashboard() {
   const [liveRfqs, setLiveRfqs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [dbCategories, setDbCategories] = useState<any[]>([]);
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
+
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchDashboardContent = async () => {
       try {
-        const [statsData, rfqData] = await Promise.all([
+        const [statsData, rfqData, catRes, prodData] = await Promise.all([
           api.stats.get('buyer'),
-          api.rfqs.list()
+          api.rfqs.list(),
+          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`),
+          api.products.list('approved')
         ]);
         setStats(statsData);
         setLiveRfqs(rfqData);
+        if (catRes.ok) setDbCategories(await catRes.json());
+        setDbProducts(prodData);
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchStats();
+    fetchDashboardContent();
   }, []);
 
-  const recentOrders = orders.slice(0, 3);
+  const recentOrders = []; // Buyer orders not yet implemented in backend
   const displayedRfqs = liveRfqs.length > 0 ? liveRfqs.slice(0, 3) : [];
-  const featuredProducts = products.slice(0, 4);
-  const topCategories = categories.slice(0, 6);
+  const featuredProducts = dbProducts.slice(0, 4);
+  const topCategories = dbCategories.slice(0, 6);
 
   if (loading) {
     return (

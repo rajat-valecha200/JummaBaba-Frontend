@@ -16,61 +16,42 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Users, ShoppingCart, IndianRupee, Package } from 'lucide-react';
-import { formatPrice, formatNumber } from '@/data/mockData';
-
-const revenueData = [
-  { month: 'Jan', revenue: 4500000, orders: 120 },
-  { month: 'Feb', revenue: 5200000, orders: 145 },
-  { month: 'Mar', revenue: 4800000, orders: 132 },
-  { month: 'Apr', revenue: 6100000, orders: 168 },
-  { month: 'May', revenue: 7200000, orders: 195 },
-  { month: 'Jun', revenue: 6800000, orders: 182 },
-  { month: 'Jul', revenue: 8500000, orders: 228 },
-  { month: 'Aug', revenue: 9200000, orders: 245 },
-  { month: 'Sep', revenue: 8800000, orders: 238 },
-  { month: 'Oct', revenue: 10500000, orders: 285 },
-  { month: 'Nov', revenue: 11200000, orders: 302 },
-  { month: 'Dec', revenue: 12500000, orders: 340 },
-];
-
-const userGrowthData = [
-  { month: 'Jan', buyers: 850, vendors: 45 },
-  { month: 'Feb', buyers: 920, vendors: 52 },
-  { month: 'Mar', buyers: 1050, vendors: 58 },
-  { month: 'Apr', buyers: 1180, vendors: 65 },
-  { month: 'May', buyers: 1350, vendors: 72 },
-  { month: 'Jun', buyers: 1520, vendors: 80 },
-  { month: 'Jul', buyers: 1720, vendors: 88 },
-  { month: 'Aug', buyers: 1950, vendors: 95 },
-  { month: 'Sep', buyers: 2150, vendors: 102 },
-  { month: 'Oct', buyers: 2380, vendors: 112 },
-  { month: 'Nov', buyers: 2650, vendors: 125 },
-  { month: 'Dec', buyers: 2950, vendors: 138 },
-];
-
-const categoryRevenue = [
-  { name: 'Electronics', value: 35 },
-  { name: 'Textiles', value: 25 },
-  { name: 'Industrial', value: 18 },
-  { name: 'Food & Agri', value: 12 },
-  { name: 'Others', value: 10 },
-];
-
-const orderStatusData = [
-  { status: 'Delivered', count: 1250, color: 'hsl(var(--success))' },
-  { status: 'Shipped', count: 320, color: 'hsl(var(--secondary))' },
-  { status: 'Confirmed', count: 180, color: 'hsl(var(--primary))' },
-  { status: 'Pending', count: 95, color: 'hsl(var(--warning))' },
-  { status: 'Cancelled', count: 45, color: 'hsl(var(--destructive))' },
-];
-
-const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', 'hsl(var(--success))', 'hsl(var(--muted-foreground))'];
+import { TrendingUp, Users, ShoppingCart, IndianRupee, Package, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
+import { formatPrice, formatNumber } from '@/lib/utils';
 
 export default function AdminAnalytics() {
-  const totalRevenue = revenueData.reduce((sum, d) => sum + d.revenue, 0);
-  const totalOrders = revenueData.reduce((sum, d) => sum + d.orders, 0);
-  const latestUsers = userGrowthData[userGrowthData.length - 1];
+  const [loading, setLoading] = useState(true);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const data = await api.stats.get('admin');
+        setAnalyticsData(data);
+      } catch (e) {
+        console.error('Analytics fetch failed');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnalytics();
+  }, []);
+
+  if (loading) return <div className="p-8"><Loader2 className="animate-spin" /></div>;
+
+  const totalRevenue = analyticsData?.revenue || 0;
+  const totalOrders = analyticsData?.orders || 0;
+  const buyersCount = analyticsData?.users || 0;
+  const vendorsCount = analyticsData?.vendors || 0;
+
+  // Real-time chart data needs backend time-series support. 
+  // For now, we show empty or basic markers if no data exists.
+  const revenueData: any[] = [];
+  const userGrowthData: any[] = [];
+  const orderStatusData: any[] = [];
+  const categoryRevenue: any[] = [];
 
   return (
     <div className="space-y-6">

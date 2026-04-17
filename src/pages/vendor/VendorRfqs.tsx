@@ -36,7 +36,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
-import { formatPrice } from '@/data/mockData';
+import { formatPrice } from '@/lib/utils';
+import { api } from '@/lib/api';
+import { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 // Extended RFQ status flow
@@ -65,110 +67,33 @@ interface Rfq {
   response?: RfqResponse;
 }
 
-const mockRfqs: Rfq[] = [
-  {
-    id: 'rfq-1',
-    buyerName: 'Amit Patel',
-    buyerEmail: 'amit@techretail.com',
-    buyerPhone: '+91 98765 43210',
-    productName: 'Wireless Bluetooth Earbuds',
-    quantity: 500,
-    unit: 'pieces',
-    targetPrice: 450,
-    deliveryLocation: 'Mumbai, Maharashtra',
-    description: 'Looking for high-quality wireless earbuds with noise cancellation for retail. Need branded packaging and warranty cards.',
-    status: 'pending',
-    createdAt: '2024-01-20T10:30:00Z',
-  },
-  {
-    id: 'rfq-2',
-    buyerName: 'Priya Sharma',
-    buyerEmail: 'priya@fashionhub.in',
-    buyerPhone: '+91 87654 32109',
-    productName: 'Cotton T-Shirts Plain',
-    quantity: 2000,
-    unit: 'pieces',
-    targetPrice: 120,
-    deliveryLocation: 'Surat, Gujarat',
-    description: 'Need plain cotton t-shirts in multiple colors (White, Black, Navy, Grey). Sizes: S, M, L, XL in equal quantities.',
-    status: 'pending',
-    createdAt: '2024-01-19T14:15:00Z',
-  },
-  {
-    id: 'rfq-3',
-    buyerName: 'Rajesh Kumar',
-    buyerEmail: 'rajesh@industrialtools.com',
-    buyerPhone: '+91 76543 21098',
-    productName: 'Safety Helmets Industrial Grade',
-    quantity: 1000,
-    unit: 'pieces',
-    targetPrice: 180,
-    deliveryLocation: 'Ludhiana, Punjab',
-    description: 'ISI certified industrial safety helmets. Prefer white and yellow colors. Need test certificates.',
-    status: 'quoted',
-    createdAt: '2024-01-18T09:00:00Z',
-    response: {
-      price: 195,
-      deliveryDays: 7,
-      message: 'We can supply ISI certified helmets at ₹195/piece. MOQ is 500 pieces. Delivery within 7 working days. Test certificates included.',
-      respondedAt: '2024-01-18T15:30:00Z',
-    },
-  },
-  {
-    id: 'rfq-4',
-    buyerName: 'Sunita Devi',
-    buyerEmail: 'sunita@grainmart.in',
-    buyerPhone: '+91 65432 10987',
-    productName: 'Organic Turmeric Powder',
-    quantity: 500,
-    unit: 'kg',
-    targetPrice: 180,
-    deliveryLocation: 'Nashik, Maharashtra',
-    description: 'Looking for organic certified turmeric powder. Must have FSSAI certification. Packaging: 1kg packs.',
-    status: 'admin_approved',
-    createdAt: '2024-01-17T11:45:00Z',
-    response: {
-      price: 200,
-      deliveryDays: 5,
-      message: 'We have premium organic turmeric at ₹200/kg. FSSAI and organic certified. Can deliver in 5 days. Minimum order 200kg.',
-      respondedAt: '2024-01-17T16:00:00Z',
-    },
-  },
-  {
-    id: 'rfq-5',
-    buyerName: 'Vikram Singh',
-    buyerEmail: 'vikram@buildright.com',
-    buyerPhone: '+91 54321 09876',
-    productName: 'Ceramic Floor Tiles 2x2',
-    quantity: 5000,
-    unit: 'sq ft',
-    targetPrice: 45,
-    deliveryLocation: 'Chennai, Tamil Nadu',
-    description: 'Need ceramic floor tiles for commercial project. Prefer neutral colors. Anti-slip surface preferred.',
-    status: 'sent_to_buyer',
-    createdAt: '2024-01-15T16:20:00Z',
-    response: {
-      price: 48,
-      deliveryDays: 10,
-      message: 'We can supply anti-slip ceramic tiles at ₹48/sq ft. Available in beige, grey, and white. Delivery in 10 days.',
-      respondedAt: '2024-01-16T10:00:00Z',
-    },
-  },
-];
+// Use database-driven RFQs
 
 export default function VendorRfqs() {
   const { toast } = useToast();
-  const [rfqs, setRfqs] = useState<Rfq[]>(mockRfqs);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRfq, setSelectedRfq] = useState<Rfq | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [responseOpen, setResponseOpen] = useState(false);
-  const [responseForm, setResponseForm] = useState({
-    price: 0,
-    deliveryDays: 7,
-    message: '',
-  });
+  const [rfqs, setRfqs] = useState<Rfq[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRfqs = async () => {
+      try {
+        const data = await api.rfqs.list();
+        setRfqs(data.map((r: any) => ({
+          ...r,
+          productName: r.product_name || r.productName,
+          buyerName: r.buyer_name || r.buyerName || 'Client',
+          buyerEmail: r.buyer_email || r.buyerEmail || 'client@jummbababa.com',
+          createdAt: r.created_at,
+          targetPrice: r.target_price
+        })));
+      } catch (err) {
+        console.error('RFQ fetch failed');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRfqs();
+  }, []);
 
   const filteredRfqs = rfqs.filter((r) => {
     const matchesStatus = statusFilter === 'all' || r.status === statusFilter;

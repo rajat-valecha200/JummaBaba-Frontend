@@ -18,36 +18,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { formatPrice } from '@/data/mockData';
+import { formatPrice } from '@/lib/utils';
+import { api } from '@/lib/api';
+import { useState, useEffect } from 'react';
 
-// Mock order data - in real app would come from API/state
-const mockOrderData = {
-  orderNumber: 'JMB-2024-00142',
-  orderDate: new Date().toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  }),
-  estimatedDelivery: '5-7 business days',
-  paymentMethod: 'bank',
-  items: [
-    { name: 'Samsung Galaxy A54 5G Bulk Pack', quantity: 100, price: 2780000 },
-    { name: 'Premium Cotton Fabric Roll', quantity: 500, price: 39000 },
-  ],
-  subtotal: 2819000,
-  gst: 507420,
-  shipping: 0,
-  total: 3326420,
-  shippingAddress: {
-    company: 'ABC Traders Pvt Ltd',
-    contact: 'Rahul Sharma',
-    address: '45, Industrial Area, Phase 2',
-    city: 'Pune',
-    state: 'Maharashtra',
-    pincode: '411018',
-    phone: '+91 98765 43210'
-  }
-};
+// Order data is dynamically fetched from the database (Hardened)
 
 // Platform details
 const platformDetails = {
@@ -73,6 +48,35 @@ export default function OrderConfirmationPage() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const paymentMethod = searchParams.get('payment') || 'bank';
+  const orderId = searchParams.get('orderId');
+
+  const [dbOrder, setDbOrder] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchOrder = async () => {
+      try {
+        // Fetch the specific order or fallback to latest
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/orders/buyer`);
+        if (res.ok) {
+          const orders = await res.json();
+          setDbOrder(orders[0]); // Best-effort for confirmation
+        }
+      } catch (e) {
+        console.error('Confirmation fetch failed');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchOrder();
+  }, []);
+
+  const orderData = dbOrder || {
+    orderNumber: 'PROCESSING...',
+    orderDate: new Date().toLocaleDateString(),
+    items: [],
+    shippingAddress: {}
+  };
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -102,13 +106,13 @@ export default function OrderConfirmationPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Order Number</p>
-                <p className="text-xl font-bold text-primary">{mockOrderData.orderNumber}</p>
+                <p className="text-xl font-bold text-primary">{orderData.orderNumber}</p>
               </div>
               <div className="flex gap-2">
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => copyToClipboard(mockOrderData.orderNumber, 'Order number')}
+                  onClick={() => copyToClipboard(orderData.orderNumber || '', 'Order number')}
                 >
                   <Copy className="h-4 w-4 mr-1" />
                   Copy
@@ -144,7 +148,7 @@ export default function OrderConfirmationPage() {
                     </div>
                     <div className="pb-6">
                       <p className="font-medium">Order Placed</p>
-                      <p className="text-sm text-muted-foreground">{mockOrderData.orderDate}</p>
+                      <p className="text-sm text-muted-foreground">{orderData.orderDate}</p>
                       <p className="text-xs text-success mt-1">Completed</p>
                     </div>
                   </div>
@@ -185,7 +189,7 @@ export default function OrderConfirmationPage() {
                     <div>
                       <p className="font-medium text-muted-foreground">Delivery</p>
                       <p className="text-sm text-muted-foreground">
-                        Estimated: {mockOrderData.estimatedDelivery}
+                        Estimated: {orderData.estimatedDelivery || '5-7 business days'}
                       </p>
                     </div>
                   </div>
@@ -199,10 +203,10 @@ export default function OrderConfirmationPage() {
                 <div>
                   <p className="font-medium text-sm">Shipping Address</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {mockOrderData.shippingAddress.company}<br />
-                    {mockOrderData.shippingAddress.contact}<br />
-                    {mockOrderData.shippingAddress.address}<br />
-                    {mockOrderData.shippingAddress.city}, {mockOrderData.shippingAddress.state} - {mockOrderData.shippingAddress.pincode}
+                    {orderData.shippingAddress?.company || 'Loading...'}<br />
+                    {orderData.shippingAddress?.contact || ''}<br />
+                    {orderData.shippingAddress?.address || ''}<br />
+                    {orderData.shippingAddress?.city || ''}, {orderData.shippingAddress?.state || ''} - {orderData.shippingAddress?.pincode || ''}
                   </p>
                 </div>
               </div>
@@ -293,14 +297,14 @@ export default function OrderConfirmationPage() {
 
               <div className="p-4 border rounded-lg">
                 <p className="font-medium text-sm mb-2">Amount to Pay</p>
-                <p className="text-2xl font-bold text-primary">{formatPrice(mockOrderData.total)}</p>
+                <p className="text-2xl font-bold text-primary">{formatPrice(orderData.total_amount || orderData.total || 0)}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Reference: {mockOrderData.orderNumber}
+                  Reference: {orderData.orderNumber}
                 </p>
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Please mention your order number ({mockOrderData.orderNumber}) in the payment remarks for faster processing.
+                Please mention your order number ({orderData.orderNumber}) in the payment remarks for faster processing.
               </p>
             </CardContent>
           </Card>
@@ -316,13 +320,13 @@ export default function OrderConfirmationPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockOrderData.items.map((item, index) => (
+               {orderData.items?.map((item: any, index: number) => (
                 <div key={index} className="flex justify-between items-start py-2 border-b last:border-0">
                   <div>
-                    <p className="font-medium">{item.name}</p>
+                    <p className="font-medium">{item.productName || item.name}</p>
                     <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
                   </div>
-                  <p className="font-semibold">{formatPrice(item.price)}</p>
+                  <p className="font-semibold">{formatPrice(item.price || item.pricePerUnit || 0)}</p>
                 </div>
               ))}
 
@@ -331,11 +335,11 @@ export default function OrderConfirmationPage() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span>{formatPrice(mockOrderData.subtotal)}</span>
+                  <span>{formatPrice(orderData.subtotal || 0)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">GST (18%)</span>
-                  <span>{formatPrice(mockOrderData.gst)}</span>
+                  <span>{formatPrice(orderData.gst || 0)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Shipping</span>
@@ -344,7 +348,7 @@ export default function OrderConfirmationPage() {
                 <Separator />
                 <div className="flex justify-between font-semibold text-lg">
                   <span>Total</span>
-                  <span className="text-primary">{formatPrice(mockOrderData.total)}</span>
+                  <span className="text-primary">{formatPrice(orderData.total_amount || orderData.total || 0)}</span>
                 </div>
               </div>
             </div>

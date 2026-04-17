@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { Product } from '@/data/mockData';
 import { useToast } from '@/hooks/use-toast';
 
 interface WishlistContextType {

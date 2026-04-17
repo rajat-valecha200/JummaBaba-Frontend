@@ -18,19 +18,30 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ProductCard } from '@/components/b2b/ProductCard';
 import { SupplierCard } from '@/components/b2b/SupplierCard';
 import { CategoryCard } from '@/components/b2b/CategoryCard';
-import { 
-  categories, 
-  products, 
-  suppliers, 
-  getSupplierById,
-  formatNumber 
-} from '@/data/mockData';
+import { formatNumber } from '@/lib/utils';
+import { UnderConstructionModal } from '@/components/ui/UnderConstructionModal';
 
 export default function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [dbProducts, setDbProducts] = useState<any[]>([]);
+  const [dbCategories, setDbCategories] = useState<any[]>([]);
+  const [dbTopSuppliers, setDbTopSuppliers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [publicStats, setPublicStats] = useState<any>({
+    products: 0,
+    vendors: 0,
+    buyers: 0,
+    rfqs: 0
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [constructionOpen, setConstructionOpen] = useState(false);
+  const [featureName, setFeatureName] = useState('');
+
+  const openConstruction = (name: string) => {
+    setFeatureName(name);
+    setConstructionOpen(true);
+  };
   
   useEffect(() => {
     const fetchProducts = async () => {
@@ -60,13 +71,62 @@ export default function HomePage() {
       }
     };
     fetchProducts();
+
+    const fetchDependencies = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch Categories
+        const catRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`);
+        if (catRes.ok) {
+          const catData = await catRes.json();
+          setDbCategories(catData);
+        }
+
+        // Fetch Top Suppliers
+        const supRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/suppliers/top`);
+        if (supRes.ok) {
+          const supData = await supRes.json();
+          setDbTopSuppliers(supData.map((s: any) => ({
+            ...s,
+            companyName: s.business_name || s.full_name,
+            logo: s.logo || 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
+            location: s.location || 'Maharashtra',
+            state: s.state || 'India',
+            yearEstablished: 2012,
+            rating: 4.8,
+            totalProducts: 150,
+            gstVerified: true,
+            businessType: 'Manufacturer'
+          })));
+        }
+
+        // Fetch Stats with robust fallback
+        const statsRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/stats/public`);
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setPublicStats({
+            products: Number(statsData.products) || 0,
+            vendors: Number(statsData.vendors) || 0,
+            buyers: Number(statsData.buyers) || 0,
+            rfqs: Number(statsData.rfqs) || 0,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to sync with backend:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProducts();
+    fetchDependencies();
   }, []);
 
-  // Merge mock with stay-live products from DB
-  // Show ALL DB products first, then fill with mock if needed
-  const latestProducts = [...dbProducts, ...products.filter(mp => !dbProducts.find(dp => dp.id === mp.id))];
-    
-  const topSuppliers = suppliers.filter(s => s.isTopSupplier);
+  const latestProducts = dbProducts;
+  
+  const displayCategories = dbCategories;
+  
+  const displayTopSuppliers = dbTopSuppliers;
 
   return (
     <div className="min-h-screen">
@@ -129,35 +189,34 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stats Bar */}
       <section className="bg-card border-b py-6">
         <div className="b2b-container">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div>
               <div className="flex items-center justify-center gap-2 text-primary">
                 <Package className="h-5 w-5" />
-                <span className="text-2xl md:text-3xl font-bold">{formatNumber(98500)}</span>
+                <span className="text-2xl md:text-3xl font-bold">{isLoading ? '--' : formatNumber(publicStats.products)}</span>
               </div>
               <p className="text-sm text-muted-foreground mt-1">Products Listed</p>
             </div>
             <div>
               <div className="flex items-center justify-center gap-2 text-primary">
                 <Users className="h-5 w-5" />
-                <span className="text-2xl md:text-3xl font-bold">{formatNumber(12500)}</span>
+                <span className="text-2xl md:text-3xl font-bold">{isLoading ? '--' : formatNumber(publicStats.vendors)}</span>
               </div>
               <p className="text-sm text-muted-foreground mt-1">Verified Suppliers</p>
             </div>
             <div>
               <div className="flex items-center justify-center gap-2 text-primary">
                 <TrendingUp className="h-5 w-5" />
-                <span className="text-2xl md:text-3xl font-bold">{formatNumber(450000)}</span>
+                <span className="text-2xl md:text-3xl font-bold">{isLoading ? '--' : formatNumber(publicStats.buyers)}</span>
               </div>
               <p className="text-sm text-muted-foreground mt-1">Buyers Connected</p>
             </div>
             <div>
               <div className="flex items-center justify-center gap-2 text-primary">
                 <FileText className="h-5 w-5" />
-                <span className="text-2xl md:text-3xl font-bold">{formatNumber(85000)}</span>
+                <span className="text-2xl md:text-3xl font-bold">{isLoading ? '--' : formatNumber(publicStats.rfqs)}</span>
               </div>
               <p className="text-sm text-muted-foreground mt-1">RFQs Fulfilled</p>
             </div>
@@ -174,11 +233,16 @@ export default function HomePage() {
               View All <ChevronRight className="h-4 w-4" />
             </Link>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {categories.map(category => (
+           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {displayCategories.map(category => (
               <CategoryCard key={category.id} category={category} variant="featured" />
             ))}
           </div>
+          {displayCategories.length === 0 && !isLoading && (
+            <div className="p-10 text-center text-muted-foreground border rounded-xl">
+               No categories available. Add some from the admin panel.
+            </div>
+          )}
         </div>
       </section>
 
@@ -194,11 +258,9 @@ export default function HomePage() {
                 Post your requirement and get quotes from multiple suppliers
               </p>
             </div>
-            <Button asChild size="lg" variant="secondary" className="whitespace-nowrap">
-              <Link to="/post-requirement">
+            <Button onClick={() => openConstruction('Request for Quote (RFQ) Board')} size="lg" variant="secondary" className="whitespace-nowrap font-bold uppercase tracking-widest shadow-lg">
                 <FileText className="h-5 w-5 mr-2" />
                 Post Your Requirement
-              </Link>
             </Button>
           </div>
         </div>
@@ -215,8 +277,7 @@ export default function HomePage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             {latestProducts.slice(0, 8).map(product => {
-              const supplier = getSupplierById(product.supplier_id || product.supplierId);
-              if (!supplier) return null;
+              const supplier = product.vendor || { companyName: product.supplierName || 'Verified Supplier' };
               return (
                 <ProductCard 
                   key={product.id} 
@@ -234,15 +295,20 @@ export default function HomePage() {
         <div className="b2b-container">
           <div className="flex items-center justify-between mb-6">
             <h2 className="b2b-section-title">Top Suppliers</h2>
-            <Link to="/suppliers" className="text-primary flex items-center gap-1 text-sm font-medium hover:underline">
+            <button onClick={() => openConstruction('Suppliers Directory')} className="text-primary flex items-center gap-1 text-sm font-medium hover:underline">
               View All <ChevronRight className="h-4 w-4" />
-            </Link>
+            </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {topSuppliers.map(supplier => (
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {displayTopSuppliers.map(supplier => (
               <SupplierCard key={supplier.id} supplier={supplier} />
             ))}
           </div>
+          {displayTopSuppliers.length === 0 && !isLoading && (
+            <div className="p-10 text-center text-muted-foreground bg-background rounded-xl">
+               No featured suppliers yet. Feature them in the Admin Panel Vendor list.
+            </div>
+          )}
         </div>
       </section>
 
@@ -251,14 +317,14 @@ export default function HomePage() {
         <div className="b2b-container">
           <div className="flex items-center justify-between mb-6">
             <h2 className="b2b-section-title">Bulk Deals</h2>
-            <Link to="/deals" className="text-primary flex items-center gap-1 text-sm font-medium hover:underline">
+            <button onClick={() => openConstruction('Bulk Deals')} className="text-primary flex items-center gap-1 text-sm font-medium hover:underline">
               View All <ChevronRight className="h-4 w-4" />
-            </Link>
+            </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-            {products.slice(4, 8).map(product => {
-              const supplier = getSupplierById(product.supplierId);
-              if (!supplier) return null;
+            {latestProducts.slice(0, 8).map(product => {
+              // The database product already includes vendor info if available
+              const supplier = product.vendor || { companyName: product.supplierName || 'Verified Supplier' };
               return (
                 <ProductCard 
                   key={product.id} 
@@ -337,6 +403,12 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      
+      <UnderConstructionModal 
+        isOpen={constructionOpen} 
+        onClose={() => setConstructionOpen(false)} 
+        featureName={featureName} 
+      />
     </div>
   );
 }

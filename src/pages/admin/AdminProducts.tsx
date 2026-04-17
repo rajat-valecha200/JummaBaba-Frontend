@@ -30,7 +30,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { products, suppliers, formatPrice, getSupplierById } from '@/data/mockData';
+import { formatPrice } from '@/lib/utils';
 
 type ProductStatus = 'pending' | 'approved' | 'rejected';
 
@@ -69,7 +69,10 @@ export default function AdminProducts() {
         category: p.category_id || p.category,
         image: p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600',
         submittedAt: p.created_at,
-        minPrice: p.pricing_slabs?.[0]?.pricePerUnit || p.minPrice || 0
+        minPrice: p.pricing_slabs?.[0]?.pricePerUnit || p.minPrice || 0,
+        pricingSlabs: typeof p.pricing_slabs === 'string' ? JSON.parse(p.pricing_slabs) : p.pricing_slabs || [],
+        description: p.description,
+        shortDescription: p.short_description
       })));
     } catch (error) {
       console.error('Failed to fetch products:', error);
@@ -296,6 +299,38 @@ export default function AdminProducts() {
                   {getStatusBadge(selectedProduct.status)}
                 </div>
               </div>
+
+              {(selectedProduct.shortDescription || selectedProduct.description) && (
+                <div className="bg-muted/30 p-4 rounded-lg space-y-2">
+                  <p className="text-sm font-semibold">Description</p>
+                  {selectedProduct.shortDescription && <p className="text-sm font-medium">{selectedProduct.shortDescription}</p>}
+                  {selectedProduct.description && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedProduct.description}</p>}
+                </div>
+              )}
+
+              {selectedProduct.pricingSlabs && selectedProduct.pricingSlabs.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold mb-2">Pricing Slabs</p>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow>
+                          <TableHead className="py-2">Quantity Range</TableHead>
+                          <TableHead className="py-2 text-right">Price per Unit</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedProduct.pricingSlabs.map((slab: any, idx: number) => (
+                          <TableRow key={idx}>
+                            <TableCell className="py-2">{slab.minQty} - {slab.maxQty || 'Unlimited'}</TableCell>
+                            <TableCell className="py-2 text-right">{formatPrice(slab.pricePerUnit || slab.price || slab.price_per_unit || 0)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <p className="text-sm text-muted-foreground mb-2">Submitted</p>

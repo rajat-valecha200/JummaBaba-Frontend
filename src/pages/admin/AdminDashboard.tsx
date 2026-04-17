@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatsCard } from '@/components/b2b/StatsCard';
-import { suppliers, products, users, formatPrice } from '@/data/mockData';
+import { formatPrice } from '@/lib/utils';
 
 export default function AdminDashboard() {
   const { toast } = useToast();

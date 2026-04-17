@@ -5,31 +5,49 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { products, getSupplierById, formatPrice } from '@/data/mockData';
+import { formatPrice } from '@/lib/utils';
+import { api } from '@/lib/api';
+import { useState, useEffect } from 'react';
 
-// Mock cart items
-const cartItems = [
-  { productId: 'prod-1', quantity: 100 },
-  { productId: 'prod-2', quantity: 500 },
-];
+// Global Cart Logic (Hardened)
 
 export default function BuyerCart() {
-  const cartWithProducts = cartItems.map(item => {
-    const product = products.find(p => p.id === item.productId);
-    const supplier = product ? getSupplierById(product.supplierId) : null;
-    // Find applicable price slab
-    const slab = product?.pricingSlabs.find(s => 
+  const [dbCartItems, setDbCartItems] = useState<any[]>([]);
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchCart = async () => {
+      try {
+        const prodRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/products/public`);
+        if (prodRes.ok) setDbProducts(await prodRes.json());
+        // For now, load from localStorage to keep it sync
+        const saved = localStorage.getItem('jummababa_cart');
+        if (saved) setDbCartItems(JSON.parse(saved));
+      } catch (e) {
+        console.error('Cart sync failed');
+      }
+    };
+    fetchCart();
+  }, []);
+
+  const cartWithProducts = dbCartItems.map(item => {
+    const product = dbProducts.find(p => p.id === item.productId || p.slug === item.productId);
+    if (!product) return null;
+    
+    // Use first slab if no slabs found
+    const slabs = product.pricing_slabs || product.pricingSlabs || [];
+    const slab = slabs.find((s: any) => 
       item.quantity >= s.minQty && (!s.maxQty || item.quantity <= s.maxQty)
-    ) || product?.pricingSlabs[0];
+    ) || slabs[0];
     
     return {
       ...item,
       product,
-      supplier,
+      supplier: product.vendor || { companyName: 'Verified Supplier' },
       pricePerUnit: slab?.pricePerUnit || 0,
       total: (slab?.pricePerUnit || 0) * item.quantity,
     };
-  }).filter(item => item.product);
+  }).filter(item => item !== null);
 
   const subtotal = cartWithProducts.reduce((sum, item) => sum + item.total, 0);
   const gst = subtotal * 0.18;

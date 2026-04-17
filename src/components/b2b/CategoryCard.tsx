@@ -11,8 +11,7 @@ import {
   LucideIcon 
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Category, formatNumber } from '@/data/mockData';
-import { cn } from '@/lib/utils';
+import { formatNumber, cn } from '@/lib/utils';
 
 const iconMap: Record<string, LucideIcon> = {
   Cpu,
@@ -26,7 +25,7 @@ const iconMap: Record<string, LucideIcon> = {
 };
 
 interface CategoryCardProps {
-  category: Category;
+  category: any;
   variant?: 'default' | 'compact' | 'featured';
   className?: string;
 }
@@ -64,10 +63,10 @@ export function CategoryCard({ category, variant = 'default', className }: Categ
             </div>
             <h3 className="mt-4 font-semibold text-lg">{category.name}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {formatNumber(category.productCount)} Products
+              {formatNumber(category.productCount || category.product_count || 0)} Products
             </p>
             <div className="mt-3 flex flex-wrap gap-1 justify-center">
-              {category.subcategories.slice(0, 3).map(sub => (
+              {category.subcategories?.slice(0, 3).map((sub: any) => (
                 <span 
                   key={sub.id}
                   className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
@@ -96,7 +95,7 @@ export function CategoryCard({ category, variant = 'default', className }: Categ
           <div className="flex-1 min-w-0">
             <h3 className="font-medium truncate">{category.name}</h3>
             <p className="text-sm text-muted-foreground">
-              {formatNumber(category.productCount)} products
+              {formatNumber(category.productCount || category.product_count || 0)} products
             </p>
           </div>
         </CardContent>

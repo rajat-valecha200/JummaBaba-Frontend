@@ -41,6 +41,7 @@ export const api = {
   products: {
     list: (status?: string) => apiFetch(`/products?status=${status || ''}`),
     create: (data: any) => apiFetch('/products', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) => apiFetch(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     updateStatus: (id: string, status: string, rejection_reason?: string) => 
       apiFetch(`/products/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, rejection_reason }) }),
   },

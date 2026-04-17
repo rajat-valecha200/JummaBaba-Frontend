@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Eye, Search, Filter } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, Search, Filter, Star } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -48,11 +49,11 @@ export default function AdminVendors() {
       setVendors(data.map((v: any) => ({
         ...v,
         companyName: v.business_name || v.full_name,
-        logo: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
-        location: 'Not Specified',
-        gstNumber: 'N/A',
-        establishedYear: 2024,
-        totalProducts: 0,
+        logo: v.logo || 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
+        location: v.location || 'Not Specified',
+        gstNumber: v.gst_number || v.gstNumber || 'N/A',
+        establishedYear: v.established_year || v.establishedYear || 2024,
+        totalProducts: v.total_products || 0,
         submittedAt: v.created_at,
       })));
     } catch (error) {
@@ -93,6 +94,26 @@ export default function AdminVendors() {
       toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
     }
     setDetailsOpen(false);
+  };
+
+  const handleToggleTop = async (vendorId: string, currentStatus: boolean) => {
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/admin/vendors/${vendorId}/top-supplier`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+        },
+        body: JSON.stringify({ is_top_supplier: !currentStatus })
+      });
+      toast({ 
+        title: !currentStatus ? 'Supplier Featured' : 'Removed from Featured',
+        description: !currentStatus ? 'They will now appear in the Top Suppliers section.' : 'They have been removed from the homepage slider.' 
+      });
+      fetchVendors();
+    } catch (error: any) {
+      toast({ title: 'Failed to update status', variant: 'destructive' });
+    }
   };
 
   const getStatusBadge = (status: VendorStatus) => {
@@ -178,6 +199,7 @@ export default function AdminVendors() {
                 <TableHead>Est. Year</TableHead>
                 <TableHead>Products</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Featured</TableHead>
                 <TableHead>Submitted</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -196,6 +218,16 @@ export default function AdminVendors() {
                   <TableCell>{vendor.establishedYear}</TableCell>
                   <TableCell>{vendor.totalProducts}</TableCell>
                   <TableCell>{getStatusBadge(vendor.status)}</TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleToggleTop(vendor.id, vendor.is_top_supplier || false)}
+                      className={vendor.is_top_supplier ? "text-b2b-orange" : "text-muted-foreground/30"}
+                    >
+                      <Star className={cn("h-4 w-4", vendor.is_top_supplier && "fill-current")} />
+                    </Button>
+                  </TableCell>
                   <TableCell>{new Date(vendor.submittedAt).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">

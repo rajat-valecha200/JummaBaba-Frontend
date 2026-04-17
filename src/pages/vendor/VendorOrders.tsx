@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle, ArrowLeft, Upload, Info, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,7 +31,8 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { formatPrice } from '@/data/mockData';
+import { formatPrice } from '@/lib/utils';
+import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { OrderTracking } from '@/components/orders/OrderTracking';
 
@@ -57,79 +58,7 @@ interface Order {
   shippingAddress: string;
 }
 
-const mockOrders: Order[] = [
-  {
-    id: 'ord-1',
-    orderNumber: 'JB-2024-001',
-    buyerName: 'Amit Patel',
-    buyerEmail: 'amit@techretail.com',
-    buyerPhone: '+91 98765 43210',
-    items: [
-      { productId: 'prod-1', productName: 'Samsung Galaxy A54 5G Bulk Pack', quantity: 100, pricePerUnit: 27800 },
-    ],
-    totalAmount: 2780000,
-    status: 'pending',
-    createdAt: '2024-01-20T10:30:00Z',
-    shippingAddress: '123 Tech Park, Andheri East, Mumbai - 400069',
-  },
-  {
-    id: 'ord-2',
-    orderNumber: 'JB-2024-002',
-    buyerName: 'Priya Sharma',
-    buyerEmail: 'priya@fashionhub.in',
-    buyerPhone: '+91 87654 32109',
-    items: [
-      { productId: 'prod-2', productName: 'Premium Cotton Fabric Roll', quantity: 500, pricePerUnit: 78 },
-      { productId: 'prod-6', productName: 'Executive Office Chair Bulk', quantity: 50, pricePerUnit: 6000 },
-    ],
-    totalAmount: 339000,
-    status: 'confirmed',
-    createdAt: '2024-01-19T14:15:00Z',
-    shippingAddress: '456 Fashion Street, Surat, Gujarat - 395003',
-  },
-  {
-    id: 'ord-3',
-    orderNumber: 'JB-2024-003',
-    buyerName: 'Rajesh Kumar',
-    buyerEmail: 'rajesh@industrialtools.com',
-    buyerPhone: '+91 76543 21098',
-    items: [
-      { productId: 'prod-3', productName: 'Heavy Duty Industrial Drill Machine', quantity: 25, pricePerUnit: 8000 },
-    ],
-    totalAmount: 200000,
-    status: 'shipped',
-    createdAt: '2024-01-18T09:00:00Z',
-    shippingAddress: '789 Industrial Area, Ludhiana, Punjab - 141003',
-  },
-  {
-    id: 'ord-4',
-    orderNumber: 'JB-2024-004',
-    buyerName: 'Sunita Devi',
-    buyerEmail: 'sunita@grainmart.in',
-    buyerPhone: '+91 65432 10987',
-    items: [
-      { productId: 'prod-4', productName: 'Organic Basmati Rice Premium Grade', quantity: 2000, pricePerUnit: 118 },
-    ],
-    totalAmount: 236000,
-    status: 'delivered',
-    createdAt: '2024-01-15T11:45:00Z',
-    shippingAddress: '321 Grain Market, Nashik, Maharashtra - 422001',
-  },
-  {
-    id: 'ord-5',
-    orderNumber: 'JB-2024-005',
-    buyerName: 'Vikram Singh',
-    buyerEmail: 'vikram@buildright.com',
-    buyerPhone: '+91 54321 09876',
-    items: [
-      { productId: 'prod-5', productName: 'AAC Blocks for Construction', quantity: 5000, pricePerUnit: 52 },
-    ],
-    totalAmount: 260000,
-    status: 'cancelled',
-    createdAt: '2024-01-14T16:20:00Z',
-    shippingAddress: '654 Construction Zone, Chennai, Tamil Nadu - 600001',
-  },
-];
+// Order management logic synchronized with database
 
 const statusConfig: Record<OrderStatus, { label: string; icon: typeof Package; color: string }> = {
   pending: { label: 'Pending', icon: Clock, color: 'bg-warning/10 text-warning border-warning/20' },
@@ -141,7 +70,26 @@ const statusConfig: Record<OrderStatus, { label: string; icon: typeof Package; c
 
 export default function VendorOrders() {
   const { toast } = useToast();
-  const [orders, setOrders] = useState<Order[]>(mockOrders);
+  const [dbOrders, setDbOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/orders/vendor`);
+        if (res.ok) setDbOrders(await res.json());
+      } catch (e) {
+        console.error('Vendor orders fetch failed');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchOrders();
+  }, []);
+
+  const [orders, setOrders] = useState<Order[]>([]); // For local state updates
+  useEffect(() => { setOrders(dbOrders); }, [dbOrders]);
+
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);

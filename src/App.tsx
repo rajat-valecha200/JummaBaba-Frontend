@@ -15,6 +15,7 @@ import SupplierDetailPage from "./pages/SupplierDetailPage";
 import LoginPage from "./pages/auth/LoginPage";
 import BuyerRegisterPage from "./pages/auth/BuyerRegisterPage";
 import SellerRegisterPage from "./pages/auth/SellerRegisterPage";
+import PolicyPage from "./pages/PolicyPage";
 
 // Buyer Pages
 import BuyerDashboard from "./pages/buyer/BuyerDashboard";
@@ -68,6 +69,10 @@ const App = () => (
                 <Route path="/products" element={<CategoryPage />} />
                 <Route path="/product/:slug" element={<ProductDetailPage />} />
                 <Route path="/supplier/:id" element={<SupplierDetailPage />} />
+                <Route path="/help" element={<PolicyPage />} />
+                <Route path="/privacy" element={<PolicyPage />} />
+                <Route path="/terms" element={<PolicyPage />} />
+                <Route path="/policy/:type" element={<PolicyPage />} />
               </Route>
 
               {/* Auth routes */}
@@ -89,6 +94,7 @@ const App = () => (
                 <Route path="/buyer/messages" element={<BuyerMessages />} />
                 <Route path="/buyer/profile" element={<BuyerProfile />} />
                 <Route path="/buyer/settings" element={<BuyerDashboard />} />
+                <Route path="/post-requirement" element={<BuyerRfqs />} />
               </Route>
 
               {/* Vendor dashboard routes */}

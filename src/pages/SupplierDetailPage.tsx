@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
   MapPin, 
@@ -33,60 +34,17 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ProductCard } from '@/components/b2b/ProductCard';
-import { suppliers, products, formatPrice } from '@/data/mockData';
+import { api } from '@/lib/api';
+import { formatPrice, formatNumber } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { useState } from 'react';
-
-// Extended supplier data for the detail page
-const supplierDetails = {
-  'sup-1': {
-    description: 'Rajesh Electronics Pvt Ltd is a leading manufacturer and distributor of consumer electronics and mobile devices. With over 19 years of experience, we specialize in bulk supply to retailers, distributors, and corporate clients across India.',
-    email: 'sales@rajeshelectronics.com',
-    phone: '+91 22 4567 8901',
-    website: 'www.rajeshelectronics.com',
-    employees: '250-500',
-    certifications: ['ISO 9001:2015', 'ISO 14001:2015', 'BIS Certified'],
-    paymentTerms: 'Net 30, LC, Advance Payment',
-    exportCountries: ['UAE', 'Saudi Arabia', 'Kenya', 'Nepal', 'Bangladesh'],
-    responseTime: '< 4 hours',
-    onTimeDelivery: 98,
-    qualityRating: 4.9,
-    reviewCount: 156,
-  },
-  'sup-2': {
-    description: 'Sharma Textiles is one of Gujarat\'s premier textile manufacturers and exporters. We produce high-quality cotton and blended fabrics for garment manufacturers, home textile brands, and international buyers.',
-    email: 'export@sharmatextiles.in',
-    phone: '+91 261 234 5678',
-    website: 'www.sharmatextiles.in',
-    employees: '500-1000',
-    certifications: ['OEKO-TEX Standard 100', 'GOTS Certified', 'ISO 9001:2015'],
-    paymentTerms: 'Net 45, LC, TT',
-    exportCountries: ['USA', 'UK', 'Germany', 'France', 'Australia'],
-    responseTime: '< 2 hours',
-    onTimeDelivery: 96,
-    qualityRating: 4.7,
-    reviewCount: 234,
-  },
-};
-
-const defaultDetails = {
-  description: 'A trusted supplier on JummaBaba.com marketplace, committed to delivering quality products and excellent service to businesses across India.',
-  email: 'contact@supplier.com',
-  phone: '+91 98765 43210',
-  website: 'www.supplier.com',
-  employees: '50-100',
-  certifications: ['ISO 9001:2015'],
-  paymentTerms: 'Net 30, Advance Payment',
-  exportCountries: [],
-  responseTime: '< 8 hours',
-  onTimeDelivery: 92,
-  qualityRating: 4.5,
-  reviewCount: 45,
-};
+import { Loader2 } from 'lucide-react';
 
 export default function SupplierDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [supplier, setSupplier] = useState<any>(null);
+  const [supplierProducts, setSupplierProducts] = useState<any[]>([]);
   const [contactOpen, setContactOpen] = useState(false);
   const [contactForm, setContactForm] = useState({
     name: '',
@@ -95,15 +53,57 @@ export default function SupplierDetailPage() {
     message: '',
   });
 
-  const supplier = suppliers.find(s => s.id === id);
-  const details = supplierDetails[id as keyof typeof supplierDetails] || defaultDetails;
-  const supplierProducts = products.filter(p => p.supplierId === id);
+  useEffect(() => {
+    const fetchSupplierData = async () => {
+      setLoading(true);
+      try {
+        const profiles = await api.profiles.list('vendor');
+        const found = profiles.find((v: any) => v.id === id);
+        
+        if (found) {
+          const mappedSupp = {
+            ...found,
+            companyName: found.business_name || found.full_name,
+            logo: found.logo || 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
+            location: found.location || 'Maharashtra',
+            state: found.state || 'India',
+            yearEstablished: found.established_year || 2020,
+            rating: found.rating || 4.8,
+            totalProducts: found.total_products || 0,
+            gstVerified: !!found.gst_number,
+            businessType: 'Manufacturer',
+            annualTurnover: '₹5 - 10 Cr',
+            description: found.description || 'A verified supplier on JummaBaba B2B Marketplace.'
+          };
+          setSupplier(mappedSupp);
+
+          // Fetch products for this supplier
+          const allProducts = await api.products.list('approved');
+          setSupplierProducts(allProducts.filter((p: any) => p.supplier_id === id));
+        }
+      } catch (err) {
+        console.error('Failed to fetch supplier details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSupplierData();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+        <Loader2 className="h-10 w-10 animate-spin text-b2b-orange" />
+      </div>
+    );
+  }
 
   if (!supplier) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
+        <Building className="h-16 w-16 mx-auto text-muted-foreground/30 mb-4" />
         <h1 className="text-2xl font-bold mb-4">Supplier Not Found</h1>
-        <p className="text-muted-foreground mb-6">The supplier you're looking for doesn't exist.</p>
+        <p className="text-muted-foreground mb-6">The supplier you're looking for doesn't exist in our records.</p>
         <Button asChild>
           <Link to="/">Back to Home</Link>
         </Button>
@@ -112,6 +112,19 @@ export default function SupplierDetailPage() {
   }
 
   const yearsInBusiness = new Date().getFullYear() - supplier.yearEstablished;
+  const details = {
+    email: supplier.email,
+    phone: supplier.phone || '+91 98XXX XXX00',
+    website: supplier.website || 'www.supplier.com',
+    employees: '50-100',
+    certifications: ['ISO 9001:2015'],
+    paymentTerms: 'Net 30',
+    exportCountries: [],
+    responseTime: '< 8 hours',
+    onTimeDelivery: 95,
+    qualityRating: 4.8,
+    reviewCount: 12,
+  };
 
   const handleContactSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -74,7 +74,7 @@ export default function AdminUsers() {
 
   const filteredUsers = users.filter((u) => {
     const matchesRole = roleFilter === 'all' || u.role === roleFilter;
-    const nameStr = u.full_name || u.business_name || '';
+    const nameStr = u.full_name || u.business_name || u.email || '';
     const matchesSearch = nameStr.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesRole && matchesSearch;
@@ -167,17 +167,17 @@ export default function AdminUsers() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-                        {user.name.split(' ').map(n => n[0]).join('')}
+                        {(user.full_name || user.email).split(' ').map((n: string) => n[0]).join('').toUpperCase()}
                       </div>
-                      <span className="font-medium">{user.name}</span>
+                      <span className="font-medium">{user.full_name || user.business_name || 'N/A'}</span>
                     </div>
                   </TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.phone}</TableCell>
-                  <TableCell>{user.companyName || '-'}</TableCell>
+                  <TableCell>{user.business_name || '-'}</TableCell>
                   <TableCell>{getRoleBadge(user.role)}</TableCell>
-                  <TableCell>{getStatusBadge(user.isVerified)}</TableCell>
-                  <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell>{getStatusBadge(user.status)}</TableCell>
+                  <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right">
                     <Button
                       size="sm"
@@ -213,13 +213,13 @@ export default function AdminUsers() {
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl">
-                  {selectedUser.name.split(' ').map(n => n[0]).join('')}
+                  {(selectedUser.full_name || selectedUser.email).split(' ').map((n: string) => n[0]).join('').toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg">{selectedUser.name}</h3>
+                  <h3 className="font-semibold text-lg">{selectedUser.full_name || selectedUser.business_name}</h3>
                   <div className="flex gap-2 mt-1">
                     {getRoleBadge(selectedUser.role)}
-                    {getStatusBadge(selectedUser.isVerified)}
+                    {getStatusBadge(selectedUser.status)}
                   </div>
                 </div>
               </div>
@@ -233,10 +233,10 @@ export default function AdminUsers() {
                   <p className="text-sm text-muted-foreground">Phone</p>
                   <p>{selectedUser.phone}</p>
                 </div>
-                {selectedUser.companyName && (
+                {selectedUser.business_name && (
                   <div>
                     <p className="text-sm text-muted-foreground">Company</p>
-                    <p>{selectedUser.companyName}</p>
+                    <p>{selectedUser.business_name}</p>
                   </div>
                 )}
                 {selectedUser.gstNumber && (
@@ -247,7 +247,7 @@ export default function AdminUsers() {
                 )}
                 <div>
                   <p className="text-sm text-muted-foreground">Member Since</p>
-                  <p>{new Date(selectedUser.createdAt).toLocaleDateString()}</p>
+                  <p>{new Date(selectedUser.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
 

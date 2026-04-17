@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Save, Percent, Info, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
-import { categories } from '@/data/mockData';
+import { api } from '@/lib/api';
 
 interface CategoryCommission {
   categoryId: string;
@@ -37,14 +37,29 @@ export default function AdminCommissions() {
   const [minCommission, setMinCommission] = useState(100);
   const [enableTieredCommission, setEnableTieredCommission] = useState(false);
   
-  const [categoryCommissions, setCategoryCommissions] = useState<CategoryCommission[]>(
-    categories.map(cat => ({
-      categoryId: cat.id,
-      categoryName: cat.name,
-      commissionRate: 5,
-      useGlobal: true,
-    }))
-  );
+  const [dbCategories, setDbCategories] = useState<any[]>([]);
+  const [categoryCommissions, setCategoryCommissions] = useState<CategoryCommission[]>([]);
+
+  useEffect(() => {
+    const fetchCats = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories/public`);
+        if (res.ok) {
+          const cats = await res.json();
+          setDbCategories(cats);
+          setCategoryCommissions(cats.map((cat: any) => ({
+            categoryId: cat.id,
+            categoryName: cat.name,
+            commissionRate: 5,
+            useGlobal: true,
+          })));
+        }
+      } catch (e) {
+        console.error('Commissions cat fetch failed');
+      }
+    };
+    fetchCats();
+  }, []);
 
   const [tierRates, setTierRates] = useState([
     { minAmount: 0, maxAmount: 100000, rate: 5 },
@@ -93,7 +108,7 @@ export default function AdminCommissions() {
     setMinCommission(100);
     setEnableTieredCommission(false);
     setCategoryCommissions(
-      categories.map(cat => ({
+      dbCategories.map(cat => ({
         categoryId: cat.id,
         categoryName: cat.name,
         commissionRate: 5,
