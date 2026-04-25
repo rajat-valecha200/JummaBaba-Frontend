@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
+import { api, apiFetch } from '@/lib/api';
 import { 
   Search, 
   ArrowRight, 
@@ -44,71 +43,46 @@ export default function HomePage() {
   };
   
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const data = await api.products.list('approved');
-        if (data && data.length > 0) {
-          setDbProducts(data.map((p: any) => {
-            const pricingSlabs = typeof p.pricing_slabs === 'string' 
-              ? JSON.parse(p.pricing_slabs) 
-              : p.pricing_slabs;
-            
-            const minPrice = pricingSlabs && pricingSlabs.length > 0 
-              ? pricingSlabs[0].pricePerUnit 
-              : 0;
-
-            return {
-              ...p,
-              shortDescription: p.short_description,
-              supplierId: p.supplier_id,
-              minPrice: minPrice,
-              images: p.images?.length > 0 ? p.images : ['https://images.unsplash.com/photo-1582234057117-9c9ae625b035?w=600']
-            };
-          }));
-        }
-      } catch (error) {
-        console.error('Failed to fetch from custom API:', error);
-      }
-    };
-    fetchProducts();
-
-    const fetchDependencies = async () => {
+    const fetchHomepageData = async () => {
       setIsLoading(true);
       try {
-        // Fetch Categories
-        const catRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`);
-        if (catRes.ok) {
-          const catData = await catRes.json();
-          setDbCategories(catData);
+        const [productsResult, categoriesResult, suppliersResult, statsResult] = await Promise.allSettled([
+          api.products.list('approved'),
+          api.categories.list(),
+          apiFetch('/public/suppliers/top'),
+          apiFetch('/public/stats'),
+        ]);
+
+        if (productsResult.status === 'fulfilled') {
+          setDbProducts(productsResult.value);
         }
 
-        // Fetch Top Suppliers
-        const supRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/suppliers/top`);
-        if (supRes.ok) {
-          const supData = await supRes.json();
-          setDbTopSuppliers(supData.map((s: any) => ({
+        if (categoriesResult.status === 'fulfilled') {
+          setDbCategories(categoriesResult.value);
+        }
+
+        if (suppliersResult.status === 'fulfilled' && Array.isArray(suppliersResult.value)) {
+          setDbTopSuppliers(suppliersResult.value.map((s: any) => ({
             ...s,
             companyName: s.business_name || s.full_name,
             logo: s.logo || 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
             location: s.location || 'Maharashtra',
             state: s.state || 'India',
-            yearEstablished: 2012,
+            yearEstablished: s.established_year || 2012,
             rating: 4.8,
-            totalProducts: 150,
+            totalProducts: Number(s.total_products) || 150,
             gstVerified: true,
-            businessType: 'Manufacturer'
+            businessType: s.business_type || 'Manufacturer'
           })));
         }
 
-        // Fetch Stats with robust fallback
-        const statsRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/stats/public`);
-        if (statsRes.ok) {
-          const statsData = await statsRes.json();
+        if (statsResult.status === 'fulfilled') {
+          const stats = statsResult.value;
           setPublicStats({
-            products: Number(statsData.products) || 0,
-            vendors: Number(statsData.vendors) || 0,
-            buyers: Number(statsData.buyers) || 0,
-            rfqs: Number(statsData.rfqs) || 0,
+            products: Number(stats.products) || 0,
+            vendors: Number(stats.vendors) || 0,
+            buyers: Number(stats.buyers) || 0,
+            rfqs: Number(stats.rfqs) || 0,
           });
         }
       } catch (error) {
@@ -118,8 +92,7 @@ export default function HomePage() {
       }
     };
 
-    fetchProducts();
-    fetchDependencies();
+    fetchHomepageData();
   }, []);
 
   const latestProducts = dbProducts;

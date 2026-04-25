@@ -1,4 +1,4 @@
-import { DollarSign, CreditCard, Calendar, TrendingUp, Lock } from 'lucide-react';
+import { DollarSign, CreditCard, Calendar, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatPrice } from '@/lib/utils';
@@ -17,14 +17,18 @@ export default function VendorPayouts() {
   useEffect(() => {
     const fetchPayouts = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/vendor/payouts`);
-        if (res.ok) {
-          const data = await res.json();
-          setDbPayouts(data);
-          // Simple aggregation for dashboard
-          const total = data.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-          setStats(prev => ({ ...prev, totalEarnings: total, pendingAmount: total - prev.paidAmount }));
-        }
+        const data = await api.profiles.mePayouts();
+        setDbPayouts(data);
+        const total = data.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+        const paid = data
+          .filter((p: any) => p.status === 'paid')
+          .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+        setStats({
+          totalEarnings: total,
+          paidAmount: paid,
+          pendingAmount: total - paid,
+          lastPayoutDate: data.find((p: any) => p.status === 'paid')?.created_at || new Date().toISOString()
+        });
       } catch (e) {
         console.error('Payouts fetch failed');
       }
@@ -109,13 +113,34 @@ export default function VendorPayouts() {
           <CardDescription>Your past settlements and upcoming payouts</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <DollarSign className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="font-semibold text-lg mb-2">No Payout History</h3>
-            <p className="text-muted-foreground max-w-md">
-              Your settlements will appear here as soon as payments are processed for your orders.
-            </p>
-          </div>
+          {dbPayouts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <DollarSign className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="font-semibold text-lg mb-2">No Payout History</h3>
+              <p className="text-muted-foreground max-w-md">
+                Your settlements will appear here as soon as payments are processed for your orders.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {dbPayouts.map((payout: any) => (
+                <div key={payout.id} className="flex items-center justify-between rounded-lg border p-4">
+                  <div>
+                    <p className="font-medium">{payout.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(payout.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">{formatPrice(payout.amount)}</p>
+                    <Badge variant={payout.status === 'paid' ? 'default' : 'secondary'}>
+                      {payout.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { formatPrice } from '@/lib/utils';
-import { api } from '@/lib/api';
+import { api, apiFetch } from '@/lib/api';
 import { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -73,6 +73,16 @@ export default function VendorRfqs() {
   const { toast } = useToast();
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRfq, setSelectedRfq] = useState<Rfq | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [responseOpen, setResponseOpen] = useState(false);
+  const [responseForm, setResponseForm] = useState({
+    price: 0,
+    deliveryDays: 7,
+    message: '',
+  });
 
   useEffect(() => {
     const fetchRfqs = async () => {
@@ -82,9 +92,19 @@ export default function VendorRfqs() {
           ...r,
           productName: r.product_name || r.productName,
           buyerName: r.buyer_name || r.buyerName || 'Client',
-          buyerEmail: r.buyer_email || r.buyerEmail || 'client@jummbababa.com',
+          buyerEmail: r.buyer_email || r.buyerEmail || 'client@jummababa.com',
+          buyerPhone: r.buyer_phone || r.buyerPhone || 'N/A',
+          deliveryLocation: r.delivery_location || r.deliveryLocation || 'N/A',
+          description: r.description || '',
           createdAt: r.created_at,
-          targetPrice: r.target_price
+          targetPrice: Number(r.target_price) || null,
+          status: (r.vendor_status || r.status || 'pending') as RfqStatus,
+          response: r.response_details ? {
+            price: Number(r.response_details.price) || 0,
+            deliveryDays: Number(r.response_details.deliveryDays) || 0,
+            message: r.response_details.message || '',
+            respondedAt: r.response_details.respondedAt || r.created_at,
+          } : undefined,
         })));
       } catch (err) {
         console.error('RFQ fetch failed');
@@ -112,7 +132,7 @@ export default function VendorRfqs() {
     setResponseOpen(true);
   };
 
-  const handleSubmitResponse = () => {
+  const handleSubmitResponse = async () => {
     if (!selectedRfq) return;
     
     if (responseForm.price <= 0) {
@@ -124,24 +144,39 @@ export default function VendorRfqs() {
       return;
     }
 
-    setRfqs(rfqs.map(r => 
-      r.id === selectedRfq.id 
-        ? {
-            ...r,
-            status: 'quoted' as RfqStatus,
-            response: {
-              price: responseForm.price,
-              deliveryDays: responseForm.deliveryDays,
-              message: responseForm.message,
-              respondedAt: new Date().toISOString(),
-            },
-          }
-        : r
-    ));
+    try {
+      await api.rfqs.update(selectedRfq.id, {
+        status: 'responded',
+        vendor_status: 'quoted',
+        response_details: {
+          price: responseForm.price,
+          deliveryDays: responseForm.deliveryDays,
+          message: responseForm.message,
+          respondedAt: new Date().toISOString(),
+        }
+      });
 
-    toast({ title: 'Quote submitted! Awaiting admin approval before being sent to buyer.' });
-    setResponseOpen(false);
-    setSelectedRfq(null);
+      setRfqs(rfqs.map(r => 
+        r.id === selectedRfq.id 
+          ? {
+              ...r,
+              status: 'quoted' as RfqStatus,
+              response: {
+                price: responseForm.price,
+                deliveryDays: responseForm.deliveryDays,
+                message: responseForm.message,
+                respondedAt: new Date().toISOString(),
+              },
+            }
+          : r
+      ));
+
+      toast({ title: 'Quote submitted! Awaiting admin approval before being sent to buyer.' });
+      setResponseOpen(false);
+      setSelectedRfq(null);
+    } catch (err: any) {
+      toast({ title: 'Failed to submit quote', description: err.message, variant: 'destructive' });
+    }
   };
 
   const getStatusBadge = (status: RfqStatus) => {

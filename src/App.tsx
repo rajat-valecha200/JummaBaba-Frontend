@@ -37,6 +37,7 @@ import VendorProfile from "./pages/vendor/VendorProfile";
 import VendorMessages from "./pages/vendor/VendorMessages";
 import VendorPayouts from "./pages/vendor/VendorPayouts";
 import VendorActivity from "./pages/vendor/VendorActivity";
+import VendorSettings from "./pages/vendor/VendorSettings";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -46,6 +47,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminCommissions from "./pages/admin/AdminCommissions";
 import AdminMessages from "./pages/admin/AdminMessages";
+import AdminRfqs from "./pages/admin/AdminRfqs";
 
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -107,13 +109,14 @@ const App = () => (
                 <Route path="/vendor/profile" element={<VendorProfile />} />
                 <Route path="/vendor/payouts" element={<VendorPayouts />} />
                 <Route path="/vendor/activity" element={<VendorActivity />} />
-                <Route path="/vendor/settings" element={<VendorDashboard />} />
+                <Route path="/vendor/settings" element={<VendorSettings />} />
               </Route>
 
               {/* Admin dashboard routes */}
               <Route element={<ProtectedRoute allowedRoles={['admin']}><AdminLayout /></ProtectedRoute>}>
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/admin/messages" element={<AdminMessages />} />
+                <Route path="/admin/rfqs" element={<AdminRfqs />} />
                 <Route path="/admin/vendors" element={<AdminVendors />} />
                 <Route path="/admin/products" element={<AdminProducts />} />
                 <Route path="/admin/users" element={<AdminUsers />} />

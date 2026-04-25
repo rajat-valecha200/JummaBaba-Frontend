@@ -2,74 +2,17 @@ import { Activity, Package, FileText, Truck, MessageSquare, CheckCircle, Clock, 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useEffect, useState } from 'react';
+import { api } from '@/lib/api';
 
 interface ActivityItem {
   id: string;
-  type: 'product_approved' | 'product_rejected' | 'quote_approved' | 'order_shipped' | 'admin_message' | 'rfq_received' | 'order_received';
+  type: 'product_approved' | 'product_rejected' | 'quote_approved' | 'quote_submitted' | 'order_shipped' | 'admin_message' | 'rfq_received' | 'order_received' | 'product_submitted';
   title: string;
   description: string;
   timestamp: string;
   date: string;
 }
-
-const mockActivities: ActivityItem[] = [
-  {
-    id: 'act-1',
-    type: 'product_approved',
-    title: 'Product Approved',
-    description: 'Your product "Samsung Galaxy A54 5G Bulk Pack" has been approved by admin.',
-    timestamp: '2 hours ago',
-    date: '2024-01-20',
-  },
-  {
-    id: 'act-2',
-    type: 'quote_approved',
-    title: 'Quote Approved',
-    description: 'Your quote for RFQ #RFQ-2024-003 (Safety Helmets) has been approved and sent to buyer.',
-    timestamp: '5 hours ago',
-    date: '2024-01-20',
-  },
-  {
-    id: 'act-3',
-    type: 'order_shipped',
-    title: 'Order Shipped',
-    description: 'Order #JB-2024-003 has been marked as shipped. Tracking: BD123456789IN',
-    timestamp: 'Yesterday',
-    date: '2024-01-19',
-  },
-  {
-    id: 'act-4',
-    type: 'admin_message',
-    title: 'Admin Message Received',
-    description: 'JummaBaba Support sent you a message regarding order #JB-2024-002.',
-    timestamp: 'Yesterday',
-    date: '2024-01-19',
-  },
-  {
-    id: 'act-5',
-    type: 'rfq_received',
-    title: 'New RFQ Received',
-    description: 'New RFQ for "Wireless Bluetooth Earbuds" - 500 pieces from Amit Patel.',
-    timestamp: '2 days ago',
-    date: '2024-01-18',
-  },
-  {
-    id: 'act-6',
-    type: 'order_received',
-    title: 'New Order Received',
-    description: 'Order #JB-2024-002 received from Priya Sharma worth ₹3,39,000.',
-    timestamp: '3 days ago',
-    date: '2024-01-17',
-  },
-  {
-    id: 'act-7',
-    type: 'product_rejected',
-    title: 'Product Needs Revision',
-    description: 'Your product "Low Quality Item" was rejected. Reason: Insufficient product images.',
-    timestamp: '4 days ago',
-    date: '2024-01-16',
-  },
-];
 
 const getActivityIcon = (type: ActivityItem['type']) => {
   switch (type) {
@@ -78,6 +21,7 @@ const getActivityIcon = (type: ActivityItem['type']) => {
     case 'product_rejected':
       return <AlertCircle className="h-5 w-5 text-destructive" />;
     case 'quote_approved':
+    case 'quote_submitted':
       return <FileText className="h-5 w-5 text-primary" />;
     case 'order_shipped':
       return <Truck className="h-5 w-5 text-secondary" />;
@@ -100,6 +44,8 @@ const getActivityBadge = (type: ActivityItem['type']) => {
       return <Badge variant="destructive">Rejected</Badge>;
     case 'quote_approved':
       return <Badge className="bg-primary/10 text-primary border-primary/20">Quote Approved</Badge>;
+    case 'quote_submitted':
+      return <Badge className="bg-primary/10 text-primary border-primary/20">Quote Submitted</Badge>;
     case 'order_shipped':
       return <Badge className="bg-secondary/10 text-secondary border-secondary/20">Shipped</Badge>;
     case 'admin_message':
@@ -114,6 +60,30 @@ const getActivityBadge = (type: ActivityItem['type']) => {
 };
 
 export default function VendorActivity() {
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+
+  useEffect(() => {
+    const fetchActivity = async () => {
+      try {
+        const data = await api.profiles.meActivity();
+        setActivities(data.map((item: any) => ({
+          ...item,
+          date: item.timestamp,
+          timestamp: new Date(item.timestamp).toLocaleString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          }),
+        })));
+      } catch (error) {
+        console.error('Failed to load activity', error);
+      }
+    };
+    fetchActivity();
+  }, []);
+
   return (
     <div className="space-y-6">
       <div>
@@ -124,14 +94,14 @@ export default function VendorActivity() {
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{mockActivities.length}</div>
+            <div className="text-2xl font-bold">{activities.length}</div>
             <p className="text-sm text-muted-foreground">Total Activities</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-success">
-              {mockActivities.filter(a => a.type === 'product_approved' || a.type === 'quote_approved').length}
+              {activities.filter(a => a.type === 'product_approved' || a.type === 'quote_approved' || a.type === 'quote_submitted').length}
             </div>
             <p className="text-sm text-muted-foreground">Approvals</p>
           </CardContent>
@@ -139,7 +109,7 @@ export default function VendorActivity() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-primary">
-              {mockActivities.filter(a => a.type === 'order_received' || a.type === 'rfq_received').length}
+              {activities.filter(a => a.type === 'order_received' || a.type === 'rfq_received').length}
             </div>
             <p className="text-sm text-muted-foreground">New Orders/RFQs</p>
           </CardContent>
@@ -147,7 +117,7 @@ export default function VendorActivity() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-warning">
-              {mockActivities.filter(a => a.type === 'admin_message').length}
+              {activities.filter(a => a.type === 'admin_message').length}
             </div>
             <p className="text-sm text-muted-foreground">Admin Messages</p>
           </CardContent>
@@ -165,7 +135,7 @@ export default function VendorActivity() {
         <CardContent>
           <ScrollArea className="h-[500px] pr-4">
             <div className="space-y-4">
-              {mockActivities.map((activity, index) => (
+              {activities.map((activity) => (
                 <div
                   key={activity.id}
                   className="flex gap-4 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"

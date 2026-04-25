@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
 import {
   sellerStep1EmailSchema,
   sellerStep1PhoneSchema,
@@ -403,11 +403,21 @@ export default function SellerRegisterPage() {
     try {
       await register({
         full_name: formData.fullName,
-        email: formData.email,
+        email: formData.email || `${formData.phone}@phone.jummababa.local`,
         phone: formData.phone,
-        password: formData.password,
+        password: formData.password || otp,
         role: 'vendor',
         business_name: formData.businessName,
+        business_type: formData.businessType,
+        gst_number: formData.gstNumber,
+        pan_number: formData.panNumber,
+        location: [formData.city, formData.state].filter(Boolean).join(', '),
+        bank_details: {
+          bankAccountName: formData.bankAccountName,
+          bankName: formData.bankName,
+          accountNumber: formData.accountNumber,
+          ifscCode: formData.ifscCode
+        },
         business_details: {
           business_type: formData.businessType,
           gst_number: formData.gstNumber,
@@ -429,6 +439,28 @@ export default function SellerRegisterPage() {
           }
         }
       });
+
+      // Upload documents if they exist
+      const docUploads = [];
+      if (documents.gstCertificate) {
+        const formData = new FormData();
+        formData.append('file', documents.gstCertificate.file);
+        docUploads.push(apiFetch(`/profiles/upload/gst_certificate`, { method: 'POST', body: formData, headers: {} }));
+      }
+      if (documents.panCard) {
+        const formData = new FormData();
+        formData.append('file', documents.panCard.file);
+        docUploads.push(apiFetch(`/profiles/upload/pan_card`, { method: 'POST', body: formData, headers: {} }));
+      }
+      if (documents.cancelledCheque) {
+        const formData = new FormData();
+        formData.append('file', documents.cancelledCheque.file);
+        docUploads.push(apiFetch(`/profiles/upload/cancelled_cheque`, { method: 'POST', body: formData, headers: {} }));
+      }
+
+      if (docUploads.length > 0) {
+        await Promise.all(docUploads);
+      }
       
       toast({ 
         title: 'Registration Submitted!', 
@@ -453,24 +485,34 @@ export default function SellerRegisterPage() {
           <CardDescription>Join India's leading B2B marketplace and grow your business</CardDescription>
           
           {/* Progress Steps */}
-          <div className="flex items-center justify-center gap-1 mt-4 flex-wrap">
-            {[1, 2, 3, 4, 5].map((s) => (
-              <div key={s} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
-                  step >= s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+          <div className="flex items-center justify-between mt-6 px-2 sm:px-6">
+            {[
+              { id: 1, label: 'Account' },
+              { id: 2, label: 'Business' },
+              { id: 3, label: 'Products' },
+              { id: 4, label: 'Bank' },
+              { id: 5, label: 'Confirm' }
+            ].map((s, index) => (
+              <div key={s.id} className="flex flex-col items-center flex-1 relative">
+                {/* Connector Line */}
+                {index > 0 && (
+                  <div className={`absolute left-[-50%] top-4 w-full h-[2px] -translate-y-1/2 z-0 ${
+                    step >= s.id ? 'bg-primary' : 'bg-muted'
+                  }`} />
+                )}
+                
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium z-10 transition-colors ${
+                  step >= s.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                 }`}>
-                  {step > s ? <Check className="h-3 w-3" /> : s}
+                  {step > s.id ? <Check className="h-3 w-3" /> : s.id}
                 </div>
-                {s < totalSteps && <div className={`w-6 sm:w-10 h-1 ${step > s ? 'bg-primary' : 'bg-muted'}`} />}
+                <span className={`text-[10px] sm:text-xs mt-2 font-medium transition-colors ${
+                  step >= s.id ? 'text-primary' : 'text-muted-foreground'
+                }`}>
+                  {s.label}
+                </span>
               </div>
             ))}
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground mt-2 px-1">
-            <span>Account</span>
-            <span>Business</span>
-            <span>Products</span>
-            <span>Bank</span>
-            <span>Confirm</span>
           </div>
         </CardHeader>
 

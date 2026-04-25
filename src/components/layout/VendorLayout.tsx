@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, FileText, MessageSquare, Building, Settings, Menu, X, ChevronLeft, LogOut, Bell, Activity, DollarSign } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
+import { LayoutDashboard, Package, ShoppingCart, FileText, MessageSquare, Building, Settings, Menu, X, ChevronLeft, LogOut, Bell, Activity, DollarSign, ShieldAlert } from 'lucide-react';
+
 const vendorNavItems = [{
   icon: LayoutDashboard,
   label: 'Dashboard',
@@ -49,20 +50,25 @@ const mockNotifications = {
   orderUpdates: 2,
   adminMessages: 1,
 };
+
 export function VendorLayout() {
+  const { user, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { toast } = useToast();
   
+  const isApproved = user?.status === 'approved';
+  
+  // Filter nav items: Only show Settings and Profile if not approved
+  const allowedNavItems = isApproved 
+    ? vendorNavItems 
+    : vendorNavItems.filter(item => ['Settings', 'Business Profile'].includes(item.label));
+
   const totalNotifications = mockNotifications.newRfqs + mockNotifications.orderUpdates + mockNotifications.adminMessages;
 
   const handleLogout = () => {
-    // Clear auth token (localStorage/sessionStorage)
-    localStorage.removeItem('authToken');
-    sessionStorage.removeItem('authToken');
-    toast({ title: 'Logged out successfully' });
-    navigate('/login');
+    signOut();
+    navigate('/');
   };
 
   return <div className="min-h-screen bg-muted/30">
@@ -101,7 +107,18 @@ export function VendorLayout() {
               </Button>
             </div>
             <nav className="p-4 space-y-1">
-              {vendorNavItems.map(item => <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)} className={cn('flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground transition-colors', location.pathname === item.path ? 'bg-sidebar-accent text-sidebar-primary' : 'hover:bg-sidebar-accent')}>
+              {!isApproved && (
+                <div className="mb-4 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+                  <div className="flex items-center gap-2 text-warning mb-1">
+                    <ShieldAlert className="h-4 w-4" />
+                    <span className="text-xs font-bold uppercase">Pending Approval</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    Your profile is being reviewed. Full access will be granted once approved.
+                  </p>
+                </div>
+              )}
+              {allowedNavItems.map(item => <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)} className={cn('flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground transition-colors', location.pathname === item.path ? 'bg-sidebar-accent text-sidebar-primary' : 'hover:bg-sidebar-accent')}>
                   <item.icon className="h-5 w-5" />
                   <span>{item.label}</span>
                 </Link>)}
@@ -130,7 +147,18 @@ export function VendorLayout() {
             </Button>
           </div>
           <nav className="p-4 space-y-1 flex-1">
-            {vendorNavItems.map(item => <Link key={item.path} to={item.path} className={cn('flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground transition-colors', location.pathname === item.path ? 'bg-sidebar-accent text-sidebar-primary' : 'hover:bg-sidebar-accent')}>
+            {!isApproved && (
+              <div className="mb-4 p-4 bg-warning/5 border border-warning/10 rounded-xl">
+                <div className="flex items-center gap-2 text-warning mb-2">
+                  <ShieldAlert className="h-5 w-5" />
+                  <span className="text-xs font-bold uppercase tracking-wider">Account Pending</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Your business profile is under moderation. You will receive an email once your account is verified.
+                </p>
+              </div>
+            )}
+            {allowedNavItems.map(item => <Link key={item.path} to={item.path} className={cn('flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground transition-colors', location.pathname === item.path ? 'bg-sidebar-accent text-sidebar-primary' : 'hover:bg-sidebar-accent')}>
                 <item.icon className="h-5 w-5" />
                 <span>{item.label}</span>
               </Link>)}

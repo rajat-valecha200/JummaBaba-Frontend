@@ -76,24 +76,40 @@ export default function ProductDetailPage() {
     const fetchProductDetails = async () => {
       setLoading(true);
       try {
+        // Fetch all products to find the one with this slug
+        // Better would be a direct get-by-slug endpoint, but this works for now
         const data = await api.products.list('approved');
         const found = data.find((p: any) => p.slug === slug);
         
         if (found) {
+          const pricingSlabs = typeof found.pricing_slabs === 'string' ? JSON.parse(found.pricing_slabs) : found.pricing_slabs;
           setProduct({
             ...found,
-            pricingSlabs: typeof found.pricing_slabs === 'string' ? JSON.parse(found.pricing_slabs) : found.pricing_slabs,
+            pricingSlabs: pricingSlabs,
             specifications: typeof found.specifications === 'string' ? JSON.parse(found.specifications) : found.specifications || {}
           });
           
+          setQuantity(found.moq || 0);
+
           // Fetch supplier info
-          const profiles = await api.profiles.list('vendor');
-          const foundSup = profiles.find((v: any) => v.id === found.supplier_id);
-          if (foundSup) {
+          // On the new backend, we can get vendor info from public stats or a specific profile call
+          // For now, let's try to find it in the vendor list
+          try {
+            const profiles = await api.profiles.list();
+            const foundSup = profiles.find((v: any) => v.id === found.supplier_id);
+            if (foundSup) {
+              setSupplier({
+                ...foundSup,
+                yearEstablished: foundSup.established_year || 2018,
+                companyName: foundSup.business_name || foundSup.full_name
+              });
+            }
+          } catch (e) {
+            // Fallback if profiles list is restricted
             setSupplier({
-              ...foundSup,
-              yearEstablished: foundSup.established_year || 2018,
-              companyName: foundSup.business_name || foundSup.full_name
+              id: found.supplier_id,
+              companyName: 'Verified Supplier',
+              yearEstablished: 2018
             });
           }
           
@@ -579,8 +595,7 @@ export default function ProductDetailPage() {
             <h2 className="text-xl font-bold mb-6">Related Products</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {relatedProducts.map(p => {
-                const s = getSupplierById(p.supplierId);
-                if (!s) return null;
+                const s = { companyName: p.business_name || 'Verified Supplier' };
                 return <ProductCard key={p.id} product={p} supplier={s} />;
               })}
             </div>

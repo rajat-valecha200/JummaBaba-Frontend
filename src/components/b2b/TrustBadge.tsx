@@ -85,7 +85,16 @@ export function TrustBadges({
     <div className={cn('flex flex-wrap gap-1', className)}>
       {isTopSupplier && <TrustBadge type="top-supplier" size={size} />}
       {gstVerified && <TrustBadge type="gst" size={size} />}
-      {isVerified && <TrustBadge type="verified" size={size} />}
+      {isVerified ? (
+        <TrustBadge type="verified" size={size} />
+      ) : (
+        <span className={cn(
+          'inline-flex items-center rounded-full border font-medium bg-muted text-muted-foreground',
+          size === 'sm' ? 'px-1.5 py-0.5 text-xs gap-0.5' : 'px-2 py-1 text-xs gap-1'
+        )}>
+          Not Verified
+        </span>
+      )}
     </div>
   );
 }

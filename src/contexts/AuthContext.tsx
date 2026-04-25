@@ -8,6 +8,7 @@ interface User {
   full_name?: string;
   business_name?: string;
   phone?: string;
+  status?: 'pending' | 'approved' | 'rejected';
 }
 
 interface Profile {
@@ -22,8 +23,8 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  login: (credentials: any) => Promise<void>;
-  register: (details: any) => Promise<void>;
+  login: (credentials: any) => Promise<any>;
+  register: (details: any) => Promise<any>;
   signOut: () => void;
 }
 
@@ -54,15 +55,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (credentials: any) => {
-    const { user: userData } = await api.auth.login(credentials);
+    const data = await api.auth.login(credentials);
+    const { user: userData } = data;
     setUser(userData);
     setProfile(userData);
+    return data;
   };
 
   const register = async (details: any) => {
-    const { user: userData } = await api.auth.register(details);
+    const data = await api.auth.register(details);
+    const { user: userData } = data;
     setUser(userData);
     setProfile(userData);
+    return data;
   };
 
   const signOut = () => {

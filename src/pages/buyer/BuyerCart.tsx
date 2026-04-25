@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { formatPrice } from '@/lib/utils';
-import { api } from '@/lib/api';
 import { useState, useEffect } from 'react';
 
 // Global Cart Logic (Hardened)
@@ -54,7 +53,7 @@ export default function BuyerCart() {
   const shipping = subtotal > 50000 ? 0 : 2500;
   const total = subtotal + gst + shipping;
 
-  if (cartItems.length === 0) {
+  if (cartWithProducts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
@@ -80,7 +79,7 @@ export default function BuyerCart() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Shopping Cart</h1>
-          <p className="text-muted-foreground">{cartItems.length} items in your cart</p>
+          <p className="text-muted-foreground">{cartWithProducts.length} items in your cart</p>
         </div>
         <Button variant="outline" asChild>
           <Link to="/products">
@@ -178,7 +177,7 @@ export default function BuyerCart() {
               {/* Price Breakdown */}
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Subtotal ({cartItems.length} items)</span>
+                  <span className="text-muted-foreground">Subtotal ({cartWithProducts.length} items)</span>
                   <span className="font-medium">{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">

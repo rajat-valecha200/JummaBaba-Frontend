@@ -24,19 +24,13 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login({ email, password });
+      const { user: userData } = await login({ email, password });
       toast({ title: 'Welcome back!' });
       
       // Auto-redirect based on role
-      const token = localStorage.getItem('jb_token');
-      if (token) {
-        const userData = JSON.parse(atob(token.split('.')[1]));
-        if (userData.role === 'admin') navigate('/admin');
-        else if (userData.role === 'vendor') navigate('/vendor/dashboard');
-        else navigate('/'); // Buyers go to Marketplace Home
-      } else {
-        navigate('/');
-      }
+      if (userData.role === 'admin') navigate('/admin');
+      else if (userData.role === 'vendor') navigate('/vendor/dashboard');
+      else navigate('/buyer/dashboard');
     } catch (error: any) {
       toast({
         title: 'Login Failed',

@@ -32,11 +32,11 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { formatPrice } from '@/lib/utils';
-import { api } from '@/lib/api';
+import { api, apiFetch } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { OrderTracking } from '@/components/orders/OrderTracking';
 
-type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancel_requested' | 'cancelled';
 
 interface OrderItem {
   productId: string;
@@ -65,6 +65,7 @@ const statusConfig: Record<OrderStatus, { label: string; icon: typeof Package; c
   confirmed: { label: 'Confirmed', icon: CheckCircle, color: 'bg-secondary/10 text-secondary border-secondary/20' },
   shipped: { label: 'Shipped', icon: Truck, color: 'bg-primary/10 text-primary border-primary/20' },
   delivered: { label: 'Delivered', icon: Package, color: 'bg-success/10 text-success border-success/20' },
+  cancel_requested: { label: 'Cancel Requested', icon: AlertTriangle, color: 'bg-warning/10 text-warning border-warning/20' },
   cancelled: { label: 'Cancelled', icon: XCircle, color: 'bg-destructive/10 text-destructive border-destructive/20' },
 };
 
@@ -76,10 +77,28 @@ export default function VendorOrders() {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/orders/vendor`);
-        if (res.ok) setDbOrders(await res.json());
+        const data = await api.rfqs.list();
+        setDbOrders(data
+          .filter((r: any) => r.response_details || ['confirmed', 'shipped', 'delivered', 'cancelled', 'cancel_requested'].includes(r.vendor_status))
+          .map((r: any) => ({
+          id: r.id,
+          orderNumber: `RFQ-${r.id.slice(0, 8).toUpperCase()}`,
+          buyerName: r.buyer_name || 'Client',
+          buyerEmail: r.buyer_email || 'client@jummababa.com',
+          buyerPhone: r.buyer_phone || 'N/A',
+          items: [{
+            productId: r.product_id,
+            productName: r.product_name,
+            quantity: r.quantity,
+            pricePerUnit: Number(r.response_details?.price) || Number(r.target_price) || 0
+          }],
+          totalAmount: (Number(r.response_details?.price) || Number(r.target_price) || 0) * r.quantity,
+          status: (r.vendor_status || 'pending') as OrderStatus,
+          createdAt: r.created_at,
+          shippingAddress: r.delivery_location || 'N/A'
+        })));
       } catch (e) {
-        console.error('Vendor orders fetch failed');
+        console.error('Vendor orders fetch failed', e);
       } finally {
         setIsLoading(false);
       }
@@ -108,15 +127,29 @@ export default function VendorOrders() {
     return matchesStatus && matchesSearch;
   });
 
-  const updateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
-    setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-    toast({ title: `Order status updated to ${statusConfig[newStatus].label}` });
-    if (selectedOrder?.id === orderId) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
-    }
-    // Reset shipping proof after marking as shipped
-    if (newStatus === 'shipped') {
-      setShippingProof(null);
+  const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    try {
+      await api.rfqs.update(orderId, {
+        status: newStatus === 'delivered' ? 'closed' : 'responded',
+        vendor_status: newStatus,
+        shipping_details: {
+          trackingNumber,
+          shippingCarrier,
+          shippingNotes,
+        }
+      });
+
+      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+      toast({ title: `Order status updated to ${statusConfig[newStatus].label}` });
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus });
+      }
+      // Reset shipping proof after marking as shipped
+      if (newStatus === 'shipped') {
+        setShippingProof(null);
+      }
+    } catch (err: any) {
+      toast({ title: 'Failed to update status', description: err.message, variant: 'destructive' });
     }
   };
 
@@ -125,12 +158,22 @@ export default function VendorOrders() {
       toast({ title: 'Please provide a reason for cancellation', variant: 'destructive' });
       return;
     }
-    toast({ 
-      title: 'Cancellation request submitted', 
-      description: 'Admin will review your request and get back to you.' 
+    api.rfqs.update(selectedOrder.id, {
+      vendor_status: 'cancel_requested',
+      cancellation_request: {
+        reason: cancelReason,
+        requestedAt: new Date().toISOString(),
+      }
+    }).then(() => {
+      toast({ 
+        title: 'Cancellation request submitted', 
+        description: 'Admin will review your request and get back to you.' 
+      });
+      setCancelRequestOpen(false);
+      setCancelReason('');
+    }).catch((error: any) => {
+      toast({ title: 'Failed to submit request', description: error.message, variant: 'destructive' });
     });
-    setCancelRequestOpen(false);
-    setCancelReason('');
   };
 
   const handleShippingProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -168,6 +211,7 @@ export default function VendorOrders() {
       confirmed: 'shipped',
       shipped: 'delivered',
       delivered: null,
+      cancel_requested: null,
       cancelled: null,
     };
     return flow[currentStatus];
@@ -466,6 +510,7 @@ export default function VendorOrders() {
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="shipped">Shipped</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="cancel_requested">Cancel Requested</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>

@@ -237,11 +237,14 @@ export default function BuyerRegisterPage() {
     try {
       await register({
         full_name: formData.fullName,
-        email: formData.email,
+        email: formData.email || `${formData.phone}@phone.jummababa.local`,
         phone: formData.phone,
-        password: formData.password,
+        password: formData.password || otp,
         role: 'buyer',
         business_name: formData.businessName,
+        business_type: formData.businessType,
+        gst_number: formData.gstNumber,
+        location: [formData.city, formData.state].filter(Boolean).join(', '),
         business_details: {
           businessType: formData.businessType,
           gstNumber: formData.gstNumber,

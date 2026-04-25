@@ -29,7 +29,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/lib/api';
+import { api, apiFetch } from '@/lib/api';
 import { TrustBadge } from '@/components/b2b/TrustBadge';
 
 type VendorStatus = 'pending' | 'approved' | 'rejected';
@@ -51,10 +51,13 @@ export default function AdminVendors() {
         companyName: v.business_name || v.full_name,
         logo: v.logo || 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
         location: v.location || 'Not Specified',
-        gstNumber: v.gst_number || v.gstNumber || 'N/A',
-        establishedYear: v.established_year || v.establishedYear || 2024,
+        gstNumber: v.gst_number || 'N/A',
+        establishedYear: v.established_year || 'N/A',
         totalProducts: v.total_products || 0,
         submittedAt: v.created_at,
+        panNumber: v.pan_number || 'N/A',
+        businessType: v.business_type || 'N/A',
+        documents: v.document_paths || {}
       })));
     } catch (error) {
       console.error('Failed to fetch vendors:', error);
@@ -98,12 +101,8 @@ export default function AdminVendors() {
 
   const handleToggleTop = async (vendorId: string, currentStatus: boolean) => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/admin/vendors/${vendorId}/top-supplier`, {
+      await apiFetch(`/profiles/${vendorId}/top-supplier`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-        },
         body: JSON.stringify({ is_top_supplier: !currentStatus })
       });
       toast({ 
@@ -288,16 +287,41 @@ export default function AdminVendors() {
                   <p className="font-mono">{selectedVendor.gstNumber}</p>
                 </div>
                 <div>
+                  <p className="text-sm text-muted-foreground">PAN Number</p>
+                  <p className="font-mono">{selectedVendor.panNumber}</p>
+                </div>
+                <div>
                   <p className="text-sm text-muted-foreground">Established</p>
                   <p>{selectedVendor.establishedYear}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Products Listed</p>
-                  <p>{selectedVendor.totalProducts}</p>
+                  <p className="text-sm text-muted-foreground">Business Type</p>
+                  <p>{selectedVendor.businessType}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
-                  {getStatusBadge(selectedVendor.status)}
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm">Verification Documents</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {['gst', 'pan', 'cheque'].map((docType) => {
+                    const path = selectedVendor.documents?.[docType];
+                    const url = path ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/storage/${path}` : null;
+                    
+                    return (
+                      <div key={docType} className="border rounded-lg p-2 text-center bg-card">
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">{docType}</p>
+                        {url ? (
+                          <a href={url} target="_blank" rel="noreferrer" className="block aspect-square bg-muted rounded overflow-hidden hover:opacity-80 transition-opacity">
+                            <img src={url} alt={docType} className="w-full h-full object-cover" />
+                          </a>
+                        ) : (
+                          <div className="aspect-square bg-muted rounded flex items-center justify-center text-[10px] text-muted-foreground italic">
+                            Missing
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

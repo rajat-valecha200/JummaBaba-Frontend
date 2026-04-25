@@ -24,8 +24,7 @@ export function Header() {
   useEffect(() => {
     const fetchCats = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`);
-        if (res.ok) setDbCategories(await res.json());
+        setDbCategories(await api.categories.list());
       } catch (e) {
         console.error('Failed Header cat fetch');
       }

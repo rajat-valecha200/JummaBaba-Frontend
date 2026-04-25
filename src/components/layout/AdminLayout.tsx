@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, Building, Settings, BarChart3, Shield, Menu, X, ChevronLeft, Bell, MessageSquare, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Package, Building, Settings, BarChart3, Shield, Menu, X, ChevronLeft, Bell, MessageSquare, LogOut, ShoppingCart } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,7 +39,13 @@ export function AdminLayout() {
       icon: MessageSquare,
       label: 'Messages',
       path: '/admin/messages',
-      badge: null // Future: Unread messages count
+      badge: null
+    },
+    {
+      icon: ShoppingCart,
+      label: 'Orders & RFQs',
+      path: '/admin/rfqs',
+      badge: null
     },
     {
       icon: Building,

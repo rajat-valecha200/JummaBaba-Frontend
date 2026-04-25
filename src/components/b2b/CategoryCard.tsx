@@ -8,6 +8,11 @@ import {
   Sofa, 
   Cog, 
   Heart,
+  Settings,
+  Sprout,
+  Construction,
+  Home,
+  Stethoscope,
   LucideIcon 
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,6 +27,12 @@ const iconMap: Record<string, LucideIcon> = {
   Sofa,
   Cog,
   Heart,
+  Settings,
+  Sprout,
+  Construction,
+  Home,
+  Tool: Cog,
+  Stethoscope,
 };
 
 interface CategoryCardProps {

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Save, Upload, CheckCircle, Clock, Building, MapPin, Phone, Mail, Globe, FileText, Shield, Info, Lock } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Save, Upload, CheckCircle, Clock, Building, MapPin, Phone, Mail, Globe, FileText, Shield, Info, Lock, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,6 +22,8 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { TrustBadge } from '@/components/b2b/TrustBadge';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { api, apiFetch } from '@/lib/api';
 
 interface ProfileData {
   companyName: string;
@@ -101,14 +103,74 @@ const indianStates = [
 ];
 
 export default function VendorProfile() {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [profile, setProfile] = useState<ProfileData>(initialProfile);
   const [isEditing, setIsEditing] = useState(false);
   const [gstVerifying, setGstVerifying] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSave = () => {
-    toast({ title: 'Profile updated successfully!' });
-    setIsEditing(false);
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const data = await api.auth.getMe();
+        const businessDetails = data.business_details || {};
+        const bankDetails = data.bank_details || {};
+        setProfile({
+          companyName: data.business_name || data.full_name || '',
+          logo: data.logo_url || data.logo || 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=200&h=200&fit=crop',
+          description: data.description || '',
+          businessType: data.business_type || 'Manufacturer',
+          yearEstablished: data.established_year || 2024,
+          annualTurnover: businessDetails.annualTurnover || 'Less than ₹1 Cr',
+          employeeCount: businessDetails.employeeCount || '1-10',
+          gstNumber: data.gst_number || '',
+          gstVerified: data.status === 'approved',
+          panNumber: data.pan_number || '',
+          address: data.location || '',
+          city: businessDetails.city || '',
+          state: businessDetails.state || '',
+          pincode: businessDetails.pincode || '',
+          phone: data.phone || '',
+          email: data.email || '',
+          website: businessDetails.website || bankDetails.website || '',
+        });
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      await api.profiles.update(user!.id, {
+        business_name: profile.companyName,
+        description: profile.description,
+        business_type: profile.businessType,
+        established_year: profile.yearEstablished,
+        annual_turnover: profile.annualTurnover,
+        employee_count: profile.employeeCount,
+        location: [profile.address, profile.city, profile.state, profile.pincode].filter(Boolean).join(', '),
+        phone: profile.phone,
+        website: profile.website,
+        business_details: {
+          city: profile.city,
+          state: profile.state,
+          pincode: profile.pincode,
+          annualTurnover: profile.annualTurnover,
+          employeeCount: profile.employeeCount,
+          website: profile.website,
+        },
+      });
+      toast({ title: 'Profile updated successfully!' });
+      setIsEditing(false);
+    } catch (error: any) {
+      toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
+    }
   };
 
   const handleVerifyGst = () => {
@@ -128,6 +190,28 @@ export default function VendorProfile() {
   const updateField = (field: keyof ProfileData, value: string | number | boolean) => {
     setProfile({ ...profile, [field]: value });
   };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const upload = await apiFetch('/profiles/upload/logo', { method: 'POST', body: formData, headers: {} });
+      await api.profiles.update(user.id, { logo_url: upload.path });
+      setProfile((prev) => ({ ...prev, logo: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${upload.path}` }));
+      toast({ title: 'Logo updated successfully!' });
+    } catch (error: any) {
+      toast({ title: 'Logo upload failed', description: error.message, variant: 'destructive' });
+    } finally {
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -198,13 +282,22 @@ export default function VendorProfile() {
                   />
                   {isEditing && (
                     <Button
+                      type="button"
                       size="sm"
                       variant="secondary"
                       className="absolute -bottom-2 -right-2 h-8 w-8 p-0 rounded-full"
+                      onClick={() => logoInputRef.current?.click()}
                     >
                       <Upload className="h-4 w-4" />
                     </Button>
                   )}
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
                 </div>
                 <div className="flex-1">
                   <Label htmlFor="companyName">Company Name</Label>

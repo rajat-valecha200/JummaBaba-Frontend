@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, Pencil, Trash2, Search, Package, Eye, AlertCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,7 +48,6 @@ import {
 import { formatPrice } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabaseClient';
 import { api } from '@/lib/api';
 
 interface PricingSlab {
@@ -128,12 +127,13 @@ export default function VendorProducts() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formData, setFormData] = useState<ProductFormData>(emptyProduct);
   const [categories, setCategories] = useState<any[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchDependencies = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`);
-        if (res.ok) setCategories(await res.json());
+        setCategories(await api.categories.list());
       } catch (err) {
         console.error('Failed to fetch categories', err);
       }
@@ -146,14 +146,13 @@ export default function VendorProducts() {
       if (!user) return;
       setLoading(true);
       try {
-        // Fetch products for this supplier
-        const data = await api.products.list();
-        const myProducts = data.filter((p: any) => p.supplier_id === user.id);
-        
-        setProductList(myProducts.map((p: any) => ({
+        const data = await api.products.list(undefined, user.id);
+
+        setProductList(data.map((p: any) => ({
           ...p,
-          shortDescription: p.short_description,
-          pricingSlabs: typeof p.pricing_slabs === 'string' ? JSON.parse(p.pricing_slabs) : p.pricing_slabs,
+          shortDescription: p.shortDescription || p.short_description,
+          categoryId: p.categoryId || p.category_id,
+          pricingSlabs: p.pricingSlabs || p.pricing_slabs,
           rejectionReason: p.rejection_reason,
         })));
       } catch (error) {
@@ -172,6 +171,7 @@ export default function VendorProducts() {
   const handleOpenAdd = () => {
     setEditingProduct(null);
     setFormData(emptyProduct);
+    setImageFiles([]);
     setFormOpen(true);
   };
 
@@ -201,7 +201,17 @@ export default function VendorProducts() {
       images: product.images,
       selectedSlabCount: slabCount,
     });
+    setImageFiles([]);
     setFormOpen(true);
+  };
+
+  const handleImageSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []).slice(0, 5);
+    setImageFiles(files);
+    setFormData({
+      ...formData,
+      images: files.map((file) => URL.createObjectURL(file)),
+    });
   };
 
 
@@ -212,46 +222,49 @@ export default function VendorProducts() {
     }
 
     setLoading(true);
-    const productData = {
-      name: formData.name,
-      slug: formData.name.toLowerCase().replace(/\s+/g, '-'),
-      short_description: formData.shortDescription,
-      description: formData.description,
-      category_id: formData.categoryId,
-      supplier_id: user?.id,
-      moq: formData.moq,
-      unit: formData.unit,
-      pricing_slabs: formData.pricingSlabs,
-      images: formData.images.length > 0 ? formData.images : ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600'],
-      status: 'pending' as const,
-    };
-
     try {
+      const productPayload = {
+        name: formData.name,
+        slug: `${formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${editingProduct?.id?.slice(0, 8) || Date.now()}`,
+        short_description: formData.shortDescription,
+        description: formData.description,
+        category_id: formData.categoryId,
+        moq: formData.moq,
+        unit: formData.unit,
+        pricing_slabs: formData.pricingSlabs,
+      };
+
+      const multipart = new FormData();
+      Object.entries(productPayload).forEach(([key, value]) => {
+        multipart.append(key, typeof value === 'string' ? value : JSON.stringify(value));
+      });
+      imageFiles.forEach((file) => multipart.append('images', file));
+
+      let result;
       if (editingProduct?.id) {
-        await api.products.update(editingProduct.id, productData);
-        toast({ title: 'Product updated successfully and submitted for review' });
-        
-        setProductList(productList.map(p => p.id === editingProduct.id ? { 
-          ...p, 
-          ...productData,
-          shortDescription: productData.short_description,
-          pricingSlabs: productData.pricing_slabs,
-          status: 'pending'
-        } : p));
+        result = await api.products.updateForm(editingProduct.id, multipart);
+        toast({ title: 'Product updated successfully' });
       } else {
-        const result = await api.products.create(productData);
-        toast({ title: 'Product submitted successfully!' });
-        
-        // Transform backend result to frontend format
-        const newProduct = {
-          ...result,
-          shortDescription: result.short_description,
-          pricingSlabs: typeof result.pricing_slabs === 'string' ? JSON.parse(result.pricing_slabs) : result.pricing_slabs,
-          createdAt: new Date().toISOString()
-        };
-        
-        setProductList([newProduct, ...productList]);
+        result = await api.products.createForm(multipart);
+        toast({ title: 'Product created and submitted for review' });
       }
+
+      // Handle image uploads if any (simulated for now or use real files if available)
+      // Since the UI uses a placeholder, I'll assume we might want to add real upload logic later
+      // For now, let's ensure the product list is updated
+      
+      const updatedProduct = {
+        ...result,
+        shortDescription: result.short_description,
+        pricingSlabs: typeof result.pricing_slabs === 'string' ? JSON.parse(result.pricing_slabs) : result.pricing_slabs,
+      };
+
+      if (editingProduct?.id) {
+        setProductList(productList.map(p => p.id === editingProduct.id ? updatedProduct : p));
+      } else {
+        setProductList([updatedProduct, ...productList]);
+      }
+      setImageFiles([]);
     } catch (error: any) {
       toast({ 
         title: editingProduct?.id ? 'Update Failed' : 'Creation Failed', 
@@ -266,10 +279,16 @@ export default function VendorProducts() {
 
   const handleDelete = () => {
     if (deleteId) {
-      setProductList(productList.filter(p => p.id !== deleteId));
-      toast({ title: 'Product deleted' });
-      setDeleteOpen(false);
-      setDeleteId(null);
+      api.products.remove(deleteId)
+        .then(() => {
+          setProductList(productList.filter(p => p.id !== deleteId));
+          toast({ title: 'Product deleted' });
+          setDeleteOpen(false);
+          setDeleteId(null);
+        })
+        .catch((error: any) => {
+          toast({ title: 'Delete failed', description: error.message, variant: 'destructive' });
+        });
     }
   };
 
@@ -637,7 +656,15 @@ export default function VendorProducts() {
                 <p className="text-xs text-muted-foreground mt-1">
                   PNG, JPG up to 5MB (Max 5 images)
                 </p>
-                <Button variant="outline" size="sm" className="mt-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={handleImageSelection}
+                />
+                <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => fileInputRef.current?.click()}>
                   Choose Files
                 </Button>
               </div>

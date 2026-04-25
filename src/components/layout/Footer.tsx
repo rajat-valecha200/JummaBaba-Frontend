@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
 
 export function Footer() {
   const [dbCategories, setDbCategories] = useState<any[]>([]);
@@ -20,8 +21,7 @@ export function Footer() {
   useEffect(() => {
     const fetchCats = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`);
-        if (res.ok) setDbCategories(await res.json());
+        setDbCategories(await api.categories.list());
       } catch (e) {
         console.error('Footer cats failed');
       }

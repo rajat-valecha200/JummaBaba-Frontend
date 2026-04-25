@@ -28,7 +28,8 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
     : product.min_price || product.minPrice || 0;
     
   const inWishlist = isInWishlist(product.id);
-  const isVerified = product.status === 'approved' || product.is_verified || product.isVerified;
+  const isApproved = product.status === 'approved';
+  const isVerified = product.is_verified || product.isVerified;
 
   return (
     <Card className={cn('group overflow-hidden hover:shadow-2xl transition-all duration-500 border-border/50 hover:border-primary/50 bg-card', className)}>
@@ -44,14 +45,18 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
         </div>
         
         {/* Verification Badge */}
-        {isVerified && (
-          <div className="absolute top-2 left-2 z-10">
+        <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
+          {isApproved ? (
             <Badge className="bg-success text-success-foreground border-none shadow-lg px-2 py-0.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
               <CheckCircle className="h-3 w-3" />
               Verified
             </Badge>
-          </div>
-        )}
+          ) : (
+            <Badge variant="secondary" className="bg-background/80 backdrop-blur-md text-muted-foreground border-none shadow-md px-2 py-0.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
+              Not Verified
+            </Badge>
+          )}
+        </div>
 
         <Button
           variant="ghost"

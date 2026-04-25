@@ -20,12 +20,16 @@ export default function VendorDashboard() {
     const fetchStats = async () => {
       try {
         const [statsData, rfqData] = await Promise.all([
-          api.stats.get('vendor'),
+          api.profiles.meStats(),
           api.rfqs.list()
         ]);
         setStats(statsData);
         setLiveRfqs(rfqData);
-        setRealOrders([]); // Ensure real orders state
+        setRealOrders(
+          rfqData
+            .filter((rfq: any) => ['confirmed', 'shipped', 'delivered'].includes(rfq.vendor_status))
+            .slice(0, 3)
+        );
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
       } finally {
@@ -74,8 +78,8 @@ export default function VendorDashboard() {
             <div className="space-y-3">
               {realOrders.length > 0 ? realOrders.map((order: any) => (
                 <div key={order.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div><p className="font-medium">{order.order_number || order.orderNumber}</p><p className="text-sm text-muted-foreground">{order.product_name}</p></div>
-                  <Badge variant="secondary">{order.status}</Badge>
+                  <div><p className="font-medium">{order.order_number || `RFQ-${order.id.slice(0, 8).toUpperCase()}`}</p><p className="text-sm text-muted-foreground">{order.product_name}</p></div>
+                  <Badge variant="secondary">{order.vendor_status || order.status}</Badge>
                 </div>
               )) : (
                 <div className="text-center py-8 text-muted-foreground text-sm">No recent orders yet</div>
@@ -93,7 +97,7 @@ export default function VendorDashboard() {
               {displayedRfqs.length > 0 ? displayedRfqs.map(rfq => (
                 <div key={rfq.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                   <div><p className="font-medium">{rfq.product_name || rfq.productName}</p><p className="text-sm text-muted-foreground">{rfq.quantity} {rfq.unit}</p></div>
-                  <Button size="sm">Respond</Button>
+                  <Button size="sm" asChild><Link to="/vendor/rfqs">Respond</Link></Button>
                 </div>
               )) : (
                 <div className="text-center py-8 text-muted-foreground text-sm">No RFQs found</div>
