@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ChevronRight,
@@ -45,8 +45,9 @@ export default function CategoryPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('relevance');
   const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
-  const [tempPriceRange, setTempPriceRange] = useState<number[]>([0, 100000]);
+  const [priceRange, setPriceRange] = useState<number[]>([0, 1000000]);
+  const [tempPriceRange, setTempPriceRange] = useState<number[]>([0, 1000000]);
+  const [absoluteMinMax, setAbsoluteMinMax] = useState<number[]>([0, 1000000]);
 
   // Sync temp price when filters are cleared or changed externally
   useEffect(() => {
@@ -68,16 +69,7 @@ export default function CategoryPage() {
 
       // 2. Fetch Products
       const data = await api.products.list('approved');
-      const transformed = data.map((p: any) => ({
-        ...p,
-        shortDescription: p.short_description,
-        supplierId: p.supplier_id,
-        category: p.category_id,
-        pricingSlabs: typeof p.pricing_slabs === 'string' ? JSON.parse(p.pricing_slabs) : p.pricing_slabs,
-        image: p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600',
-        isVerified: p.status === 'approved'
-      }));
-      setDbProducts(transformed);
+      setDbProducts(data);
     } catch (error) {
       console.error('Failed to fetch category data:', error);
     } finally {
@@ -89,22 +81,61 @@ export default function CategoryPage() {
     fetchAllData();
   }, [slug]);
 
-  const allProducts = dbProducts;
+  // 1. Get products matching Category & Search (Pre-Price Filter)
+  const prePriceFilteredProducts = useMemo(() => {
+    return dbProducts.filter(p => {
+      const pCategoryId = p.category_id || p.categoryId;
+      const matchesCategory = !category || String(pCategoryId) === String(category.id);
+      const matchesSearch = !searchQuery ||
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.shortDescription?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      return (!slug || matchesCategory) && matchesSearch;
+    });
+  }, [dbProducts, category, searchQuery, slug]);
 
-  // Apply Client-side Filtering
-  const filteredProducts = allProducts.filter(p => {
-    const pCategoryId = p.category_id || p.categoryId || p.category;
-    const matchesCategory = !category || pCategoryId === category.id;
+  // 2. Dynamically calculate absolute range from pre-filtered pool
+  useEffect(() => {
+    if (prePriceFilteredProducts.length > 0) {
+      const prices = prePriceFilteredProducts.map((p: any) => p.min_price || p.minPrice || 0);
+      const min = Math.floor(Math.min(...prices));
+      const max = Math.ceil(Math.max(...prices));
+      
+      // Update absolute bounds
+      setAbsoluteMinMax([min, max]);
+      
+      // Initial set or reset when category changes
+      setPriceRange([min, max]);
+      setTempPriceRange([min, max]);
+    } else {
+      setAbsoluteMinMax([0, 100000]);
+      setPriceRange([0, 100000]);
+      setTempPriceRange([0, 100000]);
+    }
+  }, [prePriceFilteredProducts.length > 0, category?.id, searchQuery]);
 
-    const pricing = p.pricing_slabs || p.pricingSlabs;
-    const price = pricing?.[0]?.pricePerUnit || pricing?.[0]?.price || p.price || p.min_price || p.minPrice || 0;
+  // 3. Apply Price & Verified Filters
+  let filteredProducts = prePriceFilteredProducts.filter(p => {
+    const price = p.min_price || p.minPrice || 0;
     const matchesPrice = price >= priceRange[0] && price <= priceRange[1];
     const matchesVerified = !verifiedOnly || p.isVerified;
-    const matchesSearch = !searchQuery ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.shortDescription?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesPrice && matchesVerified;
+  });
 
-    return (!slug || matchesCategory) && matchesPrice && matchesVerified && matchesSearch;
+  // Apply Sorting
+  filteredProducts = [...filteredProducts].sort((a, b) => {
+    const getPrice = (p: any) => p.min_price || p.minPrice || 0;
+
+    switch (sortBy) {
+      case 'price-low':
+        return getPrice(a) - getPrice(b);
+      case 'price-high':
+        return getPrice(b) - getPrice(a);
+      case 'newest':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      default:
+        return 0;
+    }
   });
 
   const states = ['Maharashtra', 'Gujarat', 'Tamil Nadu', 'Delhi', 'Punjab'];
@@ -148,30 +179,44 @@ export default function CategoryPage() {
 
       {/* Price Range */}
       <div className="bg-card">
-        <h3 className="font-semibold mb-4">Price Range</h3>
-        <div className="px-4"> {/* High-margin container for corner-to-corner access */}
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold">Price Range</h3>
+          <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-bold">
+            {filteredProducts.length} Results
+          </span>
+        </div>
+        
+        {/* Quick Filters */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {[
+            { label: 'Budget', max: 500 },
+            { label: 'Value', max: 2000 },
+            { label: 'Premium', min: 5000 },
+          ].map((chip) => (
+            <button
+              key={chip.label}
+              onClick={() => {
+                const min = chip.min || absoluteMinMax[0];
+                const max = chip.max || absoluteMinMax[1];
+                setPriceRange([min, max]);
+                setTempPriceRange([min, max]);
+              }}
+              className="text-[10px] font-bold px-3 py-1 rounded-full border border-border/60 hover:border-primary hover:text-primary transition-all bg-background"
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="px-2">
           <Slider
-            value={[
-              (tempPriceRange[0] / 100000) * 1000,
-              (tempPriceRange[1] / 100000) * 1000
-            ]}
-            onValueChange={(vals) => {
-              setTempPriceRange([
-                Math.round((vals[0] / 1000) * 100000),
-                Math.round((vals[1] / 1000) * 100000)
-              ]);
-            }}
-            onValueCommit={(vals) => {
-              // Only trigger heavy product filtering when user lets go
-              setPriceRange([
-                Math.round((vals[0] / 1000) * 100000),
-                Math.round((vals[1] / 1000) * 100000)
-              ]);
-            }}
-            min={0}
-            max={1000}
-            step={1}
-            className="mb-8"
+            value={tempPriceRange}
+            onValueChange={setTempPriceRange}
+            onValueCommit={setPriceRange}
+            min={absoluteMinMax[0]}
+            max={absoluteMinMax[1]}
+            step={Math.max(1, Math.floor((absoluteMinMax[1] - absoluteMinMax[0]) / 100))}
+            className="mb-6"
           />
         </div>
         <div className="flex items-center gap-3 bg-muted/30 p-3 rounded-xl border border-border/40 shadow-sm mt-4">
@@ -183,6 +228,9 @@ export default function CategoryPage() {
               onChange={(e) => {
                 const val = parseInt(e.target.value) || 0;
                 setTempPriceRange([val, tempPriceRange[1]]);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setPriceRange([tempPriceRange[0], priceRange[1]]);
               }}
               onBlur={() => setPriceRange([tempPriceRange[0], priceRange[1]])}
               className="h-9 text-sm font-bold bg-background border-border/50 focus:border-primary/50"
@@ -197,6 +245,9 @@ export default function CategoryPage() {
               onChange={(e) => {
                 const val = parseInt(e.target.value) || 0;
                 setTempPriceRange([tempPriceRange[0], val]);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setPriceRange([priceRange[0], tempPriceRange[1]]);
               }}
               onBlur={() => setPriceRange([priceRange[0], tempPriceRange[1]])}
               className="h-9 text-sm font-bold bg-background border-border/50 focus:border-primary/50"
@@ -223,8 +274,8 @@ export default function CategoryPage() {
       </div>
 
       <Button variant="outline" className="w-full text-xs uppercase font-bold tracking-widest" onClick={() => {
-        setPriceRange([0, 100000]);
-        setTempPriceRange([0, 100000]);
+        setPriceRange(absoluteMinMax);
+        setTempPriceRange(absoluteMinMax);
         setVerifiedOnly(false);
       }}>
         Clear All Filters
@@ -311,7 +362,7 @@ export default function CategoryPage() {
               </div>
 
               {/* Active filters */}
-              {(verifiedOnly || priceRange[0] > 0 || priceRange[1] < 100000) && (
+              {(verifiedOnly || priceRange[0] > absoluteMinMax[0] || priceRange[1] < absoluteMinMax[1]) && (
                 <div className="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-border/50">
                   <span className="text-xs font-bold text-muted-foreground uppercase">Applied:</span>
                   
@@ -325,14 +376,14 @@ export default function CategoryPage() {
                       <X className="h-3 w-3" />
                     </Badge>
                   )}
-
-                  {(priceRange[0] > 0 || priceRange[1] < 100000) && (
+                  
+                  {(priceRange[0] > absoluteMinMax[0] || priceRange[1] < absoluteMinMax[1]) && (
                     <Badge
                       variant="secondary"
                       className="px-3 py-1 text-[10px] font-bold uppercase transition-all hover:bg-destructive hover:text-destructive-foreground cursor-pointer flex items-center gap-1"
                       onClick={() => {
-                        setPriceRange([0, 100000]);
-                        setTempPriceRange([0, 100000]);
+                        setPriceRange(absoluteMinMax);
+                        setTempPriceRange(absoluteMinMax);
                       }}
                     >
                       Price: {formatPrice(priceRange[0])} - {formatPrice(priceRange[1])}
@@ -349,13 +400,7 @@ export default function CategoryPage() {
                 <ProductCard 
                   key={p.id} 
                   product={p} 
-                  supplier={{
-                    id: p.supplier_id,
-                    companyName: p.business_name || p.supplier_name || 'Verified Supplier',
-                    logo: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
-                    location: 'India',
-                    is_top_supplier: p.is_top_supplier
-                  }} 
+                  supplier={p.vendor}
                   className="animate-in fade-in slide-in-from-bottom-4 duration-500"
                 />
               ))}

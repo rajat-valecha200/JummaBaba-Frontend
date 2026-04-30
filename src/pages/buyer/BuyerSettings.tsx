@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Lock, Shield, Loader2, Save, CheckCircle, Clock,
+  Lock, Shield, Loader2, Save, CheckCircle,
   LogOut, ExternalLink, LifeBuoy, BookOpen, ChevronRight,
   Mail, MessageSquare, Eye, EyeOff, AlertTriangle,
 } from 'lucide-react';
@@ -16,15 +15,13 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-export default function VendorSettings() {
+export default function BuyerSettings() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
-
-  const isApproved = user?.status === 'approved';
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,11 +46,10 @@ export default function VendorSettings() {
   };
 
   const guideItems = [
-    { title: 'How to complete your business profile', href: '#' },
-    { title: 'Uploading verification documents', href: '#' },
-    { title: 'How to add and manage products', href: '#' },
-    { title: 'Understanding the RFQ workflow', href: '#' },
-    { title: 'Receiving payments and payouts', href: '#' },
+    { title: 'How to manage your delivery addresses', href: '#' },
+    { title: 'Tracking your orders and RFQs', href: '#' },
+    { title: 'Communicating with the Admin', href: '#' },
+    { title: 'Buying guide for industrial products', href: '#' },
   ];
 
   return (
@@ -64,10 +60,9 @@ export default function VendorSettings() {
           <h1 className="text-2xl font-bold">Account Settings</h1>
           <p className="text-muted-foreground mt-1">Manage security, preferences, and get help</p>
         </div>
-        {/* Quick links in header */}
         <div className="hidden sm:flex items-center gap-2">
           <Button variant="outline" size="sm" asChild>
-            <a href="http://localhost:5175" target="_blank" rel="noreferrer">
+            <a href="/" target="_blank" rel="noreferrer">
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
               Main Website
             </a>
@@ -82,7 +77,7 @@ export default function VendorSettings() {
       {/* Mobile logout */}
       <div className="flex sm:hidden gap-2">
         <Button variant="outline" size="sm" className="flex-1" asChild>
-          <a href="http://localhost:5175" target="_blank" rel="noreferrer">
+          <a href="/" target="_blank" rel="noreferrer">
             <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
             Main Website
           </a>
@@ -95,43 +90,44 @@ export default function VendorSettings() {
 
       {/* --- Verification Status --- */}
       <Card className={cn(
-        'border-2',
-        isApproved ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20' : 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20'
+        "border-2",
+        user?.status === 'approved' ? "border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20" : 
+        user?.status === 'rejected' ? "border-destructive/30 bg-destructive/5" :
+        "border-orange-500/30 bg-orange-50/50"
       )}>
         <CardContent className="pt-5">
           <div className="flex items-center gap-4">
             <div className={cn(
-              'w-12 h-12 rounded-full flex items-center justify-center shrink-0',
-              isApproved ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+              "w-12 h-12 rounded-full flex items-center justify-center shrink-0",
+              user?.status === 'approved' ? "bg-emerald-100 text-emerald-600" :
+              user?.status === 'rejected' ? "bg-destructive/10 text-destructive" :
+              "bg-orange-100 text-orange-600"
             )}>
-              {isApproved ? <CheckCircle className="h-6 w-6" /> : <Clock className="h-6 w-6" />}
+              {user?.status === 'approved' ? <CheckCircle className="h-6 w-6" /> : <Shield className="h-6 w-6" />}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="font-semibold">Account Status</p>
                 <Badge className={cn(
-                  'text-xs',
-                  isApproved
-                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                    : 'bg-amber-100 text-amber-700 border-amber-200'
+                  "text-xs border",
+                  user?.status === 'approved' ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
+                  user?.status === 'rejected' ? "bg-destructive/10 text-destructive border-destructive/20" :
+                  "bg-orange-100 text-orange-700 border-orange-200"
                 )}>
-                  {isApproved ? 'Approved' : 'Pending Review'}
+                  {user?.status === 'approved' ? 'Active' : user?.status === 'rejected' ? 'Rejected' : 'Under Review'}
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground mt-0.5">
-                {isApproved
-                  ? 'Your account is verified. You can list products and receive orders.'
-                  : 'Your documents are under review. You\'ll be notified by email once approved. Usually takes 1–2 business days.'}
+                {user?.status === 'approved' ? 'Your buyer account is active. You can browse products and raise RFQs.' : 
+                 user?.status === 'rejected' ? 'Your account has been rejected. Please update your profile or contact support.' :
+                 'Your account is currently being reviewed by our admin team. You can still browse products.'}
               </p>
-              {!isApproved && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  <AlertTriangle className="h-3 w-3 inline mr-1 text-amber-500" />
-                  If it's been more than 48 hours, please contact support below.
-                </p>
-              )}
             </div>
             <div className="shrink-0">
-              <Shield className={cn('h-8 w-8', isApproved ? 'text-emerald-400' : 'text-amber-400')} />
+              <Shield className={cn(
+                "h-8 w-8",
+                user?.status === 'approved' ? "text-emerald-400" : "text-orange-400"
+              )} />
             </div>
           </div>
         </CardContent>
@@ -226,8 +222,8 @@ export default function VendorSettings() {
       {/* --- User Guide --- */}
       <div className="grid md:grid-cols-3 gap-6">
         <div>
-          <h3 className="font-semibold flex items-center gap-2"><BookOpen className="h-4 w-4" />Seller Guide</h3>
-          <p className="text-sm text-muted-foreground mt-1">Quick guides to help you get started and grow on JummaBaba.</p>
+          <h3 className="font-semibold flex items-center gap-2"><BookOpen className="h-4 w-4" />Buyer Guide</h3>
+          <p className="text-sm text-muted-foreground mt-1">Quick guides to help you make the most of JummaBaba.</p>
         </div>
         <div className="md:col-span-2">
           <Card>
@@ -253,7 +249,7 @@ export default function VendorSettings() {
       <div className="grid md:grid-cols-3 gap-6">
         <div>
           <h3 className="font-semibold flex items-center gap-2"><LifeBuoy className="h-4 w-4" />Support</h3>
-          <p className="text-sm text-muted-foreground mt-1">Having trouble? Our team is here to help.</p>
+          <p className="text-sm text-muted-foreground mt-1">Need help with an order or RFQ? Our team is available.</p>
         </div>
         <div className="md:col-span-2 space-y-3">
           <Card>
@@ -269,7 +265,7 @@ export default function VendorSettings() {
                   <div>
                     <p className="font-medium text-sm">Email Support</p>
                     <p className="text-xs text-muted-foreground">support@jummababa.com</p>
-                    <p className="text-xs text-muted-foreground">Reply within 24 hrs</p>
+                    <p className="text-xs text-muted-foreground">Response within 24 hrs</p>
                   </div>
                 </a>
 
@@ -285,15 +281,9 @@ export default function VendorSettings() {
                   <div>
                     <p className="font-medium text-sm">WhatsApp Support</p>
                     <p className="text-xs text-muted-foreground">+91 12345 67890</p>
-                    <p className="text-xs text-muted-foreground">Mon–Sat, 10am–6pm</p>
+                    <p className="text-xs text-muted-foreground">Available Mon–Sat</p>
                   </div>
                 </a>
-              </div>
-
-              <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
-                <strong>Account ID:</strong>{' '}
-                <code className="font-mono">{user?.id?.slice(0, 8)}...</code>
-                {' '}— Please share this with support when contacting us.
               </div>
             </CardContent>
           </Card>
@@ -305,8 +295,8 @@ export default function VendorSettings() {
       {/* --- Danger Zone --- */}
       <div className="grid md:grid-cols-3 gap-6">
         <div>
-          <h3 className="font-semibold text-destructive">Session</h3>
-          <p className="text-sm text-muted-foreground mt-1">Sign out of your vendor account.</p>
+          <h3 className="font-semibold text-destructive">Account</h3>
+          <p className="text-sm text-muted-foreground mt-1">Sign out of your account.</p>
         </div>
         <div className="md:col-span-2">
           <Card className="border-destructive/20">
@@ -315,7 +305,6 @@ export default function VendorSettings() {
                 <div>
                   <p className="font-medium text-sm">Signed in as</p>
                   <p className="text-sm text-muted-foreground">{user?.email}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 capitalize">Role: {user?.role}</p>
                 </div>
                 <Button variant="destructive" onClick={signOut}>
                   <LogOut className="h-4 w-4 mr-2" />

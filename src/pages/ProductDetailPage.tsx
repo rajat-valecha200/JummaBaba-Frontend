@@ -114,7 +114,9 @@ export default function ProductDetailPage() {
           }
           
           // Set related
-          const related = data.filter((p: any) => p.category_id === found.category_id && p.id !== found.id).slice(0, 4);
+          const related = data
+            .filter((p: any) => String(p.categoryId) === String(found.categoryId) && p.id !== found.id)
+            .slice(0, 4);
           setRelatedProducts(related);
         }
       } catch (err) {
@@ -203,7 +205,12 @@ export default function ProductDetailPage() {
       });
       toast({ 
         title: 'RFQ Submitted Successfully!', 
-        description: 'Your request has been sent to our admin team for mediation.' 
+        description: 'Your request has been sent to our admin team for mediation.',
+        action: (
+          <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
+            <Link to="/buyer/rfqs">View Requests</Link>
+          </Button>
+        )
       });
       setRfqOpen(false);
     } catch (error: any) {
@@ -591,13 +598,12 @@ export default function ProductDetailPage() {
 
         {/* Related Products */}
         {relatedProducts.length > 0 && (
-          <section className="mt-10">
+          <section className="mt-10 pb-10">
             <h2 className="text-xl font-bold mb-6">Related Products</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {relatedProducts.map(p => {
-                const s = { companyName: p.business_name || 'Verified Supplier' };
-                return <ProductCard key={p.id} product={p} supplier={s} />;
-              })}
+              {relatedProducts.map(p => (
+                <ProductCard key={p.id} product={p} supplier={p.vendor} />
+              ))}
             </div>
           </section>
         )}

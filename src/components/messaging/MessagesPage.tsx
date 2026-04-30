@@ -25,7 +25,12 @@ import {
   Reply,
   CornerUpRight,
   Filter,
-  ChevronDown
+  ChevronDown,
+  Plus,
+  MessageSquare,
+  Loader2,
+  Users,
+  CornerDownRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +51,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -55,14 +67,8 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
-import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Message {
   id: string;
@@ -100,49 +106,20 @@ interface Conversation {
 }
 
 // Admin-mediated chat - Buyers and Vendors only talk to JummaBaba Support
-const getAdminConversation = (userType: 'buyer' | 'vendor'): Conversation[] => [
+// Admin-mediated chat - Buyers and Vendors only talk to JummaBaba Support
+const getAdminConversationPlaceholder = (userType: 'buyer' | 'vendor'): Conversation[] => [
   {
     id: 'admin-support',
     participantName: 'JummaBaba Support',
     participantAvatar: '',
     participantCompany: 'Platform Admin',
-    lastMessage: userType === 'buyer' 
-      ? 'How can we help you today? Share your product queries with us.'
-      : 'We will forward buyer inquiries to you. How can we assist?',
+    lastMessage: 'Contact us for any assistance.',
     lastMessageTime: '10:30 AM',
-    unreadCount: 1,
+    unreadCount: 0,
     isOnline: true,
     isVerified: true,
     isTyping: false,
-    messages: [
-      { 
-        id: 'm1', 
-        senderId: 'other', 
-        text: userType === 'buyer'
-          ? 'Welcome to JummaBaba.com! 🙏 How can we help you today? You can ask us about any product, request quotes, or get support.'
-          : 'Welcome to JummaBaba.com Vendor Portal! 🙏 We will forward all buyer inquiries related to your products here.',
-        timestamp: '10:00 AM', 
-        status: 'read' 
-      },
-      { 
-        id: 'm2', 
-        senderId: 'other', 
-        text: userType === 'buyer'
-          ? 'Simply share the product you are interested in, and we will connect you with the best pricing and availability.'
-          : 'You can respond to buyer queries through this chat. We handle all communications on your behalf.',
-        timestamp: '10:05 AM', 
-        status: 'read' 
-      },
-      { 
-        id: 'm3', 
-        senderId: 'other', 
-        text: userType === 'buyer'
-          ? 'How can we help you today? Share your product queries with us.'
-          : 'We will forward buyer inquiries to you. How can we assist?',
-        timestamp: '10:30 AM', 
-        status: 'read' 
-      },
-    ],
+    messages: [],
   },
 ];
 
@@ -270,7 +247,7 @@ interface MessagesPageProps {
 
 export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>(() => getAdminConversation(userType));
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -322,6 +299,58 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   // Read receipt sync state
   const [isReceiptSyncing, setIsReceiptSyncing] = useState(false);
   
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [admins, setAdmins] = useState<any[]>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
+
+  const fetchAdmins = async () => {
+    setLoadingAdmins(true);
+    try {
+      const data = await api.profiles.list('admin', 'approved');
+      setAdmins(data);
+    } catch (error) {
+      console.error('Failed to fetch admins:', error);
+    } finally {
+      setLoadingAdmins(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isNewChatOpen) return;
+    fetchAdmins();
+    const interval = setInterval(fetchAdmins, 10000);
+    return () => clearInterval(interval);
+  }, [isNewChatOpen]);
+
+  const startConversationWithAdmin = async (admin: any) => {
+    setIsNewChatOpen(false);
+    
+    // Check if conversation already exists
+    const existing = conversations.find(c => c.id === admin.id);
+    if (existing) {
+      openConversation(existing);
+      return;
+    }
+
+    // Create a temporary conversation object
+    const newConv: Conversation = {
+      id: admin.id,
+      participantName: admin.full_name || 'Admin',
+      participantAvatar: admin.avatar_url || '',
+      participantCompany: 'JummaBaba Support',
+      lastMessage: 'Start a new conversation',
+      lastMessageTime: 'Just now',
+      unreadCount: 0,
+      isOnline: true,
+      isVerified: true,
+      isTyping: false,
+      messages: []
+    };
+
+    setConversations(prev => [newConv, ...prev]);
+    openConversation(newConv);
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -509,38 +538,113 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
+  
+  const playNotificationSound = useCallback(() => {
+    /* 
+    try {
+      const audio = new Audio('/notification_sound.wav');
+      audio.volume = 0.5;
+      audio.play().catch(e => console.log('Audio play blocked by browser:', e));
+    } catch (e) {
+      console.log('Audio play failed:', e);
+    }
+    */
+  }, []);
 
   // Real Messaging Integration
-  useEffect(() => {
-    const fetchRealMessages = async () => {
-      if (!rfqId) return;
-      try {
-        const data = await api.messages.list(rfqId);
-        if (data && data.length > 0) {
-          const transformedMessages: Message[] = data.map((m: any) => ({
-            id: m.id,
-            senderId: m.sender_id === user?.id ? 'me' : 'other',
-            text: m.message_text,
-            timestamp: new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-            status: 'read' // Placeholder for prototype
-          }));
-          
-          setConversations(prev => prev.map(c => {
-            if (c.id === 'admin-support') {
-              return { ...c, messages: transformedMessages };
-            }
-            return c;
-          }));
-        }
-      } catch (error) {
-        console.error('Failed to fetch real messages:', error);
-      }
-    };
+  const fetchConversations = useCallback(async () => {
+    try {
+      const data = await api.messages.getConversations();
+      const mapped: Conversation[] = data.map((c: any) => ({
+        id: c.participant_id,
+        participantName: c.participant_name,
+        participantAvatar: c.participant_avatar,
+        participantCompany: c.participant_company,
+        lastMessage: c.last_message,
+        lastMessageTime: new Date(c.last_message_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+        unreadCount: (c.participant_id === selectedConversation?.id) ? 0 : parseInt(c.unread_count, 10),
+        isOnline: c.is_online,
+        isVerified: true,
+        isTyping: false,
+        messages: []
+      }));
 
-    fetchRealMessages();
-    const interval = setInterval(fetchRealMessages, 5000); // Polling for prototype
+      // Play sound if unread count increased globally
+      const totalUnreadNow = mapped.reduce((sum, c) => sum + c.unreadCount, 0);
+      setConversations(prev => {
+        const totalUnreadPrev = prev.reduce((sum, c) => sum + c.unreadCount, 0);
+        if (totalUnreadNow > totalUnreadPrev) {
+          // playNotificationSound(); // Commented out for now
+        }
+        return mapped;
+      });
+    } catch (error) {
+      console.error('Failed to fetch conversations:', error);
+    }
+  }, [selectedConversation?.id, playNotificationSound]); // Add dependency on selected ID
+
+  const fetchMessages = useCallback(async () => {
+    if (!selectedConversation?.id || !user?.id) return;
+    try {
+      const history = await api.messages.getHistory(selectedConversation.id);
+      const mappedMessages: Message[] = history.map((m: any) => ({
+        id: m.id,
+        senderId: m.sender_id === user.id ? 'me' : 'other',
+        text: m.content,
+        timestamp: new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+        status: m.is_read ? 'read' : 'sent'
+      }));
+      
+      setSelectedConversation(prev => {
+        if (!prev || prev.id !== selectedConversation.id) return prev;
+        if (JSON.stringify(prev.messages) === JSON.stringify(mappedMessages)) return prev;
+        return { ...prev, messages: mappedMessages };
+      });
+
+      // If there are unread messages from the other user, mark them as read
+      const hasUnread = history.some((m: any) => m.sender_id !== user.id && !m.is_read);
+      if (hasUnread) {
+        api.messages.markAsRead(selectedConversation.id).then(() => {
+          window.dispatchEvent(new CustomEvent('refreshAdminStats'));
+          fetchConversations();
+        }).catch(err => console.error('Failed to mark as read in poll:', err));
+      }
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+    }
+  }, [selectedConversation?.id, user?.id, fetchConversations]);
+
+  useEffect(() => {
+    fetchConversations();
+    const interval = setInterval(fetchConversations, 10000); // 10s for sidebar
     return () => clearInterval(interval);
-  }, [rfqId, user]);
+  }, [fetchConversations]);
+
+  useEffect(() => {
+    if (selectedConversation?.id) {
+      fetchMessages();
+      const interval = setInterval(fetchMessages, 3000); // 3s for active chat
+      return () => clearInterval(interval);
+    }
+  }, [selectedConversation?.id, fetchMessages]);
+
+  const openConversation = async (conv: Conversation) => {
+    setSelectedConversation(conv);
+    // Locally zero out count for immediate feedback
+    setConversations(prev => prev.map(c => 
+      c.id === conv.id ? { ...c, unreadCount: 0 } : c
+    ));
+    try {
+      await api.messages.markAsRead(conv.id);
+      // Trigger global stats refresh for the Admin Bell
+      window.dispatchEvent(new CustomEvent('refreshAdminStats'));
+      // Wait a bit for DB to commit before fetching fresh list
+      setTimeout(fetchConversations, 500);
+      fetchMessages();
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
+    }
+  };
 
   // Simulate incoming messages for demo
   const simulateIncomingMessage = useCallback((conv: Conversation) => {
@@ -613,108 +717,29 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation || isSending) return;
     
-    // If we have an RFQ context, send to backend
-    if (rfqId && user) {
-      try {
-        await api.messages.send({
-          rfq_id: parseInt(rfqId),
-          sender_id: user.id,
-          receiver_id: 1, // Placeholder: In real flow, get from RFQ
-          message_text: messageInput.trim()
-        });
-      } catch (error) {
-        console.error('Failed to send message to backend:', error);
-      }
-    }
-
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    
-    const newMessage: Message = {
-      id: `m-${Date.now()}`,
-      senderId: 'me',
-      text: messageInput.trim(),
-      timestamp: timeString,
-      status: 'sending',
-      statusTimestamp: timeString,
-      replyTo: replyingTo || undefined
-    };
-
-    // Add message with 'sending' status
-    const updatedConversation = {
-      ...selectedConversation,
-      messages: [...selectedConversation.messages, newMessage],
-      lastMessage: newMessage.text,
-      lastMessageTime: 'Just now',
-      isTyping: false
-    };
-
-    setSelectedConversation(updatedConversation);
-    setConversations(prev => prev.map(c => 
-      c.id === selectedConversation.id ? updatedConversation : c
-    ));
-    setMessageInput('');
-    setReplyingTo(null);
-    setIsSending(true);
-    setIsReceiptSyncing(true);
-
-    // Simulate message status progression with timestamps
-    setTimeout(() => {
-      const sentTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      setSelectedConversation(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          messages: prev.messages.map(m => 
-            m.id === newMessage.id ? { ...m, status: 'sent' as const, statusTimestamp: sentTime } : m
-          )
-        };
-      });
-      setConversations(prev => prev.map(c => 
-        c.id === selectedConversation.id 
-          ? { ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const, statusTimestamp: sentTime } : m) }
-          : c
-      ));
-    }, 500);
-
-    setTimeout(() => {
-      const deliveredTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      setSelectedConversation(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          messages: prev.messages.map(m => 
-            m.id === newMessage.id ? { ...m, status: 'delivered' as const, deliveredAt: deliveredTime, statusTimestamp: deliveredTime } : m
-          )
-        };
-      });
-      setConversations(prev => prev.map(c => 
-        c.id === selectedConversation.id 
-          ? { ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: 'delivered' as const, deliveredAt: deliveredTime, statusTimestamp: deliveredTime } : m) }
-          : c
-      ));
+    try {
+      setIsSending(true);
+      await api.messages.send(selectedConversation.id, messageInput.trim());
+      setMessageInput('');
+      setReplyingTo(null);
+      
+      // Refresh messages immediately
+      const history = await api.messages.getHistory(selectedConversation.id);
+      const mappedMessages: Message[] = history.map((m: any) => ({
+        id: m.id,
+        senderId: m.sender_id === user?.id ? 'me' : 'other',
+        text: m.content,
+        timestamp: new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+        status: m.is_read ? 'read' : 'sent'
+      }));
+      
+      setSelectedConversation(prev => prev ? { ...prev, messages: mappedMessages } : null);
+      fetchConversations();
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    } finally {
       setIsSending(false);
-    }, 1500);
-
-    setTimeout(() => {
-      const readTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      setSelectedConversation(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          messages: prev.messages.map(m => 
-            m.id === newMessage.id ? { ...m, status: 'read' as const, readAt: readTime, statusTimestamp: readTime } : m
-          ),
-          isTyping: true // Start typing indicator
-        };
-      });
-      setConversations(prev => prev.map(c => 
-        c.id === selectedConversation.id 
-          ? { ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: 'read' as const, readAt: readTime, statusTimestamp: readTime } : m) }
-          : c
-      ));
-      setIsReceiptSyncing(false);
-    }, 2000);
+    }
   };
 
   const handleSendVoiceMessage = async () => {
@@ -893,15 +918,6 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
     setSelectedFiles([]);
   };
 
-  const openConversation = (conv: Conversation) => {
-    // Clear unread count when opening
-    const updatedConv = { ...conv, unreadCount: 0 };
-    setSelectedConversation(updatedConv);
-    setConversations(prev => prev.map(c => 
-      c.id === conv.id ? updatedConv : c
-    ));
-  };
-
   // Start a call
   const handleStartCall = (type: 'voice' | 'video') => {
     setCallType(type);
@@ -935,9 +951,70 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                 onRequest={requestPermission}
                 isSupported={isSupported}
               />
+              
+              <Dialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 text-primary hover:bg-primary/10">
+                    <Plus className="h-6 w-6" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
+                  <DialogHeader className="p-6 bg-primary text-primary-foreground">
+                    <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5" />
+                      Start New Conversation
+                    </DialogTitle>
+                    <p className="text-primary-foreground/70 text-sm mt-1">Select an administrator to chat with</p>
+                  </DialogHeader>
+                  <div className="max-h-[400px] overflow-y-auto p-2">
+                    {loadingAdmins ? (
+                      <div className="p-12 text-center">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary opacity-50" />
+                        <p className="text-sm text-muted-foreground mt-4">Searching for admins...</p>
+                      </div>
+                    ) : admins.length > 0 ? (
+                      <div className="space-y-1">
+                        {admins.map((admin) => (
+                          <div
+                            key={admin.id}
+                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted cursor-pointer transition-all group"
+                            onClick={() => startConversationWithAdmin(admin)}
+                          >
+                            <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
+                              <AvatarImage src={admin.logo_url} />
+                              <AvatarFallback className="bg-primary/5 text-primary font-bold">
+                                {admin.full_name?.[0] || 'A'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-bold text-sm group-hover:text-primary transition-colors">{admin.full_name}</p>
+                                {admin.is_online && (
+                                  <span className="w-2 h-2 rounded-full bg-success animate-pulse shrink-0" title="Online" />
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <Badge variant="secondary" className="text-[10px] h-4 px-1 uppercase tracking-tighter">Support</Badge>
+                                <span className="text-[10px] text-muted-foreground italic">Platform Admin</span>
+                              </div>
+                            </div>
+                            <CornerDownRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-12 text-center text-muted-foreground">
+                        <Users className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                        <p className="text-sm">No administrators available right now.</p>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full">
+                  <Button variant="ghost" size="icon" className="rounded-full h-10 w-10">
                     <MoreVertical className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1051,6 +1128,9 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <p className="font-semibold truncate">{conv.participantName}</p>
+                      {conv.isOnline && (
+                        <span className="w-2 h-2 rounded-full bg-success animate-pulse flex-shrink-0" title="Online" />
+                      )}
                       {conv.isVerified && (
                         <Shield className="h-4 w-4 text-success flex-shrink-0" />
                       )}
@@ -1078,7 +1158,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                         <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
                       )}
                     </div>
-                    {conv.unreadCount > 0 && (
+                    {conv.unreadCount > 0 && selectedConversation?.id !== conv.id && (
                       <Badge className="h-5 w-5 p-0 flex items-center justify-center rounded-full bg-success text-success-foreground text-xs">
                         {conv.unreadCount}
                       </Badge>
@@ -1090,9 +1170,22 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
           })}
 
           {filteredConversations.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Search className="h-12 w-12 mb-3 opacity-50" />
-              <p className="text-sm">No conversations found</p>
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground px-6 text-center">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                <MessageSquare className="h-8 w-8 opacity-20" />
+              </div>
+              <p className="text-sm font-medium text-foreground">No conversations found</p>
+              <p className="text-xs mt-1 mb-4">Start a new chat with JummaBaba support for any assistance.</p>
+              <Button 
+                onClick={() => {
+                  setIsNewChatOpen(true);
+                  fetchAdmins();
+                }}
+                className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Start Conversation
+              </Button>
             </div>
           )}
         </div>
@@ -1159,33 +1252,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               
               {/* Action Icons */}
               <div className="flex items-center gap-0.5">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="rounded-full h-9 w-9"
-                      onClick={() => handleStartCall('video')}
-                    >
-                      <Video className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Video Call</TooltipContent>
-                </Tooltip>
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="rounded-full h-9 w-9"
-                      onClick={() => handleStartCall('voice')}
-                    >
-                      <Phone className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Voice Call</TooltipContent>
-                </Tooltip>
+                {/* Call actions hidden for now */}
                 
                 {/* 3-dot Menu */}
                 <DropdownMenu>
@@ -1245,52 +1312,56 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                     key={message.id}
                     id={`message-${message.id}`}
                     className={cn(
-                      "flex flex-col gap-1 transition-colors duration-500 rounded-lg",
-                      message.senderId === 'me' ? "items-end" : "items-start"
+                      "flex w-full mb-2",
+                      message.senderId === 'me' ? "justify-end" : "justify-start"
                     )}
                   >
-                    <div className="relative group">
-                      {/* Message Actions Popup */}
-                      {showActionsFor === message.id && (
-                        <div className={cn(
-                          "absolute bottom-full mb-2 z-10",
-                          message.senderId === 'me' ? "right-0" : "left-0"
-                        )}>
-                          <MessageActions 
-                            onReply={() => handleReply(message)}
-                            onForward={() => {
-                              setForwardMessage(message);
-                              setShowActionsFor(null);
-                            }}
-                            onReact={() => {
-                              setShowReactionsFor(message.id);
-                              setShowActionsFor(null);
-                            }}
-                            isOwn={message.senderId === 'me'}
-                          />
-                        </div>
-                      )}
-
-                      {/* Quick Reactions Popup */}
-                      {showReactionsFor === message.id && (
-                        <div className={cn(
-                          "absolute bottom-full mb-2 z-10",
-                          message.senderId === 'me' ? "right-0" : "left-0"
-                        )}>
-                          <QuickReactions 
-                            onSelect={(emoji) => handleAddReaction(message.id, emoji)}
-                            isOwn={message.senderId === 'me'}
-                          />
-                        </div>
-                      )}
-
-                      <div
-                        className={cn(
-                          "max-w-[85%] md:max-w-[70%] rounded-lg px-3 py-2 shadow-sm relative cursor-pointer",
-                          message.senderId === 'me'
-                            ? "bg-primary text-primary-foreground rounded-tr-none"
-                            : "bg-card rounded-tl-none"
+                    <div className={cn(
+                      "flex flex-col gap-1 max-w-[85%] md:max-w-[70%]",
+                      message.senderId === 'me' ? "items-end" : "items-start"
+                    )}>
+                      <div className="relative group">
+                        {/* Message Actions Popup */}
+                        {showActionsFor === message.id && (
+                          <div className={cn(
+                            "absolute bottom-full mb-2 z-10",
+                            message.senderId === 'me' ? "right-0" : "left-0"
+                          )}>
+                            <MessageActions 
+                              onReply={() => handleReply(message)}
+                              onForward={() => {
+                                setForwardMessage(message);
+                                setShowActionsFor(null);
+                              }}
+                              onReact={() => {
+                                setShowReactionsFor(message.id);
+                                setShowActionsFor(null);
+                              }}
+                              isOwn={message.senderId === 'me'}
+                            />
+                          </div>
                         )}
+
+                        {/* Quick Reactions Popup */}
+                        {showReactionsFor === message.id && (
+                          <div className={cn(
+                            "absolute bottom-full mb-2 z-10",
+                            message.senderId === 'me' ? "right-0" : "left-0"
+                          )}>
+                            <QuickReactions 
+                              onSelect={(emoji) => handleAddReaction(message.id, emoji)}
+                              isOwn={message.senderId === 'me'}
+                            />
+                          </div>
+                        )}
+
+                        <div
+                          className={cn(
+                            "rounded-2xl px-4 py-2.5 shadow-sm relative cursor-pointer transition-all",
+                            message.senderId === 'me'
+                              ? "bg-primary text-primary-foreground rounded-tr-none"
+                              : "bg-card text-foreground rounded-tl-none border border-border"
+                          )}
                         onDoubleClick={() => setShowActionsFor(showActionsFor === message.id ? null : message.id)}
                         onContextMenu={(e) => {
                           e.preventDefault();
@@ -1382,6 +1453,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                       />
                     )}
                   </div>
+                </div>
                 ))}
 
                 {/* Read Receipt Sync Indicator */}
@@ -1487,23 +1559,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                       />
                     </div>
                     
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="rounded-full flex-shrink-0">
-                          <Paperclip className="h-5 w-5 text-muted-foreground" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-48">
-                        <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
-                          <Camera className="h-4 w-4 mr-2" />
-                          Photos
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                          <FileText className="h-4 w-4 mr-2" />
-                          Documents
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {/* Attachments hidden for now */}
 
                     <div className="flex-1 relative">
                       <Input
@@ -1514,17 +1570,10 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                         onKeyDown={(e) => e.key === "Enter" && (selectedFiles.length > 0 ? handleSendMedia() : handleSendMessage())}
                         className="pr-10 bg-muted/50 border-0 rounded-full"
                       />
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full md:hidden"
-                        onClick={() => imageInputRef.current?.click()}
-                      >
-                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                      </Button>
+                      {/* Mobile image hidden */}
                     </div>
 
-                    {messageInput.trim() || selectedFiles.length > 0 ? (
+                    {(messageInput.trim() || selectedFiles.length > 0) && (
                       <Button 
                         onClick={selectedFiles.length > 0 ? handleSendMedia : handleSendMessage}
                         size="icon"
@@ -1533,15 +1582,6 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                       >
                         <Send className="h-5 w-5" />
                       </Button>
-                    ) : (
-                      <Button 
-                        onClick={startRecording}
-                        size="icon"
-                        variant="ghost"
-                        className="rounded-full flex-shrink-0 h-10 w-10 hover:bg-primary/10 hover:text-primary"
-                      >
-                        <Mic className="h-5 w-5" />
-                      </Button>
                     )}
                   </div>
                 </div>
@@ -1549,14 +1589,40 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
             )}
           </div>
         ) : (
-          <div className="flex-1 hidden md:flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
-            <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-4">
-              <Send className="h-10 w-10 opacity-50" />
+          <div className="flex-1 hidden md:flex flex-col items-center justify-center text-muted-foreground bg-muted/30 p-8">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+              <MessageSquare className="h-10 w-10 text-primary opacity-80" />
             </div>
-            <h3 className="text-xl font-medium mb-1">Your Messages</h3>
-            <p className="text-sm text-center max-w-sm">
-              Select a conversation to start messaging with {userType === 'buyer' ? 'suppliers' : 'buyers'}
+            <h3 className="text-2xl font-bold text-foreground mb-2">Connect with Support</h3>
+            <p className="text-muted-foreground text-center max-w-md mb-8">
+              Welcome to JummaBaba Messaging. Start a conversation with our support team to get help with your account, listings, or orders.
             </p>
+            <Button 
+              size="lg"
+              onClick={() => {
+                setIsNewChatOpen(true);
+                fetchAdmins();
+              }}
+              className="rounded-full px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-105"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Start New Conversation
+            </Button>
+            
+            <div className="mt-12 grid grid-cols-3 gap-8 max-w-lg w-full">
+               <div className="text-center">
+                 <div className="text-primary font-bold">24/7</div>
+                 <div className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Support</div>
+               </div>
+               <div className="text-center">
+                 <div className="text-primary font-bold">Safe</div>
+                 <div className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Platform</div>
+               </div>
+               <div className="text-center">
+                 <div className="text-primary font-bold">Direct</div>
+                 <div className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Chat</div>
+               </div>
+            </div>
           </div>
         )}
       </div>

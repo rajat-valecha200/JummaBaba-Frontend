@@ -3,12 +3,24 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Package, Building, TrendingUp, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
+import { Users, Package, Building, TrendingUp, CheckCircle, XCircle, Clock, Loader2, Eye } from 'lucide-react';
+import { VendorDetailsDialog } from '@/components/admin/VendorDetailsDialog';
+import { normalizeProfile } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatsCard } from '@/components/b2b/StatsCard';
 import { formatPrice } from '@/lib/utils';
+import { ProductPreviewDialog } from '@/components/admin/ProductPreviewDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function AdminDashboard() {
   const { toast } = useToast();
@@ -16,6 +28,25 @@ export default function AdminDashboard() {
   const [pendingVendors, setPendingVendors] = useState<any[]>([]);
   const [pendingProducts, setPendingProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedVendor, setSelectedVendor] = useState<any | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [productPreviewOpen, setProductPreviewOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+  const [rejectProductDialogOpen, setRejectProductDialogOpen] = useState(false);
+  const [productRejectionReason, setProductRejectionReason] = useState('');
+  const [categories, setCategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchDeps = async () => {
+      try {
+        const cats = await api.categories.list();
+        setCategories(cats);
+      } catch (err) {
+        console.error('Failed to fetch categories', err);
+      }
+    };
+    fetchDeps();
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -25,8 +56,12 @@ export default function AdminDashboard() {
         api.products.list('pending')
       ]);
       setStats(statsData);
-      setPendingVendors(vendorsData);
-      setPendingProducts(productsData);
+      setPendingVendors(vendorsData.map((v: any) => normalizeProfile(v)));
+      setPendingProducts(productsData.map((p: any) => ({
+        ...p,
+        categoryId: p.category_id,
+        pricingSlabs: typeof p.pricing_slabs === 'string' ? JSON.parse(p.pricing_slabs) : p.pricing_slabs || [],
+      })));
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
     } finally {
@@ -38,23 +73,49 @@ export default function AdminDashboard() {
     fetchData();
   }, []);
 
-  const handleVendorStatus = async (id: string, status: 'approved' | 'rejected') => {
+  const handleVendorStatus = async (id: string, status: 'approved' | 'rejected', reason?: string) => {
     try {
-      await api.profiles.updateStatus(id, status);
-      toast({ title: `Vendor ${status === 'approved' ? 'Approved' : 'Rejected'}` });
+      let updated;
+      if (reason === 'reset') {
+        updated = await api.profiles.updateStatus(id, 'pending');
+        toast({ title: 'Vendor reset to Pending' });
+      } else {
+        updated = await api.profiles.updateStatus(id, status, reason);
+        toast({ title: `Vendor ${status === 'approved' ? 'Approved' : 'Rejected'}` });
+      }
+      
+      // Update local state if the sheet is open
+      if (selectedVendor && selectedVendor.id === id) {
+        setSelectedVendor({ ...selectedVendor, status: updated.status, rejection_reason: updated.rejection_reason });
+      }
+      
+      fetchData(); // Refresh all data
+    } catch (error: any) {
+      toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
+    }
+    setDetailsOpen(false);
+  };
+
+  const handleProductStatus = async (id: string, status: 'approved' | 'rejected', reason?: string) => {
+    try {
+      await api.products.updateStatus(id, status, reason);
+      toast({ title: `Product ${status === 'approved' ? 'Approved' : 'Rejected'}` });
+      setProductPreviewOpen(false);
+      setRejectProductDialogOpen(false);
       fetchData(); // Refresh all data
     } catch (error: any) {
       toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
     }
   };
 
-  const handleProductStatus = async (id: string, status: 'approved' | 'rejected') => {
-    try {
-      await api.products.updateStatus(id, status);
-      toast({ title: `Product ${status === 'approved' ? 'Approved' : 'Rejected'}` });
-      fetchData(); // Refresh all data
-    } catch (error: any) {
-      toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
+  const handleOpenRejectProduct = (id: string) => {
+    setProductRejectionReason('');
+    setRejectProductDialogOpen(true);
+  };
+
+  const handleConfirmRejectProduct = () => {
+    if (selectedProduct) {
+      handleProductStatus(selectedProduct.id, 'rejected', productRejectionReason);
     }
   };
 
@@ -107,6 +168,16 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        onClick={() => {
+                          setSelectedVendor(v);
+                          setDetailsOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => handleVendorStatus(v.id, 'rejected')}><XCircle className="h-4 w-4" /></Button>
                       <Button size="sm" onClick={() => handleVendorStatus(v.id, 'approved')}><CheckCircle className="h-4 w-4" /></Button>
                     </div>
@@ -116,6 +187,14 @@ export default function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        <VendorDetailsDialog 
+          vendor={selectedVendor} 
+          open={detailsOpen} 
+          onOpenChange={setDetailsOpen}
+          onApprove={(id) => handleVendorStatus(id, 'approved')}
+          onReject={(id, reason) => handleVendorStatus(id, 'rejected', reason)}
+        />
 
         {/* Pending Products */}
         <Card>
@@ -141,7 +220,17 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => handleProductStatus(p.id, 'rejected')}><XCircle className="h-4 w-4" /></Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => {
+                          setSelectedProduct(p);
+                          setProductPreviewOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleOpenRejectProduct(p.id)}><XCircle className="h-4 w-4" /></Button>
                       <Button size="sm" onClick={() => handleProductStatus(p.id, 'approved')}><CheckCircle className="h-4 w-4" /></Button>
                     </div>
                   </div>
@@ -151,6 +240,40 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+      {/* Product Preview */}
+      <ProductPreviewDialog
+        product={selectedProduct}
+        open={productPreviewOpen}
+        onOpenChange={setProductPreviewOpen}
+        categories={categories}
+        mode="admin"
+        onApprove={(id) => handleProductStatus(id, 'approved')}
+        onReject={(id) => handleOpenRejectProduct(id)}
+      />
+
+      {/* Product Rejection Dialog */}
+      <Dialog open={rejectProductDialogOpen} onOpenChange={setRejectProductDialogOpen}>
+        <DialogContent className="rounded-3xl border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-slate-900">Reject Product Listing</DialogTitle>
+            <DialogDescription className="font-bold text-slate-500">Provide feedback to the seller about why this listing was rejected.</DialogDescription>
+          </DialogHeader>
+          <div className="py-6">
+            <Textarea 
+              placeholder="e.g., Image quality is low, Price is unrealistic..." 
+              value={productRejectionReason}
+              onChange={(e) => setProductRejectionReason(e.target.value)}
+              className="min-h-[120px] rounded-2xl border-slate-200 focus:ring-primary/20 transition-all font-medium"
+            />
+          </div>
+          <DialogFooter className="gap-3">
+            <Button variant="ghost" onClick={() => setRejectProductDialogOpen(false)} className="rounded-xl font-black uppercase text-xs tracking-widest text-slate-400 hover:text-slate-600">Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmRejectProduct} disabled={!productRejectionReason.trim()} className="rounded-xl px-8 font-black uppercase text-xs tracking-widest shadow-lg shadow-destructive/20">
+              Confirm Rejection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

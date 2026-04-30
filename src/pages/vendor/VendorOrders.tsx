@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle, ArrowLeft, Upload, Info, AlertTriangle } from 'lucide-react';
+import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle, ArrowLeft, Upload, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -65,7 +65,7 @@ const statusConfig: Record<OrderStatus, { label: string; icon: typeof Package; c
   confirmed: { label: 'Confirmed', icon: CheckCircle, color: 'bg-secondary/10 text-secondary border-secondary/20' },
   shipped: { label: 'Shipped', icon: Truck, color: 'bg-primary/10 text-primary border-primary/20' },
   delivered: { label: 'Delivered', icon: Package, color: 'bg-success/10 text-success border-success/20' },
-  cancel_requested: { label: 'Cancel Requested', icon: AlertTriangle, color: 'bg-warning/10 text-warning border-warning/20' },
+  cancel_requested: { label: 'Cancellation Pending', icon: AlertTriangle, color: 'bg-warning/10 text-warning border-warning/20' },
   cancelled: { label: 'Cancelled', icon: XCircle, color: 'bg-destructive/10 text-destructive border-destructive/20' },
 };
 
@@ -158,19 +158,15 @@ export default function VendorOrders() {
       toast({ title: 'Please provide a reason for cancellation', variant: 'destructive' });
       return;
     }
-    api.rfqs.update(selectedOrder.id, {
-      vendor_status: 'cancel_requested',
-      cancellation_request: {
-        reason: cancelReason,
-        requestedAt: new Date().toISOString(),
-      }
-    }).then(() => {
+    api.rfqs.vendorAction(selectedOrder.id, 'request_cancellation', cancelReason).then(() => {
       toast({ 
         title: 'Cancellation request submitted', 
         description: 'Admin will review your request and get back to you.' 
       });
       setCancelRequestOpen(false);
       setCancelReason('');
+      // Refresh orders
+      setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'cancel_requested' } : o));
     }).catch((error: any) => {
       toast({ title: 'Failed to submit request', description: error.message, variant: 'destructive' });
     });
@@ -214,6 +210,7 @@ export default function VendorOrders() {
       cancel_requested: null,
       cancelled: null,
     };
+    if (selectedOrder?.status === 'cancel_requested') return null;
     return flow[currentStatus];
   };
 
@@ -365,6 +362,15 @@ export default function VendorOrders() {
                   </Button>
                 )}
                 
+                {selectedOrder.status === 'cancel_requested' && (
+                  <Alert className="bg-destructive/10 border-destructive/20">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <AlertDescription className="text-sm font-medium text-destructive">
+                      A cancellation request is pending admin review. Actions are restricted.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <Alert className="bg-muted/50">
                   <Info className="h-4 w-4" />
                   <AlertDescription className="text-xs">
@@ -419,6 +425,14 @@ export default function VendorOrders() {
             </Card>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -553,7 +567,7 @@ export default function VendorOrders() {
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      {getNextStatus(order.status) && (
+                      {getNextStatus(order.status) && order.status !== 'cancel_requested' && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -566,6 +580,7 @@ export default function VendorOrders() {
                       )}
                     </div>
                   </TableCell>
+
                 </TableRow>
               ))}
             </TableBody>

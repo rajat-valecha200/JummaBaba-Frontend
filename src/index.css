@@ -203,3 +203,36 @@
     display: none;
   }
 }
+
+/* Print Styles for Vendor Auditing */
+@media print {
+  /* Hide everything except the sheet content */
+  body > *:not([role="dialog"]),
+  header,
+  footer,
+  aside,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+
+  [role="dialog"] {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    border: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  [role="dialog"] [data-state="open"] {
+    position: static !important;
+  }
+
+  /* Ensure background colors print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

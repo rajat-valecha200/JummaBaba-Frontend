@@ -231,9 +231,11 @@ export default function HomePage() {
                 Post your requirement and get quotes from multiple suppliers
               </p>
             </div>
-            <Button onClick={() => openConstruction('Request for Quote (RFQ) Board')} size="lg" variant="secondary" className="whitespace-nowrap font-bold uppercase tracking-widest shadow-lg">
+            <Button asChild size="lg" variant="secondary" className="whitespace-nowrap font-bold uppercase tracking-widest shadow-lg">
+              <Link to="/post-requirement">
                 <FileText className="h-5 w-5 mr-2" />
                 Post Your Requirement
+              </Link>
             </Button>
           </div>
         </div>
@@ -249,17 +251,19 @@ export default function HomePage() {
             </Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-            {latestProducts.slice(0, 8).map(product => {
-              const supplier = product.vendor || { companyName: product.supplierName || 'Verified Supplier' };
-              return (
-                <ProductCard 
-                  key={product.id} 
-                  product={product} 
-                  supplier={supplier} 
-                />
-              );
-            })}
+            {latestProducts.slice(0, 8).map(product => (
+              <ProductCard 
+                key={product.id} 
+                product={product} 
+                supplier={product.vendor} 
+              />
+            ))}
           </div>
+          {latestProducts.length === 0 && !isLoading && (
+            <div className="p-10 text-center text-muted-foreground border rounded-xl">
+               No products listed yet. Check back soon for fresh arrivals!
+            </div>
+          )}
         </div>
       </section>
 
@@ -295,18 +299,19 @@ export default function HomePage() {
             </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-            {latestProducts.slice(0, 8).map(product => {
-              // The database product already includes vendor info if available
-              const supplier = product.vendor || { companyName: product.supplierName || 'Verified Supplier' };
-              return (
-                <ProductCard 
-                  key={product.id} 
-                  product={product} 
-                  supplier={supplier} 
-                />
-              );
-            })}
+            {latestProducts.slice(0, 8).map(product => (
+              <ProductCard 
+                key={product.id} 
+                product={product} 
+                supplier={product.vendor} 
+              />
+            ))}
           </div>
+          {latestProducts.length === 0 && !isLoading && (
+            <div className="p-10 text-center text-muted-foreground border rounded-xl">
+               No bulk deals active at the moment.
+            </div>
+          )}
         </div>
       </section>
 

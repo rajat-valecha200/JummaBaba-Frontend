@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Send, 
   Search, 
@@ -14,8 +14,11 @@ import {
   Store,
   User,
   MessageSquare,
-  CornerDownRight
+  CornerDownRight,
+  Plus
 } from 'lucide-react';
+import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -27,6 +30,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,33 +95,148 @@ function MessageStatus({ status }: { status: Message['status'] }) {
 }
 
 export default function AdminMessages() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'all' | 'buyers' | 'vendors'>('all');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // New Chat State
+  const [showNewChat, setShowNewChat] = useState<'vendor' | 'buyer' | null>(null);
+  const [availableParticipants, setAvailableParticipants] = useState<any[]>([]);
+  const [participantSearch, setParticipantSearch] = useState('');
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const playNotificationSound = useCallback(() => {
+    /* 
+    try {
+      const audio = new Audio('/notification_sound.wav');
+      audio.volume = 0.5;
+      audio.play().catch(e => console.log('Audio play blocked by browser:', e));
+    } catch (e) {
+      console.log('Audio play failed:', e);
+    }
+    */
+  }, []);
+
+  const fetchConversations = useCallback(async () => {
+    try {
+      const data = await api.messages.getConversations();
+      const mapped: Conversation[] = data.map((c: any) => ({
+        id: c.participant_id,
+        participantName: c.participant_name,
+        participantAvatar: c.participant_avatar,
+        participantCompany: c.participant_company,
+        participantType: c.participant_role === 'vendor' ? 'vendor' : 'buyer',
+        lastMessage: c.last_message,
+        lastMessageTime: new Date(c.last_message_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+        unreadCount: (c.participant_id === selectedConversation?.id) ? 0 : parseInt(c.unread_count, 10),
+        isOnline: c.is_online,
+        isVerified: true,
+        messages: []
+      }));
+      
+      // Play sound if unread count increased globally
+      const totalUnreadNow = mapped.reduce((sum, c) => sum + c.unreadCount, 0);
+      setConversations(prev => {
+        const totalUnreadPrev = prev.reduce((sum, c) => sum + c.unreadCount, 0);
+        if (totalUnreadNow > totalUnreadPrev) {
+          // playNotificationSound(); // Commented out for now
+        }
+        return mapped;
+      });
+    } catch (error) {
+      console.error('Failed to fetch conversations:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedConversation?.id, playNotificationSound]); // Add dependency on selected ID
+
+  const fetchMessages = useCallback(async () => {
+    if (!selectedConversation?.id || !user?.id) return;
+    try {
+      const history = await api.messages.getHistory(selectedConversation.id);
+      const mappedMessages: Message[] = history.map((m: any) => ({
+        id: m.id,
+        senderId: m.sender_id === user?.id ? 'admin' : m.sender_id,
+        text: m.content,
+        timestamp: new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+        status: m.is_read ? 'read' : 'sent'
+      }));
+      
+      setSelectedConversation(prev => {
+        if (!prev || prev.id !== selectedConversation.id) return prev;
+        if (JSON.stringify(prev.messages) === JSON.stringify(mappedMessages)) return prev;
+        return { ...prev, messages: mappedMessages };
+      });
+
+      // If there are unread messages from the other user, mark them as read
+      const hasUnread = history.some((m: any) => m.sender_id !== user.id && !m.is_read);
+      if (hasUnread) {
+        api.messages.markAsRead(selectedConversation.id).then(() => {
+          window.dispatchEvent(new CustomEvent('refreshAdminStats'));
+          fetchConversations();
+        }).catch(err => console.error('Failed to mark as read in poll:', err));
+      }
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+    }
+  }, [selectedConversation?.id, user?.id, fetchConversations]);
 
   useEffect(() => {
-    const fetchMessages = async () => {
+    fetchConversations();
+    const interval = setInterval(fetchConversations, 10000); // 10s for sidebar
+    return () => clearInterval(interval);
+  }, [fetchConversations]);
+
+  useEffect(() => {
+    if (selectedConversation?.id) {
+      fetchMessages();
+      const interval = setInterval(fetchMessages, 3000); // 3s for active chat
+      return () => clearInterval(interval);
+    }
+  }, [selectedConversation?.id, fetchMessages]);
+
+  useEffect(() => {
+    const fetchParticipants = async () => {
+      if (!showNewChat) return;
       try {
-        setLoading(true);
-        // In local/mock-db this will return empty until real chats start
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
-        });
-        const data = await response.json();
-        // For now we set empty as requested to avoid fakes
-        setConversations([]);
+        const data = await api.profiles.list(showNewChat, 'approved');
+        setAvailableParticipants(data);
       } catch (error) {
-        console.error('Failed to fetch messages:', error);
-      } finally {
-        setLoading(false);
+        console.error('Failed to fetch participants:', error);
       }
     };
-    fetchMessages();
-  }, []);
+    fetchParticipants();
+  }, [showNewChat]);
+
+  const handleStartChat = async (participant: any) => {
+    const existing = conversations.find(c => c.id === participant.id);
+    if (existing) {
+      setSelectedConversation(existing);
+    } else {
+      const newConv: Conversation = {
+        id: participant.id,
+        participantName: participant.full_name,
+        participantAvatar: participant.logo_url,
+        participantCompany: participant.business_name || '',
+        participantType: participant.role === 'vendor' ? 'vendor' : 'buyer',
+        lastMessage: '',
+        lastMessageTime: '',
+        unreadCount: 0,
+        isOnline: participant.is_online,
+        isVerified: true,
+        messages: []
+      };
+      setConversations(prev => [newConv, ...prev]);
+      setSelectedConversation(newConv);
+    }
+    setShowNewChat(null);
+    setParticipantSearch('');
+  };
 
   const filteredConversations = conversations.filter(c => {
     const matchesSearch = c.participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -131,41 +256,34 @@ export default function AdminMessages() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [selectedConversation?.messages]);
 
-  const openConversation = (conv: Conversation) => {
+  const openConversation = async (conv: Conversation) => {
     setSelectedConversation(conv);
-    // Mark as read
+    // Locally zero out count for immediate feedback
     setConversations(prev => prev.map(c => 
       c.id === conv.id ? { ...c, unreadCount: 0 } : c
     ));
+    try {
+      await api.messages.markAsRead(conv.id);
+      // Trigger global stats refresh for the Admin Bell
+      window.dispatchEvent(new CustomEvent('refreshAdminStats'));
+      // Wait a bit for DB to commit before fetching fresh list
+      setTimeout(fetchConversations, 500);
+      fetchMessages();
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
+    }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation) return;
 
-    const newMessage: Message = {
-      id: `m${Date.now()}`,
-      senderId: 'admin',
-      text: messageInput,
-      timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-      status: 'sent',
-    };
-
-    setConversations(prev => prev.map(c => {
-      if (c.id !== selectedConversation.id) return c;
-      return {
-        ...c,
-        messages: [...c.messages, newMessage],
-        lastMessage: messageInput,
-        lastMessageTime: 'Just now',
-      };
-    }));
-
-    setSelectedConversation(prev => prev ? {
-      ...prev,
-      messages: [...prev.messages, newMessage],
-    } : null);
-
-    setMessageInput('');
+    try {
+      await api.messages.send(selectedConversation.id, messageInput.trim());
+      setMessageInput('');
+      fetchConversations();
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
   };
 
   const handleForwardToVendor = (conv: Conversation) => {
@@ -226,18 +344,89 @@ export default function AdminMessages() {
             </Tabs>
           </div>
 
-          {/* Search */}
-          <div className="p-3 border-b border-border">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search conversations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-muted border-border"
-              />
+          {/* Search & Actions */}
+          <div className="p-3 border-b border-border space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 bg-muted border-border"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon" className="bg-b2b-orange hover:bg-b2b-orange/90 h-10 w-10 shrink-0">
+                      <Plus className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 bg-card border-border">
+                    <DropdownMenuLabel>Start New Chat</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setShowNewChat('vendor')}>
+                      <Store className="h-4 w-4 mr-2" /> New Vendor Chat
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowNewChat('buyer')}>
+                      <User className="h-4 w-4 mr-2" /> New Buyer Chat
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </div>
+
+          {/* New Chat Dialog */}
+          <Dialog open={!!showNewChat} onOpenChange={() => setShowNewChat(null)}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Start Conversation with {showNewChat === 'vendor' ? 'Vendor' : 'Buyer'}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    placeholder={`Search ${showNewChat}s...`} 
+                    className="pl-9"
+                    value={participantSearch}
+                    onChange={(e) => setParticipantSearch(e.target.value)}
+                  />
+                </div>
+                <ScrollArea className="h-[300px] pr-4">
+                  <div className="space-y-2">
+                    {availableParticipants
+                      .filter(p => p.full_name.toLowerCase().includes(participantSearch.toLowerCase()) || 
+                                  p.business_name?.toLowerCase().includes(participantSearch.toLowerCase()))
+                      .map(p => (
+                        <button
+                          key={p.id}
+                          className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border"
+                          onClick={() => handleStartChat(p)}
+                        >
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback>{p.full_name[0]}</AvatarFallback>
+                          </Avatar>
+                          <div className="text-left flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-semibold truncate">{p.full_name}</p>
+                              {p.is_online && (
+                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" title="Online" />
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">{p.business_name || p.email}</p>
+                          </div>
+                        </button>
+                      ))}
+                    {availableParticipants.length === 0 && (
+                      <p className="text-center text-sm text-muted-foreground py-10">No {showNewChat}s found</p>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Conversations */}
           <ScrollArea className="flex-1">
@@ -252,8 +441,8 @@ export default function AdminMessages() {
                   <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
                 </div>
                 <h3 className="font-semibold text-foreground">No conversations yet</h3>
-                <p className="text-sm text-muted-foreground mt-1 px-6">
-                  When buyers start inquiring about products, they will appear here.
+                <p className="text-sm text-muted-foreground mt-1 px-6 text-center">
+                  Click the <Plus className="h-3 w-3 inline" /> button to start a new chat with a vendor or buyer.
                 </p>
               </div>
             ) : (
@@ -289,6 +478,9 @@ export default function AdminMessages() {
                             <span className="font-medium truncate text-foreground">
                               {conv.participantName}
                             </span>
+                            {conv.isOnline && (
+                              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" title="Online" />
+                            )}
                             {conv.isVerified && (
                               <Shield className="h-3.5 w-3.5 text-b2b-orange flex-shrink-0" />
                             )}
@@ -314,7 +506,7 @@ export default function AdminMessages() {
                           <p className="text-sm text-muted-foreground truncate">
                             {conv.lastMessage}
                           </p>
-                          {conv.unreadCount > 0 && (
+                          {conv.unreadCount > 0 && selectedConversation?.id !== conv.id && (
                             <Badge className="bg-b2b-orange text-white h-5 px-1.5 text-xs flex-shrink-0">
                               {conv.unreadCount}
                             </Badge>
@@ -351,7 +543,7 @@ export default function AdminMessages() {
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="md:hidden"
+                  className="flex-shrink-0"
                   onClick={() => setSelectedConversation(null)}
                 >
                   <ArrowLeft className="h-5 w-5" />

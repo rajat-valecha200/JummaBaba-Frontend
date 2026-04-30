@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Phone, ArrowRight, User, Building2, MapPin, Check, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Phone, ArrowRight, User, Building2, MapPin, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/AuthContext';
+import { LocationPicker } from '@/components/ui/LocationPicker';
 import {
   buyerStep1EmailSchema,
   buyerStep1PhoneSchema,
@@ -228,13 +229,22 @@ export default function BuyerRegisterPage() {
 
   const { register, login } = useAuth();
 
+  const [loading, setLoading] = useState(false);
+
   const handleRegister = async () => {
     if (!agreedToTerms) {
       toast({ title: 'Terms Required', description: 'Please agree to the terms and conditions', variant: 'destructive' });
       return;
     }
 
+    setLoading(true);
     try {
+      // Pre-check: verify backend is reachable
+      try {
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/public/stats`, { method: 'GET', signal: AbortSignal.timeout(4000) });
+      } catch {
+        throw new Error('Cannot reach the server. Please make sure the backend is running on port 3000 and try again.');
+      }
       await register({
         full_name: formData.fullName,
         email: formData.email || `${formData.phone}@phone.jummababa.local`,
@@ -263,6 +273,8 @@ export default function BuyerRegisterPage() {
         description: error.message,
         variant: 'destructive',
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -466,57 +478,22 @@ export default function BuyerRegisterPage() {
                 <p className="text-xs text-muted-foreground">Format: 22AAAAA0000A1Z5 (15 characters)</p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="address"
-                    placeholder="Street address"
-                    className="pl-10"
-                    value={formData.address}
-                    onChange={(e) => handleInputChange('address', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
-                  <Input
-                    id="city"
-                    placeholder="City"
-                    value={formData.city}
-                    onChange={(e) => handleInputChange('city', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pincode">Pincode</Label>
-                  <Input
-                    id="pincode"
-                    placeholder="110001"
-                    className={touched.pincode && errors.pincode ? 'border-destructive' : ''}
-                    value={formData.pincode}
-                    onChange={(e) => handleInputChange('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    onBlur={() => handleBlur('pincode')}
-                  />
-                  <FieldError error={touched.pincode ? errors.pincode : null} />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="state">State</Label>
-                <Select value={formData.state} onValueChange={(value) => handleInputChange('state', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select state" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {indianStates.map((state) => (
-                      <SelectItem key={state} value={state.toLowerCase()}>{state}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <LocationPicker
+                value={{
+                  address: formData.address,
+                  state: formData.state,
+                  city: formData.city,
+                  pincode: formData.pincode,
+                }}
+                onChange={(updated) => {
+                  Object.entries(updated).forEach(([k, v]) =>
+                    setFormData(prev => ({ ...prev, [k]: v as string }))
+                  );
+                }}
+                errors={errors}
+                touched={touched}
+                onBlur={handleBlur}
+              />
 
               <div className="flex gap-3 mt-4">
                 <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>Back</Button>
@@ -588,9 +565,13 @@ export default function BuyerRegisterPage() {
               </div>
 
               <div className="flex gap-3 mt-4">
-                <Button variant="outline" className="flex-1" onClick={() => setStep(2)}>Back</Button>
-                <Button className="flex-1" onClick={handleRegister}>
-                  Create Account <Check className="ml-2 h-4 w-4" />
+                <Button variant="outline" className="flex-1" onClick={() => setStep(2)} disabled={loading}>Back</Button>
+                <Button className="flex-1" onClick={handleRegister} disabled={loading}>
+                  {loading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating Account...</>
+                  ) : (
+                    <>Create Account <Check className="ml-2 h-4 w-4" /></>
+                  )}
                 </Button>
               </div>
             </div>

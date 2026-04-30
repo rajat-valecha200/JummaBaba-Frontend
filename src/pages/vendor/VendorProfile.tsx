@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Save, Upload, CheckCircle, Clock, Building, MapPin, Phone, Mail, Globe, FileText, Shield, Info, Lock, Loader2 } from 'lucide-react';
+import { Save, Upload, CheckCircle, Clock, Building, MapPin, Phone, Mail, Globe, FileText, Shield, Info, Lock, Loader2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { TrustBadge } from '@/components/b2b/TrustBadge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,23 +52,23 @@ interface ProfileData {
 }
 
 const initialProfile: ProfileData = {
-  companyName: 'Rajesh Electronics Pvt Ltd',
-  logo: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=200&h=200&fit=crop',
-  description: 'Leading manufacturer and supplier of electronic components and consumer electronics. Serving businesses across India since 2005 with quality products and reliable service.',
-  businessType: 'Manufacturer',
-  yearEstablished: 2005,
-  annualTurnover: '₹50-100 Cr',
-  employeeCount: '51-200',
-  gstNumber: '27AABCT1234D1ZA',
-  gstVerified: true,
-  panNumber: 'AABCT1234D',
-  address: '123, Electronics Hub, MIDC Industrial Area',
-  city: 'Mumbai',
-  state: 'Maharashtra',
-  pincode: '400069',
-  phone: '+91 22 1234 5678',
-  email: 'sales@rajeshelectronics.com',
-  website: 'www.rajeshelectronics.com',
+  companyName: '',
+  logo: '',
+  description: '',
+  businessType: '',
+  yearEstablished: new Date().getFullYear(),
+  annualTurnover: 'Less than ₹1 Cr',
+  employeeCount: '1-10',
+  gstNumber: '',
+  gstVerified: false,
+  panNumber: '',
+  address: '',
+  city: '',
+  state: '',
+  pincode: '',
+  phone: '',
+  email: '',
+  website: '',
 };
 
 const businessTypes = [
@@ -102,13 +108,22 @@ const indianStates = [
   'Uttarakhand', 'West Bengal',
 ];
 
+interface AccountStats {
+  productCount: number;
+  orderCount: number;
+  memberSince: string;
+}
+
 export default function VendorProfile() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [profile, setProfile] = useState<ProfileData>(initialProfile);
+  const [stats, setStats] = useState<AccountStats | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [gstVerifying, setGstVerifying] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -116,26 +131,67 @@ export default function VendorProfile() {
       try {
         const data = await api.auth.getMe();
         const businessDetails = data.business_details || {};
-        const bankDetails = data.bank_details || {};
+        const docs = data.document_paths || {};
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+        // Parse address: backend stores full address in location field, details split in business_details
+        const locationStr: string = data.location || '';
+        const city = businessDetails.city || '';
+        const state = businessDetails.state || '';
+        const pincode = businessDetails.pincode || '';
+        
+        // Street address = remove "city, state, pincode" suffix from location string
+        const locationParts = [city, state, pincode].filter(Boolean);
+        let streetAddress = locationStr;
+        for (const part of locationParts) {
+          streetAddress = streetAddress.replace(new RegExp(',?\\s*' + part + '\\s*,?', 'i'), '');
+        }
+        streetAddress = streetAddress.replace(/,\s*,/g, ',').replace(/^,|,$/g, '').trim();
+
+        const rawBusinessType = data.business_type || businessDetails.business_type || businessDetails.businessType || 'Manufacturer';
+        // Normalize business type to match one of our select options
+        const normalizedBusinessType = businessTypes.find(
+          t => t.toLowerCase() === rawBusinessType.toLowerCase()
+        ) || 'Manufacturer';
+
         setProfile({
-          companyName: data.business_name || data.full_name || '',
-          logo: data.logo_url || data.logo || 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=200&h=200&fit=crop',
-          description: data.description || '',
-          businessType: data.business_type || 'Manufacturer',
-          yearEstablished: data.established_year || 2024,
-          annualTurnover: businessDetails.annualTurnover || 'Less than ₹1 Cr',
-          employeeCount: businessDetails.employeeCount || '1-10',
-          gstNumber: data.gst_number || '',
+          companyName: data.companyName || data.business_name || data.full_name || '',
+          logo: data.logo || '',
+          description: data.description || businessDetails.description || '',
+          businessType: normalizedBusinessType,
+          yearEstablished: data.established_year || businessDetails.established_year || businessDetails.yearEstablished || new Date().getFullYear(),
+          annualTurnover: businessDetails.annualTurnover || businessDetails.annual_turnover || 'Less than ₹1 Cr',
+          employeeCount: businessDetails.employeeCount || businessDetails.employee_count || '1-10',
+          gstNumber: data.gst_number || businessDetails.gst_number || businessDetails.gstNumber || '',
           gstVerified: data.status === 'approved',
-          panNumber: data.pan_number || '',
-          address: data.location || '',
-          city: businessDetails.city || '',
-          state: businessDetails.state || '',
-          pincode: businessDetails.pincode || '',
+          panNumber: data.pan_number || businessDetails.pan_number || businessDetails.panNumber || '',
+          address: streetAddress || businessDetails.address || locationStr,
+          city,
+          state,
+          pincode,
           phone: data.phone || '',
           email: data.email || '',
-          website: businessDetails.website || bankDetails.website || '',
+          website: businessDetails.website || '',
         });
+
+        // Member since from created_at
+        const memberSince = data.created_at
+          ? new Date(data.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+          : '—';
+
+        // Real product and order counts
+        let productCount = 0;
+        let orderCount = 0;
+        try {
+          const products = await apiFetch('/products?seller=me&limit=1');
+          productCount = products.total ?? (Array.isArray(products) ? products.length : 0);
+        } catch { /* ignore */ }
+        try {
+          const orders = await apiFetch('/orders?limit=1');
+          orderCount = orders.total ?? (Array.isArray(orders) ? orders.length : 0);
+        } catch { /* ignore */ }
+
+        setStats({ productCount, orderCount, memberSince });
       } catch (error) {
         console.error('Failed to fetch profile:', error);
       } finally {
@@ -173,19 +229,7 @@ export default function VendorProfile() {
     }
   };
 
-  const handleVerifyGst = () => {
-    if (!profile.gstNumber || profile.gstNumber.length !== 15) {
-      toast({ title: 'Please enter a valid 15-digit GST number', variant: 'destructive' });
-      return;
-    }
-    setGstVerifying(true);
-    // Simulate verification
-    setTimeout(() => {
-      setProfile({ ...profile, gstVerified: true });
-      setGstVerifying(false);
-      toast({ title: 'GST number verified successfully!' });
-    }, 2000);
-  };
+
 
   const updateField = (field: keyof ProfileData, value: string | number | boolean) => {
     setProfile({ ...profile, [field]: value });
@@ -276,9 +320,12 @@ export default function VendorProfile() {
               <div className="flex items-start gap-4">
                 <div className="relative">
                   <img
-                    src={profile.logo}
+                    src={profile.logo || 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=200&h=200&fit=crop'}
                     alt={profile.companyName}
                     className="w-24 h-24 rounded-lg object-cover border"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=200&h=200&fit=crop';
+                    }}
                   />
                   {isEditing && (
                     <Button
@@ -525,7 +572,25 @@ export default function VendorProfile() {
             <CardContent className="space-y-4">
               <div>
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="gst">GST Number</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="gst">GST Number</Label>
+                    {user?.document_paths?.gst_certificate && (
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const url = user.document_paths!.gst_certificate!.startsWith('http') 
+                            ? user.document_paths!.gst_certificate! 
+                            : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${user.document_paths!.gst_certificate}`;
+                          setPreviewImage(url);
+                          setPreviewTitle('GST Certificate');
+                        }}
+                        className="text-primary hover:text-primary/80 transition-colors"
+                        title="View GST Certificate"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                   {profile.gstVerified && (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -535,7 +600,7 @@ export default function VendorProfile() {
                         </Badge>
                       </TooltipTrigger>
                       <TooltipContent>
-                        For security reasons, GST number cannot be edited after verification.
+                        GST is verified by JummaBaba Admin.
                       </TooltipContent>
                     </Tooltip>
                   )}
@@ -544,52 +609,48 @@ export default function VendorProfile() {
                   <Input
                     id="gst"
                     value={profile.gstNumber}
-                    onChange={(e) => {
-                      updateField('gstNumber', e.target.value.toUpperCase());
-                      updateField('gstVerified', false);
-                    }}
-                    disabled={profile.gstVerified}
+                    readOnly
+                    disabled
                     placeholder="22AAAAA0000A1Z5"
                     maxLength={15}
-                    className="font-mono"
+                    className="font-mono bg-muted/50"
                   />
-                  {profile.gstVerified && (
-                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  )}
+                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                 </div>
               </div>
 
-              {profile.gstVerified ? (
-                <Alert className="bg-success/5 border-success/20">
-                  <CheckCircle className="h-4 w-4 text-success" />
-                  <AlertDescription className="text-success">
-                    GST verified. For security reasons, this cannot be edited.
+              {!profile.gstVerified && (
+                <Alert className="bg-amber-50 border-amber-200">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-700 text-xs">
+                    Verification is pending admin review.
                   </AlertDescription>
                 </Alert>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg text-warning">
-                    <Clock className="h-5 w-5" />
-                    <div>
-                      <p className="font-medium">Not Verified</p>
-                      <p className="text-xs opacity-80">Verify to get the GST badge</p>
-                    </div>
-                  </div>
-                  <Button
-                    className="w-full"
-                    onClick={handleVerifyGst}
-                    disabled={gstVerifying || !profile.gstNumber}
-                  >
-                    {gstVerifying ? 'Verifying...' : 'Verify GST Number'}
-                  </Button>
-                </div>
               )}
 
               <Separator />
 
               <div>
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="pan">PAN Number</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="pan">PAN Number</Label>
+                    {user?.document_paths?.pan_card && (
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const url = user.document_paths!.pan_card!.startsWith('http') 
+                            ? user.document_paths!.pan_card! 
+                            : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${user.document_paths!.pan_card}`;
+                          setPreviewImage(url);
+                          setPreviewTitle('PAN Card');
+                        }}
+                        className="text-primary hover:text-primary/80 transition-colors"
+                        title="View PAN Card"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                   {profile.panNumber && (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -599,7 +660,7 @@ export default function VendorProfile() {
                         </Badge>
                       </TooltipTrigger>
                       <TooltipContent>
-                        For security reasons, PAN number cannot be edited after submission.
+                        PAN number has been submitted.
                       </TooltipContent>
                     </Tooltip>
                   )}
@@ -612,12 +673,12 @@ export default function VendorProfile() {
                     disabled
                     placeholder="AAAAA1234A"
                     maxLength={10}
-                    className="font-mono"
+                    className="font-mono bg-muted/50"
                   />
-                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  For security reasons, PAN cannot be edited. Contact support to update.
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  PAN cannot be edited. Contact support for updates.
                 </p>
               </div>
             </CardContent>
@@ -659,7 +720,7 @@ export default function VendorProfile() {
             </CardContent>
           </Card>
 
-          {/* Quick Stats */}
+          {/* Account Stats — real data */}
           <Card>
             <CardHeader>
               <CardTitle>Account Stats</CardTitle>
@@ -668,25 +729,54 @@ export default function VendorProfile() {
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Products Listed</span>
-                  <span className="font-medium">245</span>
+                  <span className="font-medium">
+                    {stats === null ? <span className="inline-block w-8 h-4 bg-muted animate-pulse rounded" /> : stats.productCount}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Orders</span>
-                  <span className="font-medium">1,234</span>
+                  <span className="font-medium">
+                    {stats === null ? <span className="inline-block w-8 h-4 bg-muted animate-pulse rounded" /> : stats.orderCount}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Rating</span>
-                  <span className="font-medium">4.8 ★</span>
+                  <span className="text-muted-foreground">Account Status</span>
+                  <span className={`font-medium capitalize ${user?.status === 'approved' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {user?.status || 'Pending'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Member Since</span>
-                  <span className="font-medium">Jan 2020</span>
+                  <span className="font-medium">
+                    {stats === null ? <span className="inline-block w-14 h-4 bg-muted animate-pulse rounded" /> : stats.memberSince}
+                  </span>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {/* Image Preview Modal */}
+      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden bg-black/5 border-none">
+          <DialogHeader className="p-4 bg-background border-b">
+            <DialogTitle>{previewTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="p-2 flex items-center justify-center min-h-[300px]">
+            {previewImage && (
+              <img 
+                src={previewImage} 
+                alt={previewTitle} 
+                className="max-w-full max-h-[70vh] object-contain rounded shadow-lg"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=800&h=600&fit=crop';
+                }}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

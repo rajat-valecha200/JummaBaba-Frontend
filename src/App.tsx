@@ -27,6 +27,8 @@ import BuyerMessages from "./pages/buyer/BuyerMessages";
 import BuyerWishlist from "./pages/buyer/BuyerWishlist";
 import CheckoutPage from "./pages/buyer/CheckoutPage";
 import OrderConfirmationPage from "./pages/buyer/OrderConfirmationPage";
+import PostRfqPage from "./pages/buyer/PostRfqPage";
+import BuyerSettings from "./pages/buyer/BuyerSettings";
 
 // Vendor Pages
 import VendorDashboard from "./pages/vendor/VendorDashboard";
@@ -95,8 +97,8 @@ const App = () => (
                 <Route path="/buyer/rfqs" element={<BuyerRfqs />} />
                 <Route path="/buyer/messages" element={<BuyerMessages />} />
                 <Route path="/buyer/profile" element={<BuyerProfile />} />
-                <Route path="/buyer/settings" element={<BuyerDashboard />} />
-                <Route path="/post-requirement" element={<BuyerRfqs />} />
+                <Route path="/buyer/settings" element={<BuyerSettings />} />
+                <Route path="/post-requirement" element={<PostRfqPage />} />
               </Route>
 
               {/* Vendor dashboard routes */}

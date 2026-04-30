@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Eye, Search, Filter, Star } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, Search, Filter, Star, Loader2, FileText, Clock, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,9 +28,15 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { VendorDetailsDialog } from '@/components/admin/VendorDetailsDialog';
 import { useToast } from '@/hooks/use-toast';
-import { api, apiFetch } from '@/lib/api';
+import { api, apiFetch, normalizeProfile } from '@/lib/api';
 import { TrustBadge } from '@/components/b2b/TrustBadge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type VendorStatus = 'pending' | 'approved' | 'rejected';
 
@@ -42,22 +48,24 @@ export default function AdminVendors() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVendor, setSelectedVendor] = useState<any | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [imagePreviewTitle, setImagePreviewTitle] = useState('');
 
   const fetchVendors = async () => {
     try {
       const data = await api.profiles.list('vendor');
-      setVendors(data.map((v: any) => ({
+      setVendors(data.map((v: any) => normalizeProfile({
         ...v,
-        companyName: v.business_name || v.full_name,
-        logo: v.logo || 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop',
         location: v.location || 'Not Specified',
         gstNumber: v.gst_number || 'N/A',
         establishedYear: v.established_year || 'N/A',
         totalProducts: v.total_products || 0,
         submittedAt: v.created_at,
         panNumber: v.pan_number || 'N/A',
-        businessType: v.business_type || 'N/A',
-        documents: v.document_paths || {}
+        businessType: v.business_type || 'N/A'
       })));
     } catch (error) {
       console.error('Failed to fetch vendors:', error);
@@ -77,26 +85,43 @@ export default function AdminVendors() {
     return matchesStatus && matchesSearch;
   });
 
-  const handleApprove = async (vendorId: string) => {
+  const handleVendorStatus = async (vendorId: string, status: 'approved' | 'rejected', reason?: string) => {
     try {
-      await api.profiles.updateStatus(vendorId, 'approved');
-      toast({ title: 'Vendor Approved' });
+      let updated;
+      if (reason === 'reset') {
+        updated = await api.profiles.updateStatus(vendorId, 'pending');
+        toast({ title: 'Vendor Reset to Pending' });
+      } else {
+        updated = await api.profiles.updateStatus(vendorId, status, reason);
+        toast({ title: `Vendor ${status === 'approved' ? 'Approved' : 'Rejected'}` });
+      }
+      
+      // Update selected vendor state to reflect changes in the details sheet immediately
+      if (selectedVendor && selectedVendor.id === vendorId) {
+        setSelectedVendor({ ...selectedVendor, status: updated.status, rejection_reason: updated.rejection_reason });
+      }
+      
       fetchVendors();
     } catch (error: any) {
       toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
     }
-    setDetailsOpen(false);
   };
 
-  const handleReject = async (vendorId: string) => {
-    try {
-      await api.profiles.updateStatus(vendorId, 'rejected');
-      toast({ title: 'Vendor Rejected' });
-      fetchVendors();
-    } catch (error: any) {
-      toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
-    }
-    setDetailsOpen(false);
+  const handleApprove = async (vendorId: string) => {
+    await handleVendorStatus(vendorId, 'approved');
+  };
+
+  const handleOpenReject = (vendorId: string) => {
+    setRejectingId(vendorId);
+    setRejectionReason('');
+    setRejectDialogOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectingId) return;
+    await handleVendorStatus(rejectingId, 'rejected', rejectionReason);
+    setRejectDialogOpen(false);
+    setRejectingId(null);
   };
 
   const handleToggleTop = async (vendorId: string, currentStatus: boolean) => {
@@ -115,18 +140,46 @@ export default function AdminVendors() {
     }
   };
 
-  const getStatusBadge = (status: VendorStatus) => {
+  const getStatusBadge = (status: VendorStatus, reason?: string) => {
     switch (status) {
       case 'approved':
         return <Badge className="bg-success/10 text-success border-success/20">Approved</Badge>;
       case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
+        return (
+          <div className="flex flex-col gap-1.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="destructive" className="cursor-help w-fit">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Rejected
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="font-bold mb-1">Rejection Reason:</p>
+                <p className="text-sm font-medium">{reason}</p>
+              </TooltipContent>
+            </Tooltip>
+            {reason && (
+              <p className="text-[10px] font-bold text-destructive/70 italic max-w-[150px] leading-tight pl-1 border-l-2 border-destructive/20">
+                {reason}
+              </p>
+            )}
+          </div>
+        );
       default:
         return <Badge variant="secondary">Pending</Badge>;
     }
   };
 
   const pendingCount = vendors.filter(v => v.status === 'pending').length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -216,7 +269,7 @@ export default function AdminVendors() {
                   <TableCell className="font-mono text-sm">{vendor.gstNumber}</TableCell>
                   <TableCell>{vendor.establishedYear}</TableCell>
                   <TableCell>{vendor.totalProducts}</TableCell>
-                  <TableCell>{getStatusBadge(vendor.status)}</TableCell>
+                  <TableCell>{getStatusBadge(vendor.status, vendor.rejectionReason)}</TableCell>
                   <TableCell>
                     <Button
                       size="sm"
@@ -242,13 +295,18 @@ export default function AdminVendors() {
                       </Button>
                       {vendor.status === 'pending' && (
                         <>
-                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleReject(vendor.id)}>
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleOpenReject(vendor.id)}>
                             <XCircle className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="ghost" className="text-success hover:text-success" onClick={() => handleApprove(vendor.id)}>
                             <CheckCircle className="h-4 w-4" />
                           </Button>
                         </>
+                      )}
+                      {vendor.status === 'rejected' && (
+                        <Button size="sm" variant="ghost" className="text-amber-600 hover:text-amber-700" onClick={() => handleVendorStatus(vendor.id, 'rejected', 'reset')}>
+                          <Clock className="h-4 w-4" />
+                        </Button>
                       )}
                     </div>
                   </TableCell>
@@ -265,86 +323,65 @@ export default function AdminVendors() {
         </CardContent>
       </Card>
 
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-lg">
+      <VendorDetailsDialog 
+        vendor={selectedVendor}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        onApprove={(id) => handleApprove(id)}
+        onReject={(id, reason) => {
+          if (reason === 'reset') {
+            handleVendorStatus(id, 'rejected', 'reset');
+          } else {
+            handleOpenReject(id);
+          }
+        }}
+      />
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Vendor Details</DialogTitle>
-            <DialogDescription>Review vendor information before approval</DialogDescription>
+            <DialogTitle>Reject Vendor Application</DialogTitle>
+            <DialogDescription>Please provide a reason for rejecting this vendor.</DialogDescription>
           </DialogHeader>
-          {selectedVendor && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <img src={selectedVendor.logo} alt={selectedVendor.companyName} className="w-16 h-16 rounded-lg object-cover" />
-                <div>
-                  <h3 className="font-semibold text-lg">{selectedVendor.companyName}</h3>
-                  <p className="text-muted-foreground">{selectedVendor.location}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
-                <div>
-                  <p className="text-sm text-muted-foreground">GST Number</p>
-                  <p className="font-mono">{selectedVendor.gstNumber}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">PAN Number</p>
-                  <p className="font-mono">{selectedVendor.panNumber}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Established</p>
-                  <p>{selectedVendor.establishedYear}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Business Type</p>
-                  <p>{selectedVendor.businessType}</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h4 className="font-semibold text-sm">Verification Documents</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {['gst', 'pan', 'cheque'].map((docType) => {
-                    const path = selectedVendor.documents?.[docType];
-                    const url = path ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/storage/${path}` : null;
-                    
-                    return (
-                      <div key={docType} className="border rounded-lg p-2 text-center bg-card">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">{docType}</p>
-                        {url ? (
-                          <a href={url} target="_blank" rel="noreferrer" className="block aspect-square bg-muted rounded overflow-hidden hover:opacity-80 transition-opacity">
-                            <img src={url} alt={docType} className="w-full h-full object-cover" />
-                          </a>
-                        ) : (
-                          <div className="aspect-square bg-muted rounded flex items-center justify-center text-[10px] text-muted-foreground italic">
-                            Missing
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <TrustBadge type="gst" />
-                <TrustBadge type="verified" />
-              </div>
-            </div>
-          )}
+          <div className="py-4">
+            <Input 
+              placeholder="e.g., Documents are unclear, Business type not supported..." 
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+            />
+          </div>
           <DialogFooter>
-            {selectedVendor?.status === 'pending' && (
-              <>
-                <Button variant="outline" onClick={() => handleReject(selectedVendor.id)}>
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Reject
-                </Button>
-                <Button onClick={() => handleApprove(selectedVendor.id)}>
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Approve
-                </Button>
-              </>
-            )}
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmReject} disabled={!rejectionReason.trim()}>
+              Confirm Rejection
+            </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Document Preview Modal */}
+      <Dialog open={!!imagePreviewUrl} onOpenChange={(open) => !open && setImagePreviewUrl(null)}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b bg-background">
+            <DialogTitle>{imagePreviewTitle}</DialogTitle>
+            <DialogDescription className="sr-only">Viewing document: {imagePreviewTitle}</DialogDescription>
+          </DialogHeader>
+          <div className="p-4 flex items-center justify-center min-h-[400px] bg-muted/20">
+            {imagePreviewUrl && (
+              imagePreviewUrl.endsWith('.pdf') ? (
+                <iframe 
+                  src={imagePreviewUrl} 
+                  className="w-full h-[70vh] border-0"
+                  title="PDF Preview"
+                />
+              ) : (
+                <img 
+                  src={imagePreviewUrl} 
+                  alt={imagePreviewTitle} 
+                  className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-xl" 
+                />
+              )
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

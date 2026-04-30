@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Phone, ArrowRight, User, Building2, MapPin, Check, FileText, Upload, BadgeCheck, Package, AlertCircle, X, File, Image } from 'lucide-react';
+import { Eye, EyeOff, Mail, Phone, ArrowRight, User, Building2, MapPin, Check, FileText, Upload, BadgeCheck, Package, AlertCircle, X, File, Image, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
+import { LocationPicker } from '@/components/ui/LocationPicker';
 import {
   sellerStep1EmailSchema,
   sellerStep1PhoneSchema,
@@ -401,6 +402,12 @@ export default function SellerRegisterPage() {
 
     setLoading(true);
     try {
+      // Pre-check: verify backend is reachable before attempting registration
+      try {
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/public/stats`, { method: 'GET', signal: AbortSignal.timeout(4000) });
+      } catch {
+        throw new Error('Cannot reach the server. Please make sure the backend is running on port 3000 and try again.');
+      }
       await register({
         full_name: formData.fullName,
         email: formData.email || `${formData.phone}@phone.jummababa.local`,
@@ -440,31 +447,31 @@ export default function SellerRegisterPage() {
         }
       });
 
-      // Upload documents if they exist
-      const docUploads = [];
+      // Step 2: Upload documents — token is now in localStorage
+      const docUploads: Promise<any>[] = [];
       if (documents.gstCertificate) {
-        const formData = new FormData();
-        formData.append('file', documents.gstCertificate.file);
-        docUploads.push(apiFetch(`/profiles/upload/gst_certificate`, { method: 'POST', body: formData, headers: {} }));
+        const fd = new FormData();
+        fd.append('file', documents.gstCertificate.file);
+        docUploads.push(apiFetch(`/profiles/upload/gst_certificate`, { method: 'POST', body: fd, headers: {} }));
       }
       if (documents.panCard) {
-        const formData = new FormData();
-        formData.append('file', documents.panCard.file);
-        docUploads.push(apiFetch(`/profiles/upload/pan_card`, { method: 'POST', body: formData, headers: {} }));
+        const fd = new FormData();
+        fd.append('file', documents.panCard.file);
+        docUploads.push(apiFetch(`/profiles/upload/pan_card`, { method: 'POST', body: fd, headers: {} }));
       }
       if (documents.cancelledCheque) {
-        const formData = new FormData();
-        formData.append('file', documents.cancelledCheque.file);
-        docUploads.push(apiFetch(`/profiles/upload/cancelled_cheque`, { method: 'POST', body: formData, headers: {} }));
+        const fd = new FormData();
+        fd.append('file', documents.cancelledCheque.file);
+        docUploads.push(apiFetch(`/profiles/upload/cancelled_cheque`, { method: 'POST', body: fd, headers: {} }));
       }
 
       if (docUploads.length > 0) {
         await Promise.all(docUploads);
       }
-      
-      toast({ 
-        title: 'Registration Submitted!', 
-        description: 'Your seller account is under review. We\'ll notify you once approved.' 
+
+      toast({
+        title: 'Registration Submitted!',
+        description: 'Your seller account is under review. We\'ll notify you once approved.'
       });
       navigate('/vendor/dashboard');
     } catch (error: any) {
@@ -476,37 +483,46 @@ export default function SellerRegisterPage() {
 
   const totalSteps = 5;
 
+  const stepLabels = [
+    { id: 1, label: 'Account' },
+    { id: 2, label: 'Business' },
+    { id: 3, label: 'Products' },
+    { id: 4, label: 'Bank & Docs' },
+    { id: 5, label: 'Review' },
+  ];
+
   return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4 py-8">
-      <Card className="w-full max-w-2xl">
-        <CardHeader className="text-center">
-          <Link to="/" className="mx-auto"><Logo size="lg" /></Link>
-          <CardTitle className="mt-4">Register as Seller</CardTitle>
-          <CardDescription>Join India's leading B2B marketplace and grow your business</CardDescription>
-          
+    <div className="min-h-screen bg-muted/30">
+      {/* Sticky Top Header */}
+      <div className="sticky top-0 z-20 bg-background border-b shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <Link to="/"><Logo size="md" /></Link>
+            <div className="text-right">
+              <p className="text-sm font-semibold text-foreground">Register as Seller</p>
+              <p className="text-xs text-muted-foreground">Step {step} of {totalSteps}</p>
+            </div>
+          </div>
+
           {/* Progress Steps */}
-          <div className="flex items-center justify-between mt-6 px-2 sm:px-6">
-            {[
-              { id: 1, label: 'Account' },
-              { id: 2, label: 'Business' },
-              { id: 3, label: 'Products' },
-              { id: 4, label: 'Bank' },
-              { id: 5, label: 'Confirm' }
-            ].map((s, index) => (
+          <div className="flex items-center justify-between">
+            {stepLabels.map((s, index) => (
               <div key={s.id} className="flex flex-col items-center flex-1 relative">
-                {/* Connector Line */}
                 {index > 0 && (
                   <div className={`absolute left-[-50%] top-4 w-full h-[2px] -translate-y-1/2 z-0 ${
                     step >= s.id ? 'bg-primary' : 'bg-muted'
                   }`} />
                 )}
-                
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium z-10 transition-colors ${
-                  step >= s.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold z-10 transition-all ${
+                  step > s.id
+                    ? 'bg-primary text-primary-foreground'
+                    : step === s.id
+                    ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
+                    : 'bg-muted text-muted-foreground'
                 }`}>
                   {step > s.id ? <Check className="h-3 w-3" /> : s.id}
                 </div>
-                <span className={`text-[10px] sm:text-xs mt-2 font-medium transition-colors ${
+                <span className={`text-[10px] sm:text-xs mt-1.5 font-medium transition-colors hidden sm:block ${
                   step >= s.id ? 'text-primary' : 'text-muted-foreground'
                 }`}>
                   {s.label}
@@ -514,9 +530,14 @@ export default function SellerRegisterPage() {
               </div>
             ))}
           </div>
-        </CardHeader>
+        </div>
+      </div>
 
-        <CardContent>
+      {/* Scrollable Content Area */}
+      <div className="max-w-2xl mx-auto px-4 py-8 pb-16">
+        <Card className="border-0 shadow-none bg-transparent sm:border sm:shadow-sm sm:bg-card sm:rounded-xl">
+          <CardContent className="pt-6 px-0 sm:px-6">
+
           {/* Step 1: Account Details */}
           {step === 1 && (
             <div className="space-y-4">
@@ -771,56 +792,20 @@ export default function SellerRegisterPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="address">Business Address</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="address"
-                    placeholder="Street address"
-                    className="pl-10"
-                    value={formData.address}
-                    onChange={(e) => handleInputChange('address', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
-                  <Input
-                    id="city"
-                    placeholder="City"
-                    value={formData.city}
-                    onChange={(e) => handleInputChange('city', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="state">State</Label>
-                  <Select value={formData.state} onValueChange={(value) => handleInputChange('state', value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="State" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {indianStates.map((state) => (
-                        <SelectItem key={state} value={state.toLowerCase()}>{state}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pincode">Pincode</Label>
-                  <Input
-                    id="pincode"
-                    placeholder="110001"
-                    className={touched.pincode && errors.pincode ? 'border-destructive' : ''}
-                    value={formData.pincode}
-                    onChange={(e) => handleInputChange('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    onBlur={() => handleBlur('pincode')}
-                  />
-                  <FieldError error={touched.pincode ? errors.pincode : null} />
-                </div>
-              </div>
+              <LocationPicker
+                value={{
+                  address: formData.address,
+                  state: formData.state,
+                  city: formData.city,
+                  pincode: formData.pincode,
+                }}
+                onChange={(updated) => {
+                  Object.entries(updated).forEach(([k, v]) => handleInputChange(k, v as string));
+                }}
+                errors={errors}
+                touched={touched}
+                onBlur={handleBlur}
+              />
 
               <div className="flex gap-3 mt-4">
                 <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>Back</Button>
@@ -1109,7 +1094,7 @@ export default function SellerRegisterPage() {
 
           {/* Step 5: Review & Confirm */}
           {step === 5 && (
-            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+            <div className="space-y-4">
               <div className="bg-muted/50 rounded-lg p-4 space-y-3">
                 <h3 className="font-medium text-sm text-foreground flex items-center gap-2">
                   <User className="h-4 w-4" /> Account Details
@@ -1179,15 +1164,19 @@ export default function SellerRegisterPage() {
               </div>
 
               <div className="flex gap-3 mt-4">
-                <Button variant="outline" className="flex-1" onClick={() => setStep(4)}>Back</Button>
-                <Button className="flex-1" onClick={handleRegister}>
-                  Submit Application <Check className="ml-2 h-4 w-4" />
+                <Button variant="outline" className="flex-1" onClick={() => setStep(4)} disabled={loading}>Back</Button>
+                <Button className="flex-1" onClick={handleRegister} disabled={loading}>
+                  {loading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Submitting...</>
+                  ) : (
+                    <>Submit Application <Check className="ml-2 h-4 w-4" /></>
+                  )}
                 </Button>
               </div>
             </div>
           )}
 
-          <div className="mt-6 text-center text-sm">
+          <div className="mt-8 pt-6 border-t text-center text-sm">
             <p className="text-muted-foreground">
               Already have an account?{' '}
               <Link to="/login" className="text-primary font-medium hover:underline">Login</Link>
@@ -1197,8 +1186,9 @@ export default function SellerRegisterPage() {
               <Link to="/buyer/register" className="text-primary font-medium hover:underline">Register as Buyer</Link>
             </p>
           </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

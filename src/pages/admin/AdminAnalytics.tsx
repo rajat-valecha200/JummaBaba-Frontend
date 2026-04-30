@@ -101,7 +101,7 @@ export default function AdminAnalytics() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Active Buyers</p>
-                <p className="text-2xl font-bold">{formatNumber(latestUsers.buyers)}</p>
+                <p className="text-2xl font-bold">{formatNumber(buyersCount)}</p>
                 <div className="flex items-center gap-1 text-success text-sm mt-1">
                   <TrendingUp className="h-4 w-4" />
                   <span>+12.8% this month</span>
@@ -118,7 +118,7 @@ export default function AdminAnalytics() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Active Vendors</p>
-                <p className="text-2xl font-bold">{latestUsers.vendors}</p>
+                <p className="text-2xl font-bold">{formatNumber(vendorsCount)}</p>
                 <div className="flex items-center gap-1 text-success text-sm mt-1">
                   <TrendingUp className="h-4 w-4" />
                   <span>+10.4% this month</span>

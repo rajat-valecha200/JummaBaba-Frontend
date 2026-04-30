@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Eye, Search, Filter } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, Search, Filter, Loader2, Clock, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
@@ -31,6 +31,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { formatPrice } from '@/lib/utils';
+import { ProductPreviewDialog } from '@/components/admin/ProductPreviewDialog';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type ProductStatus = 'pending' | 'approved' | 'rejected';
 
@@ -58,6 +65,19 @@ export default function AdminProducts() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [categories, setCategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchDeps = async () => {
+      try {
+        const cats = await api.categories.list();
+        setCategories(cats);
+      } catch (err) {
+        console.error('Failed to fetch categories', err);
+      }
+    };
+    fetchDeps();
+  }, []);
 
   const fetchProducts = async () => {
     try {
@@ -66,6 +86,7 @@ export default function AdminProducts() {
       setProductList(data.map((p: any) => ({
         ...p,
         supplierName: p.supplier_name || 'System Vendor',
+        categoryId: p.category_id,
         category: p.category_id || p.category,
         image: p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600',
         submittedAt: p.created_at,
@@ -114,7 +135,7 @@ export default function AdminProducts() {
     if (!rejectingId) return;
     try {
       await api.products.updateStatus(rejectingId, 'rejected', rejectionReason);
-      setProductList(productList.map(p => p.id === rejectingId ? { ...p, status: 'rejected' as ProductStatus, rejection_reason: rejectionReason } : p));
+      setProductList(productList.map(p => p.id === rejectingId ? { ...p, status: 'rejected' as ProductStatus, rejectionReason: rejectionReason } : p));
       toast({ title: 'Product Rejected' });
       setRejectDialogOpen(false);
       setRejectingId(null);
@@ -124,18 +145,56 @@ export default function AdminProducts() {
     }
   };
 
-  const getStatusBadge = (status: ProductStatus) => {
+  const handleRevoke = async (productId: string) => {
+    try {
+      await api.products.updateStatus(productId, 'pending', '');
+      setProductList(productList.map(p => p.id === productId ? { ...p, status: 'pending' as ProductStatus, rejectionReason: '' } : p));
+      toast({ title: 'Rejection Revoked', description: 'Product is now pending review again.' });
+    } catch (error: any) {
+      toast({ title: 'Failed to revoke', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const getStatusBadge = (status: ProductStatus, reason?: string) => {
     switch (status) {
       case 'approved':
         return <Badge className="bg-success/10 text-success border-success/20">Approved</Badge>;
       case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
+        return (
+          <div className="flex flex-col gap-1.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="destructive" className="cursor-help w-fit">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Rejected
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="font-bold mb-1">Rejection Reason:</p>
+                <p className="text-sm font-medium">{reason}</p>
+              </TooltipContent>
+            </Tooltip>
+            {reason && (
+              <p className="text-[10px] font-bold text-destructive/70 italic max-w-[150px] leading-tight pl-1 border-l-2 border-destructive/20">
+                {reason}
+              </p>
+            )}
+          </div>
+        );
       default:
         return <Badge variant="secondary">Pending</Badge>;
     }
   };
 
   const pendingCount = productList.filter(p => p.status === 'pending').length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -226,7 +285,7 @@ export default function AdminProducts() {
                   <TableCell>{product.supplierName}</TableCell>
                   <TableCell>{formatPrice(product.minPrice)}</TableCell>
                   <TableCell>{product.moq} units</TableCell>
-                  <TableCell>{getStatusBadge(product.status)}</TableCell>
+                  <TableCell>{getStatusBadge(product.status, product.rejection_reason)}</TableCell>
                   <TableCell>{new Date(product.submittedAt).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -235,6 +294,7 @@ export default function AdminProducts() {
                         variant="ghost"
                         onClick={() => {
                           setSelectedProduct(product);
+                          // We use detailsOpen for the preview now
                           setDetailsOpen(true);
                         }}
                       >
@@ -249,6 +309,11 @@ export default function AdminProducts() {
                             <CheckCircle className="h-4 w-4" />
                           </Button>
                         </>
+                      )}
+                      {product.status === 'rejected' && (
+                        <Button size="sm" variant="ghost" className="text-amber-600 hover:text-amber-700" onClick={() => handleRevoke(product.id)} title="Revoke Rejection">
+                          <Clock className="h-4 w-4" />
+                        </Button>
                       )}
                     </div>
                   </TableCell>
@@ -265,111 +330,33 @@ export default function AdminProducts() {
         </CardContent>
       </Card>
 
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Product Details</DialogTitle>
-            <DialogDescription>Review product information before approval</DialogDescription>
-          </DialogHeader>
-          {selectedProduct && (
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                <img src={selectedProduct.image} alt={selectedProduct.name} className="w-24 h-24 rounded-lg object-cover" />
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg">{selectedProduct.name}</h3>
-                  <Badge variant="outline" className="mt-1">{selectedProduct.category}</Badge>
-                </div>
-              </div>
+      <ProductPreviewDialog
+        product={selectedProduct}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        categories={categories}
+        mode="admin"
+        onApprove={handleApprove}
+        onReject={handleOpenReject}
+      />
 
-              <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
-                <div>
-                  <p className="text-sm text-muted-foreground">Vendor</p>
-                  <p className="font-medium">{selectedProduct.supplierName}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Base Price</p>
-                  <p className="font-medium">{formatPrice(selectedProduct.minPrice)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">MOQ</p>
-                  <p>{selectedProduct.moq} units</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
-                  {getStatusBadge(selectedProduct.status)}
-                </div>
-              </div>
-
-              {(selectedProduct.shortDescription || selectedProduct.description) && (
-                <div className="bg-muted/30 p-4 rounded-lg space-y-2">
-                  <p className="text-sm font-semibold">Description</p>
-                  {selectedProduct.shortDescription && <p className="text-sm font-medium">{selectedProduct.shortDescription}</p>}
-                  {selectedProduct.description && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedProduct.description}</p>}
-                </div>
-              )}
-
-              {selectedProduct.pricingSlabs && selectedProduct.pricingSlabs.length > 0 && (
-                <div>
-                  <p className="text-sm font-semibold mb-2">Pricing Slabs</p>
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader className="bg-muted/50">
-                        <TableRow>
-                          <TableHead className="py-2">Quantity Range</TableHead>
-                          <TableHead className="py-2 text-right">Price per Unit</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedProduct.pricingSlabs.map((slab: any, idx: number) => (
-                          <TableRow key={idx}>
-                            <TableCell className="py-2">{slab.minQty} - {slab.maxQty || 'Unlimited'}</TableCell>
-                            <TableCell className="py-2 text-right">{formatPrice(slab.pricePerUnit || slab.price || slab.price_per_unit || 0)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Submitted</p>
-                <p>{new Date(selectedProduct.submittedAt).toLocaleString()}</p>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            {selectedProduct?.status === 'pending' && (
-              <>
-                <Button variant="outline" onClick={() => handleOpenReject(selectedProduct.id)}>
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Reject
-                </Button>
-                <Button onClick={() => handleApprove(selectedProduct.id)}>
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Approve
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-3xl border-none shadow-2xl">
           <DialogHeader>
-            <DialogTitle>Reject Product</DialogTitle>
-            <DialogDescription>Please provide a reason for rejecting this product listing.</DialogDescription>
+            <DialogTitle className="text-xl font-black text-slate-900">Reject Listing</DialogTitle>
+            <DialogDescription className="font-bold text-slate-500">Provide feedback to the seller about why this listing was rejected.</DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Input 
-              placeholder="e.g., Image quality is low, Price is unrealistic..." 
+          <div className="py-6">
+            <Textarea 
+              placeholder="e.g., Please provide higher resolution images. The wholesale price tiers seem inconsistent with the market rate." 
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
+              className="min-h-[120px] rounded-2xl border-slate-200 focus:ring-primary/20 transition-all font-medium"
             />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmReject} disabled={!rejectionReason.trim()}>
+          <DialogFooter className="gap-3">
+            <Button variant="ghost" onClick={() => setRejectDialogOpen(false)} className="rounded-xl font-black uppercase text-xs tracking-widest text-slate-400 hover:text-slate-600">Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmReject} disabled={!rejectionReason.trim()} className="rounded-xl px-8 font-black uppercase text-xs tracking-widest shadow-lg shadow-destructive/20">
               Confirm Rejection
             </Button>
           </DialogFooter>

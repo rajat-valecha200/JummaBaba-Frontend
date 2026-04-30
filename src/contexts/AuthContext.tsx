@@ -9,6 +9,17 @@ interface User {
   business_name?: string;
   phone?: string;
   status?: 'pending' | 'approved' | 'rejected';
+  logo_url?: string;
+  gst_number?: string;
+  pan_number?: string;
+  business_type?: string;
+  document_paths?: {
+    logo?: string;
+    pan_card?: string;
+    gst_certificate?: string;
+    cancelled_cheque?: string;
+  };
+  business_details?: any;
 }
 
 interface Profile {
@@ -53,6 +64,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initAuth();
   }, []);
+
+  // Presence Heartbeat: Update last_seen every 30 seconds when logged in
+  useEffect(() => {
+    if (!user) return;
+
+    const heartbeat = setInterval(() => {
+      api.auth.getMe().catch(() => {}); // This updates last_seen on backend
+    }, 30000);
+
+    return () => clearInterval(heartbeat);
+  }, [user]);
 
   const login = async (credentials: any) => {
     const data = await api.auth.login(credentials);

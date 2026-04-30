@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { Package, ShoppingCart, FileText, TrendingUp, Plus, Eye, Loader2 } from 'lucide-react';
+import { Package, ShoppingCart, FileText, TrendingUp, Plus, Eye, Loader2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -51,14 +51,42 @@ export default function VendorDashboard() {
 
   return (
     <div className="space-y-6">
+      {user?.status === 'rejected' && (
+        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-xl flex items-start gap-4">
+          <div className="p-2 bg-destructive/20 rounded-lg">
+            <ShieldAlert className="h-6 w-6 text-destructive" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-destructive flex items-center gap-2">
+              Account Registration Rejected
+            </h3>
+            <p className="text-muted-foreground mt-1">
+              Your vendor application was not approved for the following reason:
+            </p>
+            <div className="mt-3 p-3 bg-white/50 border border-destructive/10 rounded-lg text-sm font-medium italic text-destructive/80">
+              "{user?.rejectionReason || 'Incomplete documentation or invalid details.'}"
+            </div>
+            <p className="text-sm text-muted-foreground mt-4">
+              Please update your <Link to="/vendor/profile" className="text-primary hover:underline font-bold">Business Profile</Link> and ensure all documents are clear and valid. After updating, your profile will be re-submitted for moderation.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Vendor Dashboard</h1>
           <p className="text-muted-foreground italic">Welcome back, <span className="text-primary font-semibold">{user?.business_name || user?.full_name || 'Partner'}</span></p>
         </div>
-        <Button asChild>
-          <Link to="/vendor/products"><Plus className="h-4 w-4 mr-2" />Add Product</Link>
-        </Button>
+        {user?.status === 'approved' ? (
+          <Button asChild>
+            <Link to="/vendor/products?action=add"><Plus className="h-4 w-4 mr-2" />Add Product</Link>
+          </Button>
+        ) : (
+          <Button disabled className="opacity-50 cursor-not-allowed">
+            <Plus className="h-4 w-4 mr-2" />Add Product
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

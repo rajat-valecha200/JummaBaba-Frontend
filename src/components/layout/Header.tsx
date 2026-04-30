@@ -221,9 +221,11 @@ export function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button onClick={() => openConstruction('Request for Quote (RFQ) Board')} className="hidden sm:flex uppercase font-bold tracking-widest shadow-lg">
-            <FileText className="h-4 w-4 mr-2" />
-            Post Requirement
+          <Button asChild className="hidden sm:flex uppercase font-bold tracking-widest shadow-lg">
+            <Link to="/post-requirement">
+              <FileText className="h-4 w-4 mr-2" />
+              Post Requirement
+            </Link>
           </Button>
         </div>
       </div>
