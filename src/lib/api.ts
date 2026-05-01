@@ -116,6 +116,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ currentPassword, newPassword }),
       }),
+    checkAvailability: (email?: string, phone?: string) =>
+      apiFetch('/auth/check-availability', {
+        method: 'POST',
+        body: JSON.stringify({ email, phone }),
+      }),
     logout: () => localStorage.removeItem('jb_token'),
   },
   products: {

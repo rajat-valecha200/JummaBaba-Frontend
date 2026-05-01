@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/AuthContext';
 import { LocationPicker } from '@/components/ui/LocationPicker';
+import { api } from '@/lib/api';
 import {
   buyerStep1EmailSchema,
   buyerStep1PhoneSchema,
@@ -215,11 +216,40 @@ export default function BuyerRegisterPage() {
     return true;
   };
 
-  const handleNextStep = () => {
-    if (step === 1 && !validateStep1()) {
-      toast({ title: 'Validation Error', description: 'Please fix the errors before continuing', variant: 'destructive' });
-      return;
+  const handleNextStep = async () => {
+    if (step === 1) {
+      if (!validateStep1()) {
+        toast({ title: 'Validation Error', description: 'Please fix the errors before continuing', variant: 'destructive' });
+        return;
+      }
+
+      // Check availability before proceeding to step 2
+      setLoading(true);
+      try {
+        const check = await api.auth.checkAvailability(
+          authMethod === 'email' ? formData.email : undefined,
+          authMethod === 'phone' ? formData.phone : undefined
+        );
+
+        if (!check.available) {
+          const typeLabel = check.type === 'email' ? 'Email address' : 'Phone number';
+          setErrors(prev => ({ ...prev, [check.type]: `${typeLabel} is already registered` }));
+          setTouched(prev => ({ ...prev, [check.type]: true }));
+          toast({ 
+            title: 'Account Exists', 
+            description: `This ${typeLabel.toLowerCase()} is already associated with an account. Please use a different one or login.`, 
+            variant: 'destructive' 
+          });
+          return;
+        }
+      } catch (error) {
+        toast({ title: 'Check Failed', description: 'Could not verify account availability. Please try again.', variant: 'destructive' });
+        return;
+      } finally {
+        setLoading(false);
+      }
     }
+    
     if (step === 2 && !validateStep2()) {
       toast({ title: 'Validation Error', description: 'Please fix the errors before continuing', variant: 'destructive' });
       return;
