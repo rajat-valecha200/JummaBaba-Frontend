@@ -291,9 +291,13 @@ export default function VendorProfile() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-wrap gap-3">
-            {profile.gstVerified && <TrustBadge type="gst" />}
-            <TrustBadge type="verified" />
-            <TrustBadge type="top-supplier" />
+            {user?.status === 'approved' && (
+              <>
+                <TrustBadge type="gst" />
+                <TrustBadge type="verified" />
+              </>
+            )}
+            {user?.is_top_supplier && <TrustBadge type="top-supplier" />}
             <Badge variant="outline" className="gap-1">
               <Building className="h-3 w-3" />
               Est. {profile.yearEstablished}

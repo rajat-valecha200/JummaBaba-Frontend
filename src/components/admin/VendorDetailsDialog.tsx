@@ -92,7 +92,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
                         Pending Review
                       </Badge>
                     )}
-                    <TrustBadge type="verified" />
+                    {vendor.status === 'approved' && <TrustBadge type="verified" />}
                   </div>
                 </div>
               </div>
