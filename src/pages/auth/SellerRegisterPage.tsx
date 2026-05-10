@@ -14,6 +14,7 @@ import { Logo } from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/AuthContext';
 import { api, apiFetch } from '@/lib/api';
 import { LocationPicker } from '@/components/ui/LocationPicker';
+import { OtpModal } from '@/components/auth/OtpModal';
 import {
   sellerStep1EmailSchema,
   sellerStep1PhoneSchema,
@@ -104,6 +105,13 @@ export default function SellerRegisterPage() {
     accountNumber: '',
     ifscCode: '',
   });
+
+  // OTP Modal State
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState(false);
+  const [otpSuccess, setOtpSuccess] = useState(false);
+  const [otpErrorMessage, setOtpErrorMessage] = useState('');
 
   // Document uploads state
   interface DocumentFile {
@@ -429,6 +437,55 @@ export default function SellerRegisterPage() {
       return;
     }
 
+    // NEW OTP FLOW: Intercept registration for email verification
+    if (authMethod === 'email') {
+      setLoading(true);
+      try {
+        await api.auth.sendOtp(formData.email);
+        setIsOtpModalOpen(true);
+        toast({ title: 'Verification Required', description: 'Please enter the 6-digit code sent to your email.' });
+      } catch (error: any) {
+        toast({ title: 'OTP Failed', description: error.message, variant: 'destructive' });
+      } finally {
+        setLoading(false);
+      }
+      return; // Stop here, modal will continue the flow
+    }
+
+    // Proceed with registration for non-email methods (if any) or if already verified
+    await executeRegistration();
+  };
+
+  const handleVerifyOtp = async (code: string) => {
+    setOtpLoading(true);
+    setOtpError(false);
+    try {
+      await api.auth.verifyOtp(formData.email, code);
+      setOtpSuccess(true);
+      
+      // Delay slightly to show success state in modal before closing and registering
+      setTimeout(async () => {
+        setIsOtpModalOpen(false);
+        await executeRegistration();
+      }, 1000);
+    } catch (error: any) {
+      setOtpError(true);
+      setOtpErrorMessage(error.message || 'Invalid verification code');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    try {
+      await api.auth.sendOtp(formData.email);
+      toast({ title: 'OTP Resent', description: 'A new verification code has been sent to your email.' });
+    } catch (error: any) {
+      toast({ title: 'Resend Failed', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const executeRegistration = async () => {
     setLoading(true);
     try {
       // Pre-check: verify backend is reachable before attempting registration
@@ -1218,6 +1275,18 @@ export default function SellerRegisterPage() {
           </CardContent>
         </Card>
       </div>
+
+      <OtpModal
+        isOpen={isOtpModalOpen}
+        onClose={() => setIsOtpModalOpen(false)}
+        email={formData.email}
+        onVerify={handleVerifyOtp}
+        onResend={handleResendOtp}
+        isLoading={otpLoading}
+        isError={otpError}
+        isSuccess={otpSuccess}
+        errorMessage={otpErrorMessage}
+      />
     </div>
   );
 }

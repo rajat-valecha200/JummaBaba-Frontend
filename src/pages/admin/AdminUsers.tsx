@@ -49,7 +49,7 @@ const getRoleBadge = (role: UserRole) => {
 const getStatusBadge = (status: string) => {
   switch (status) {
     case 'approved':
-      return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20"><BadgeCheck className="h-3 w-3 mr-1" />Approved</Badge>;
+      return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20"><BadgeCheck className="h-3 w-3 mr-1" />Approved</Badge>;
     case 'rejected':
       return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rejected</Badge>;
     default:
@@ -427,7 +427,7 @@ function UserDetailDialog({
                 <XCircle className="h-4 w-4 mr-2" /> Reject Application
               </Button>
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700"
+                className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleApprove}
                 disabled={actioning}
               >

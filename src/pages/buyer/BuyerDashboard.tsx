@@ -43,26 +43,30 @@ export default function BuyerDashboard() {
   const [dbCategories, setDbCategories] = useState<any[]>([]);
   const [dbProducts, setDbProducts] = useState<any[]>([]);
 
+  const fetchDashboardContent = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const [statsData, rfqData, catRes, prodData] = await Promise.all([
+        api.stats.get('buyer'),
+        api.rfqs.list(),
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`),
+        api.products.list('approved')
+      ]);
+      setStats(statsData);
+      setLiveRfqs(rfqData);
+      if (catRes.ok) setDbCategories(await catRes.json());
+      setDbProducts(prodData);
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchDashboardContent = async () => {
-      try {
-        const [statsData, rfqData, catRes, prodData] = await Promise.all([
-          api.stats.get('buyer'),
-          api.rfqs.list(),
-          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`),
-          api.products.list('approved')
-        ]);
-        setStats(statsData);
-        setLiveRfqs(rfqData);
-        if (catRes.ok) setDbCategories(await catRes.json());
-        setDbProducts(prodData);
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchDashboardContent();
+    const interval = setInterval(() => fetchDashboardContent(true), 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const recentOrders = []; // Buyer orders not yet implemented in backend
@@ -117,8 +121,8 @@ export default function BuyerDashboard() {
       {/* Main Content - Orders & RFQs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Recent Orders */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-2 border-b">
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-slate-50/50 p-4 sm:p-6 pb-2">
             <CardTitle className="text-base sm:text-lg">Recent Orders</CardTitle>
             <Button asChild variant="ghost" size="sm" className="text-xs sm:text-sm">
               <Link to="/buyer/orders">View All</Link>
@@ -147,8 +151,8 @@ export default function BuyerDashboard() {
         </Card>
 
         {/* Recent RFQs */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-2 border-b">
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-slate-50/50 p-4 sm:p-6 pb-2">
             <CardTitle className="text-base sm:text-lg">Active RFQs</CardTitle>
             <Button asChild variant="ghost" size="sm" className="text-xs sm:text-sm">
               <Link to="/buyer/rfqs">View All</Link>
@@ -182,8 +186,8 @@ export default function BuyerDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader className="p-4 sm:p-6">
+      <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+        <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
           <CardTitle className="text-base sm:text-lg">Account Management</CardTitle>
         </CardHeader>
         <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
@@ -217,8 +221,8 @@ export default function BuyerDashboard() {
       </Card>
 
       {/* My RFQs - Full Width Row */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
+      <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
           <CardTitle className="text-base sm:text-lg">My Active RFQs</CardTitle>
           <Button asChild variant="ghost" size="sm" className="text-xs sm:text-sm">
             <Link to="/buyer/rfqs">View All</Link>

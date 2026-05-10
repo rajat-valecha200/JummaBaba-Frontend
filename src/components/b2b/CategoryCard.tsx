@@ -1,24 +1,7 @@
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Cpu, 
-  Shirt, 
-  Factory, 
-  Wheat, 
-  Building, 
-  Sofa, 
-  Cog, 
-  Heart,
-  Settings,
-  Sprout,
-  Construction,
-  Home,
-  Stethoscope,
-  LucideIcon 
-} from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { formatNumber, cn } from '@/lib/utils';
-
-const iconMap: Record<string, LucideIcon> = {
+import {
+  Plus,
   Cpu,
   Shirt,
   Factory,
@@ -31,86 +14,165 @@ const iconMap: Record<string, LucideIcon> = {
   Sprout,
   Construction,
   Home,
-  Tool: Cog,
   Stethoscope,
+  Truck,
+  Box,
+  HardHat,
+  Microchip,
+  Lightbulb,
+  Utensils,
+  Coffee,
+  Leaf,
+  Apple,
+  Pizza,
+  Zap,
+  Wrench,
+  Layers,
+  LucideIcon
+} from 'lucide-react';
+
+import { formatNumber, cn } from '@/lib/utils';
+
+const iconMap: Record<string, LucideIcon> = {
+  Electronics: Cpu,
+  Electrical: Zap,
+  Machinery: Factory,
+  Industrial: Factory,
+  Agriculture: Wheat,
+  Apparel: Shirt,
+  Textiles: Shirt,
+  Construction: Construction,
+  Building: Building,
+  Furniture: Sofa,
+  Logistics: Truck,
+  Packaging: Box,
+  Safety: HardHat,
+  Medical: Stethoscope,
+  Health: Heart,
+  Tools: Settings,
+  Automotive: Cog,
+  Food: Utensils,
+  Beverage: Coffee,
+  'Raw Materials': Layers,
+  Chemicals: Sprout,
+
+  Cpu,
+  Shirt,
+  Factory,
+  Wheat,
+  Building,
+  Sofa,
+  Cog,
+  Heart,
+  Settings,
+  Sprout,
+  Construction,
+  Home,
+  Stethoscope,
+  Truck,
+  Box,
+  HardHat,
+  Microchip,
+  Lightbulb,
+  Utensils,
+  Coffee,
+  Leaf,
+  Apple,
+  Pizza,
+  Zap,
+  Wrench,
+  Layers,
+
+  'Construction Supplies': HardHat,
+  'Electrical Components': Zap,
+  'Industrial Machinery': Factory,
+  'Logistics Services': Truck,
+  'Maintenance & Repair': Wrench
 };
 
+interface Category {
+  id: string | number;
+  name: string;
+  slug: string;
+  icon?: string;
+  productCount?: number;
+  product_count?: number;
+}
+
 interface CategoryCardProps {
-  category: any;
-  variant?: 'default' | 'compact' | 'featured';
+  category: Category | { id: string; name: string; isViewMore?: boolean };
   className?: string;
 }
 
-export function CategoryCard({ category, variant = 'default', className }: CategoryCardProps) {
-  const Icon = iconMap[category.icon] || Cpu;
+export const CategoryCard: React.FC<CategoryCardProps> = ({
+  category,
+  className
+}) => {
+  const getIcon = (name: string) => {
+    const searchName = (name || '').toLowerCase();
 
-  if (variant === 'compact') {
+    const exactMatch = Object.entries(iconMap).find(
+      ([key]) => key.toLowerCase() === searchName
+    );
+
+    if (exactMatch) return exactMatch[1];
+
+    const partialMatch = Object.entries(iconMap).find(([key]) =>
+      searchName.includes(key.toLowerCase())
+    );
+
+    if (partialMatch) return partialMatch[1];
+
+    return Cog;
+  };
+
+  // VIEW MORE CARD
+  if ('isViewMore' in category && category.isViewMore) {
     return (
-      <Link 
-        to={`/category/${category.slug}`}
+      <Link to="/categories" className="block group">
+        <div
+          className={cn(
+            'w-[130px] h-[130px] bg-white border border-zinc-200 rounded-lg flex flex-col items-center justify-center transition-all duration-200 hover:border-orange-400 hover:shadow-md shrink-0',
+            className
+          )}
+        >
+          <Plus className="h-6 w-6 text-orange-500 mb-1.5" />
+
+          <span className="text-[11px] font-medium text-zinc-700">
+            View More
+          </span>
+        </div>
+      </Link>
+    );
+  }
+
+  // NORMAL CARD
+  const cat = category as Category;
+  const Icon = getIcon(cat.icon || cat.name);
+
+  return (
+    <Link to={`/category/${cat.slug}`} className="block group">
+      <div
         className={cn(
-          'flex flex-col items-center p-3 rounded-lg hover:bg-muted transition-colors text-center group',
+          'w-[130px] h-[130px] bg-white border border-zinc-200 rounded-lg flex flex-col items-center justify-center px-2 text-center transition-all duration-200 hover:border-[#467ab5] hover:shadow-md shrink-0',
           className
         )}
       >
-        <div className="p-3 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-          <Icon className="h-6 w-6" />
+        {/* ICON */}
+        <div className="mb-2">
+          <Icon className="h-7 w-7 text-[#467ab5]" />
         </div>
-        <p className="mt-2 text-sm font-medium line-clamp-2">{category.name}</p>
-      </Link>
-    );
-  }
 
-  if (variant === 'featured') {
-    return (
-      <Link to={`/category/${category.slug}`}>
-        <Card className={cn(
-          'group overflow-hidden hover:shadow-lg transition-all duration-300 h-full',
-          className
-        )}>
-          <CardContent className="p-6 flex flex-col items-center text-center">
-            <div className="p-4 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 text-primary group-hover:scale-110 transition-transform">
-              <Icon className="h-10 w-10" />
-            </div>
-            <h3 className="mt-4 font-semibold text-lg">{category.name}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {formatNumber(category.productCount || category.product_count || 0)} Products
-            </p>
-            <div className="mt-3 flex flex-wrap gap-1 justify-center">
-              {category.subcategories?.slice(0, 3).map((sub: any) => (
-                <span 
-                  key={sub.id}
-                  className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
-                >
-                  {sub.name}
-                </span>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </Link>
-    );
-  }
+        {/* TITLE */}
+        <h3 className="text-[12px] font-medium text-zinc-800 leading-tight line-clamp-2 px-1">
+          {cat.name}
+        </h3>
 
-  // Default variant
-  return (
-    <Link to={`/category/${category.slug}`}>
-      <Card className={cn(
-        'group hover:shadow-md hover:border-primary/50 transition-all duration-300',
-        className
-      )}>
-        <CardContent className="p-4 flex items-center gap-4">
-          <div className="p-3 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-            <Icon className="h-6 w-6" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-medium truncate">{category.name}</h3>
-            <p className="text-sm text-muted-foreground">
-              {formatNumber(category.productCount || category.product_count || 0)} products
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+        {/* PRODUCT COUNT */}
+        <span className="mt-1.5 text-[9px] text-zinc-500">
+          {formatNumber(cat.productCount || cat.product_count || 0)} Items
+        </span>
+      </div>
     </Link>
   );
-}
+};

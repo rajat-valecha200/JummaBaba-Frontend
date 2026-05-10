@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Package, Building, TrendingUp, CheckCircle, XCircle, Clock, Loader2, Eye } from 'lucide-react';
+import { Users, Package, Building, TrendingUp, CheckCircle, XCircle, Clock, Loader2, Eye, ShieldAlert, MessageCircle, ShoppingCart, FileText, ArrowRight } from 'lucide-react';
 import { VendorDetailsDialog } from '@/components/admin/VendorDetailsDialog';
 import { normalizeProfile } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatsCard } from '@/components/b2b/StatsCard';
+import { SalesChart } from '@/components/b2b/SalesChart';
 import { formatPrice } from '@/lib/utils';
 import { ProductPreviewDialog } from '@/components/admin/ProductPreviewDialog';
 import {
@@ -27,6 +28,8 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [pendingVendors, setPendingVendors] = useState<any[]>([]);
   const [pendingProducts, setPendingProducts] = useState<any[]>([]);
+  const [recentRfqs, setRecentRfqs] = useState<any[]>([]);
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedVendor, setSelectedVendor] = useState<any | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -50,10 +53,12 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const [statsData, vendorsData, productsData] = await Promise.all([
-        api.stats.get('admin'),
+      const [statsData, vendorsData, productsData, rfqsData, ordersData] = await Promise.all([
+        api.admin.getStats(),
         api.profiles.list('vendor', 'pending'),
-        api.products.list('pending')
+        api.products.list('pending'),
+        api.rfqs.list(),
+        api.orders.listBuyer()
       ]);
       setStats(statsData);
       setPendingVendors(vendorsData.map((v: any) => normalizeProfile(v)));
@@ -62,6 +67,8 @@ export default function AdminDashboard() {
         categoryId: p.category_id,
         pricingSlabs: typeof p.pricing_slabs === 'string' ? JSON.parse(p.pricing_slabs) : p.pricing_slabs || [],
       })));
+      setRecentRfqs(Array.isArray(rfqsData) ? rfqsData.filter((r: any) => !r.is_direct_order).slice(0, 5) : []);
+      setRecentOrders(Array.isArray(ordersData) ? ordersData.slice(0, 5) : []);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
     } finally {
@@ -135,16 +142,20 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard title="Total Users" value={stats?.users || 0} icon={Users} />
-        <StatsCard title="Verified Vendors" value={stats?.vendors || 0} icon={Building} iconClassName="bg-secondary/10 text-secondary" />
-        <StatsCard title="Products Listed" value={stats?.products || 0} icon={Package} iconClassName="bg-accent/10 text-accent" />
-        <StatsCard title="Pending Items" value={(stats?.pendingVendors || 0) + (stats?.pendingProducts || 0)} icon={Clock} iconClassName="bg-warning/10 text-warning" />
+        <StatsCard title="Total Users" value={stats?.totalUsers || 0} icon={Users} />
+        <StatsCard title="Total Products" value={stats?.totalProducts || 0} icon={Package} iconClassName="bg-accent/10 text-accent" />
+        <StatsCard title="Pending Moderation" value={pendingVendors.length + pendingProducts.length} icon={ShieldAlert} iconClassName="bg-destructive/10 text-destructive" />
+        <StatsCard title="RFQ Moderation" value={stats?.activeRfqs || 0} icon={MessageCircle} iconClassName="bg-amber-500/10 text-amber-500" />
       </div>
+
+      {/* <div className="grid lg:grid-cols-1">
+        <SalesChart title="Platform GMV & Traffic" />
+      </div> */}
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Pending Vendors */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-slate-50/50 px-6 py-4">
             <CardTitle className="text-lg flex items-center gap-2">
               Pending Vendor Approvals
               {pendingVendors.length > 0 && <Badge variant="destructive">{pendingVendors.length}</Badge>}
@@ -197,8 +208,8 @@ export default function AdminDashboard() {
         />
 
         {/* Pending Products */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-slate-50/50 px-6 py-4">
             <CardTitle className="text-lg flex items-center gap-2">
               Products for Moderation
               {pendingProducts.length > 0 && <Badge variant="destructive">{pendingProducts.length}</Badge>}
@@ -213,7 +224,7 @@ export default function AdminDashboard() {
                 pendingProducts.slice(0, 5).map(p => (
                   <div key={p.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <img src={p.images?.[0] || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=100'} alt={p.name} className="w-10 h-10 rounded-lg object-cover" />
+                      <img src={p.images?.[0]} alt={p.name} className="w-10 h-10 rounded-lg object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=100'; }} />
                       <div>
                         <p className="font-medium truncate max-w-[150px]">{p.name}</p>
                         <p className="text-sm text-muted-foreground">MOQ: {p.moq}</p>
@@ -232,6 +243,104 @@ export default function AdminDashboard() {
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => handleOpenRejectProduct(p.id)}><XCircle className="h-4 w-4" /></Button>
                       <Button size="sm" onClick={() => handleProductStatus(p.id, 'approved')}><CheckCircle className="h-4 w-4" /></Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Recent RFQs */}
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-slate-50/50 px-6 py-4">
+            <CardTitle className="text-lg flex items-center gap-2">
+              Recent RFQ Inquiries
+              {recentRfqs.length > 0 && <Badge variant="secondary" className="bg-primary/10 text-primary border-none">{recentRfqs.length}</Badge>}
+            </CardTitle>
+            <Button asChild variant="ghost" size="sm"><Link to="/admin/rfqs">View All</Link></Button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentRfqs.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No recent RFQs</p>
+              ) : (
+                recentRfqs.map(rfq => (
+                  <div key={rfq.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-amber-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium truncate max-w-[150px]">{rfq.product_name}</p>
+                        <p className="text-sm text-muted-foreground">Qty: {rfq.quantity} • {rfq.status}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {rfq.moderation_status === 'pending_moderation' ? (
+                        <Button size="sm" className="bg-primary text-white font-black text-[9px] uppercase tracking-widest h-8 px-3 rounded-lg shadow-md shadow-primary/10" asChild>
+                          <Link to="/admin/rfqs">
+                            Forward
+                            <ArrowRight className="h-3 w-3 ml-1.5" />
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" className="font-bold text-[9px] uppercase tracking-widest h-8 px-3 rounded-lg" asChild>
+                          <Link to="/admin/rfqs">
+                            Manage
+                            <ArrowRight className="h-3 w-3 ml-1.5" />
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Orders */}
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-slate-50/50 px-6 py-4">
+            <CardTitle className="text-lg flex items-center gap-2">
+              Marketplace Orders
+              {recentOrders.length > 0 && <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 border-none">{recentOrders.length}</Badge>}
+            </CardTitle>
+            <Button asChild variant="ghost" size="sm"><Link to="/admin/orders">View All</Link></Button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentOrders.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No recent orders</p>
+              ) : (
+                recentOrders.map(order => (
+                  <div key={order.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                        <ShoppingCart className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium">ORD-{order.id.slice(0, 8).toUpperCase()}</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">{formatPrice(order.target_price * order.quantity)} • {order.status}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                       {order.moderation_status === 'pending_moderation' ? (
+                        <Button size="sm" className="bg-primary text-white font-black text-[9px] uppercase tracking-widest h-8 px-3 rounded-lg shadow-md shadow-primary/10" asChild>
+                          <Link to={`/admin/orders/${order.id}`}>
+                            Forward
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-full hover:bg-white/80" asChild>
+                          <Link to={`/admin/orders/${order.id}`}>
+                            <Eye className="h-4 w-4 text-slate-400" />
+                          </Link>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))

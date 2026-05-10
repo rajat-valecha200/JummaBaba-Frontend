@@ -167,8 +167,8 @@ export default function CheckoutPage() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Shipping Address */}
-            <Card>
-              <CardHeader>
+            <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+              <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2">
                   <Truck className="h-5 w-5 text-primary" />
                   Shipping Address
@@ -313,8 +313,8 @@ export default function CheckoutPage() {
 
             {/* Billing Address (if different) */}
             {!sameAsBilling && (
-              <Card>
-                <CardHeader>
+              <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+                <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
                   <CardTitle className="flex items-center gap-2">
                     <Building2 className="h-5 w-5 text-primary" />
                     Billing Address
@@ -396,8 +396,8 @@ export default function CheckoutPage() {
             )}
 
             {/* Payment Method */}
-            <Card>
-              <CardHeader>
+            <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+              <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
                   Payment Method
@@ -470,8 +470,8 @@ export default function CheckoutPage() {
           {/* Order Summary Sidebar */}
           <div className="space-y-6">
             {/* Order Items */}
-            <Card>
-              <CardHeader>
+            <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+              <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
                 <CardTitle className="text-base">Order Summary</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -534,7 +534,7 @@ export default function CheckoutPage() {
             </Card>
 
             {/* Seller of Record */}
-            <Card>
+            <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Shield className="h-4 w-4 text-success" />

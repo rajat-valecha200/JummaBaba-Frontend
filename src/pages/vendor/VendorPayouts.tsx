@@ -1,4 +1,4 @@
-import { DollarSign, CreditCard, Calendar, TrendingUp } from 'lucide-react';
+import { DollarSign, CreditCard, Calendar, TrendingUp, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatPrice } from '@/lib/utils';
@@ -107,8 +107,8 @@ export default function VendorPayouts() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+        <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
           <CardTitle>Payout History</CardTitle>
           <CardDescription>Your past settlements and upcoming payouts</CardDescription>
         </CardHeader>

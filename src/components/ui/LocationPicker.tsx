@@ -193,7 +193,7 @@ export function LocationPicker({
             className={cn(
               'pr-10',
               hasError('pincode') && 'border-destructive',
-              pincodeStatus === 'ok' && 'border-emerald-500',
+              pincodeStatus === 'ok' && 'border-blue-500',
               pincodeStatus === 'mismatch' && 'border-amber-500',
               pincodeStatus === 'error' && 'border-destructive',
             )}
@@ -203,14 +203,14 @@ export function LocationPicker({
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
             {pincodeStatus === 'loading' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-            {pincodeStatus === 'ok' && <CheckCircle className="h-4 w-4 text-emerald-500" />}
+            {pincodeStatus === 'ok' && <CheckCircle className="h-4 w-4 text-blue-500" />}
             {(pincodeStatus === 'error' || pincodeStatus === 'mismatch') && <XCircle className="h-4 w-4 text-destructive" />}
           </div>
         </div>
         {pincodeInfo && (
           <p className={cn(
             'text-xs flex items-center gap-1',
-            pincodeStatus === 'ok' ? 'text-emerald-600' : 'text-amber-600'
+            pincodeStatus === 'ok' ? 'text-blue-600' : 'text-amber-600'
           )}>
             {pincodeStatus === 'ok' ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
             {pincodeInfo}

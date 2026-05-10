@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, Menu, X, ChevronDown, ShoppingCart, MessageSquare, User, FileText, Phone } from 'lucide-react';
+import { Search, Menu, X, ChevronDown, ChevronRight, ChevronLeft, ShoppingCart, MessageSquare, User, FileText, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/Logo';
 import { Input } from '@/components/ui/input';
@@ -10,16 +10,19 @@ import { api } from '@/lib/api';
 import { formatNumber } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { UnderConstructionModal } from '../ui/UnderConstructionModal';
+import { useDebounce } from '@/hooks/use-debounce';
+import { useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 
 export function Header() {
   const { user, signOut } = useAuth();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [constructionOpen, setConstructionOpen] = useState(false);
-  const [featureName, setFeatureName] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const isSearching = searchQuery !== debouncedSearchQuery;
   const [dbCategories, setDbCategories] = useState<any[]>([]);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchCats = async () => {
@@ -32,13 +35,17 @@ export function Header() {
     fetchCats();
   }, []);
 
-  const displayCategories = dbCategories.length > 0 ? dbCategories.slice(0, 8) : [];
   const isActive = (path: string) => location.pathname === path;
 
-  const openConstruction = (name: string) => {
-    setFeatureName(name);
-    setConstructionOpen(true);
-  };
+  // Live search effect
+  useEffect(() => {
+    const isMarketplacePage = location.pathname === '/products' || location.pathname.startsWith('/category/');
+    if (isMarketplacePage && debouncedSearchQuery.trim()) {
+      const searchParams = new URLSearchParams(location.search);
+      searchParams.set('q', debouncedSearchQuery);
+      navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
+    }
+  }, [debouncedSearchQuery, navigate, location.pathname]);
 
   return <header className="sticky top-0 z-50 bg-card border-b shadow-sm">
     {/* Top bar */}
@@ -54,12 +61,12 @@ export function Header() {
         <div className="flex items-center gap-4">
           {(!user || user.role === 'buyer') && (
             <Link to="/vendor/register" className="hover:underline">
-              Sell on <span className="font-semibold"><span className="font-extrabold text-black">J</span>umma<span className="font-extrabold text-blue-600">B</span>aba</span>
+              Sell on <span className="font-semibold"><span className="font-extrabold text-black">J</span>umma<span className='text-b2b-gst'><span className="font-extrabold">B</span>aba</span><span className="text-b2b-orange">.com</span></span>
             </Link>
           )}
-          <button onClick={() => openConstruction('Platform Help & Support')} className="hidden sm:block hover:underline">
+          <Link to="/help" className="hidden sm:block hover:underline">
             Help
-          </button>
+          </Link>
         </div>
       </div>
     </div>
@@ -124,7 +131,7 @@ export function Header() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (searchQuery.trim()) window.location.href = `/products?q=${encodeURIComponent(searchQuery)}`;
+              if (searchQuery.trim()) navigate(`/products?q=${encodeURIComponent(searchQuery)}`);
             }}
             className="relative w-full flex"
           >
@@ -141,12 +148,19 @@ export function Header() {
                 </DropdownMenuItem>)}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Input
-              placeholder="Search products or suppliers..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="rounded-none flex-1"
-            />
+            <div className="relative flex-1">
+              <Input
+                placeholder="Search products or suppliers..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="rounded-none pr-10"
+              />
+              {isSearching && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </div>
             <Button type="submit" className="rounded-l-none">
               <Search className="h-4 w-4" />
             </Button>
@@ -160,15 +174,20 @@ export function Header() {
             {isSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
           </Button>
 
-          <Button variant="ghost" size="icon" onClick={() => openConstruction('Business Chat')} title="Messages">
-            <MessageSquare className="h-5 w-5" />
+          <Button variant="ghost" size="icon" asChild title="Messages">
+            <Link to={user?.role === 'vendor' ? '/vendor/messages' : '/buyer/messages'}>
+              <MessageSquare className="h-5 w-5" />
+            </Link>
           </Button>
 
+          {/* Cart hidden as requested */}
+          {/* 
           <Button variant="ghost" size="icon" asChild title="Cart">
             <Link to="/buyer/cart">
               <ShoppingCart className="h-5 w-5" />
             </Link>
           </Button>
+          */}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -209,8 +228,8 @@ export function Header() {
                       <Link to="/buyer/dashboard">Buyer Dashboard</Link>
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onClick={() => openConstruction('Detailed Profile Analytics')}>
-                    My Profile
+                  <DropdownMenuItem asChild>
+                    <Link to={user.role === 'vendor' ? '/vendor/profile' : '/buyer/profile'}>My Profile</Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={signOut} className="text-destructive">
@@ -241,18 +260,61 @@ export function Header() {
       </div>}
     </div>
 
-    {/* Category navigation - Desktop */}
-    <nav className="hidden lg:block border-t bg-muted/30">
-      <div className="b2b-container">
-        <ul className="flex items-center gap-1 overflow-x-auto scrollbar-hide py-2">
-          {dbCategories.map(cat => <li key={cat.id}>
-            <Link to={`/category/${cat.slug}`} className={cn('px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap transition-colors', 'hover:bg-primary/10 hover:text-primary', isActive(`/category/${cat.slug}`) && 'bg-primary/10 text-primary')}>
-              {cat.name}
-            </Link>
-          </li>)}
-        </ul>
-      </div>
-    </nav>
-    <UnderConstructionModal isOpen={constructionOpen} onClose={() => setConstructionOpen(false)} featureName={featureName} />
+    {/* Category navigation - Show only on non-homepage routes */}
+    {location.pathname !== '/' && (
+      <nav className="border-t bg-white relative group">
+        <div className="b2b-container relative flex items-center">
+          {/* Left Fade & Scroll Arrow */}
+          <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-white via-white/60 to-transparent z-10 flex items-center justify-start pl-4 pointer-events-none group-hover:pointer-events-auto">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full bg-white shadow-md border border-zinc-200 hover:bg-zinc-50 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => {
+                const container = document.getElementById('category-scroll-container');
+                if (container) container.scrollBy({ left: -250, behavior: 'smooth' });
+              }}
+            >
+              <ChevronLeft className="h-4 w-4 text-zinc-600" />
+            </Button>
+          </div>
+
+          <ul
+            id="category-scroll-container"
+            className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-2 scroll-smooth w-full px-8 sm:px-12"
+          >
+            {dbCategories.map(cat => (
+              <li key={cat.id} className="flex-shrink-0">
+                <Link
+                  to={`/category/${cat.slug}`}
+                  className={cn(
+                    'px-4 py-1.5 text-xs font-semibold uppercase tracking-tight rounded-full whitespace-nowrap transition-all duration-200 flex items-center leading-none border border-transparent',
+                    'hover:bg-zinc-100 hover:text-primary',
+                    isActive(`/category/${cat.slug}`) ? 'bg-primary/5 text-primary border-primary/20' : 'text-zinc-600'
+                  )}
+                >
+                  {cat.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          {/* Right Fade & Scroll Arrow */}
+          <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-white via-white/60 to-transparent z-10 flex items-center justify-end pr-4 pointer-events-none group-hover:pointer-events-auto">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full bg-white shadow-md border border-zinc-200 hover:bg-zinc-50 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => {
+                const container = document.getElementById('category-scroll-container');
+                if (container) container.scrollBy({ left: 250, behavior: 'smooth' });
+              }}
+            >
+              <ChevronRight className="h-4 w-4 text-zinc-600" />
+            </Button>
+          </div>
+        </div>
+      </nav>
+    )}
   </header>;
 }

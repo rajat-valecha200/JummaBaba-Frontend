@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
-type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'completed' | 'cancelled';
 
 interface TrackingEvent {
   status: string;
@@ -18,74 +18,76 @@ interface OrderTrackingProps {
   orderNumber: string;
   orderDate: string;
   estimatedDelivery?: string;
-  trackingEvents?: TrackingEvent[];
   shippingCarrier?: string;
   trackingNumber?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  dispatchLocation?: string;
 }
 
 const statusSteps: { status: OrderStatus; label: string; icon: typeof Package }[] = [
   { status: 'pending', label: 'Order Placed', icon: Clock },
-  { status: 'confirmed', label: 'Confirmed', icon: CheckCircle },
-  { status: 'shipped', label: 'Shipped', icon: Truck },
+  { status: 'confirmed', label: 'Processing', icon: CheckCircle },
+  { status: 'shipped', label: 'In Transit', icon: Truck },
   { status: 'delivered', label: 'Delivered', icon: Package },
 ];
 
-const statusIndex: Record<OrderStatus, number> = {
+const statusIndex: Record<string, number> = {
   pending: 0,
   confirmed: 1,
   shipped: 2,
   delivered: 3,
+  completed: 3,
   cancelled: -1,
 };
-
-const mockTrackingEvents: TrackingEvent[] = [
-  {
-    status: 'Order Placed',
-    timestamp: '2024-01-20T10:30:00Z',
-    description: 'Your order has been placed successfully',
-  },
-  {
-    status: 'Order Confirmed',
-    timestamp: '2024-01-20T14:15:00Z',
-    description: 'Seller has confirmed your order',
-  },
-  {
-    status: 'Packed',
-    timestamp: '2024-01-21T09:00:00Z',
-    location: 'Warehouse, Mumbai',
-    description: 'Your order has been packed and is ready for dispatch',
-  },
-  {
-    status: 'Shipped',
-    timestamp: '2024-01-21T16:30:00Z',
-    location: 'Sorting Facility, Mumbai',
-    description: 'Package picked up by courier partner',
-  },
-  {
-    status: 'In Transit',
-    timestamp: '2024-01-22T08:00:00Z',
-    location: 'Hub, Pune',
-    description: 'Package in transit to destination city',
-  },
-  {
-    status: 'Out for Delivery',
-    timestamp: '2024-01-23T07:30:00Z',
-    location: 'Delivery Hub, Destination City',
-    description: 'Package is out for delivery',
-  },
-];
 
 export function OrderTracking({
   currentStatus,
   orderNumber,
   orderDate,
   estimatedDelivery,
-  trackingEvents = mockTrackingEvents,
-  shippingCarrier = 'BlueDart Express',
-  trackingNumber = 'BD123456789IN',
+  shippingCarrier,
+  trackingNumber,
+  shippedAt,
+  deliveredAt,
+  dispatchLocation,
 }: OrderTrackingProps) {
   const currentStepIndex = statusIndex[currentStatus];
   const isCancelled = currentStatus === 'cancelled';
+
+  // Compute dynamic tracking events
+  const realEvents: TrackingEvent[] = [
+    {
+      status: 'Order Placed',
+      timestamp: orderDate,
+      description: 'Order successfully placed on JummaBaba.com',
+    }
+  ];
+
+  if (currentStepIndex >= 1) {
+    realEvents.unshift({
+      status: 'Order Confirmed',
+      timestamp: orderDate, // Fallback to orderDate
+      description: 'Seller has confirmed and started processing your order',
+    });
+  }
+
+  if (currentStepIndex >= 2) {
+    realEvents.unshift({
+      status: 'Shipped',
+      timestamp: shippedAt || orderDate, 
+      location: dispatchLocation || 'Vendor Warehouse',
+      description: `Package is in transit via ${shippingCarrier || 'Standard Courier'}`,
+    });
+  }
+
+  if (currentStepIndex >= 3) {
+    realEvents.unshift({
+      status: 'Delivered',
+      timestamp: deliveredAt || shippedAt || orderDate,
+      description: 'Package has been delivered successfully',
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -100,7 +102,7 @@ export function OrderTracking({
                 Cancelled
               </Badge>
             ) : (
-              estimatedDelivery && (
+              estimatedDelivery && currentStatus !== 'delivered' && (
                 <p className="text-sm text-muted-foreground">
                   Expected delivery: <span className="font-medium text-foreground">{estimatedDelivery}</span>
                 </p>
@@ -220,7 +222,7 @@ export function OrderTracking({
       </Card>
 
       {/* Shipping Information */}
-      {!isCancelled && currentStepIndex >= 2 && (
+      {!isCancelled && currentStepIndex >= 2 && trackingNumber && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -232,11 +234,11 @@ export function OrderTracking({
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Carrier</p>
-                <p className="font-medium">{shippingCarrier}</p>
+                <p className="font-medium uppercase">{shippingCarrier || 'Standard Partner'}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Tracking Number</p>
-                <p className="font-mono font-medium">{trackingNumber}</p>
+                <p className="font-mono font-black text-primary">{trackingNumber}</p>
               </div>
             </div>
           </CardContent>
@@ -244,14 +246,14 @@ export function OrderTracking({
       )}
 
       {/* Tracking History */}
-      {!isCancelled && (
+      {!isCancelled && realEvents.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Tracking History</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="relative">
-              {trackingEvents.slice(0, currentStepIndex >= 2 ? undefined : 2).map((event, index) => (
+              {realEvents.map((event, index) => (
                 <div key={index} className="flex gap-4 pb-6 last:pb-0">
                   {/* Timeline indicator */}
                   <div className="relative flex flex-col items-center">
@@ -261,7 +263,7 @@ export function OrderTracking({
                         index === 0 ? 'bg-primary' : 'bg-muted-foreground/30'
                       )}
                     />
-                    {index < trackingEvents.slice(0, currentStepIndex >= 2 ? undefined : 2).length - 1 && (
+                    {index < realEvents.length - 1 && (
                       <div className="w-0.5 flex-1 bg-muted mt-2" />
                     )}
                   </div>
@@ -269,10 +271,10 @@ export function OrderTracking({
                   {/* Event content */}
                   <div className="flex-1 -mt-1">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                      <p className={cn('font-medium', index === 0 && 'text-primary')}>
+                      <p className={cn('font-bold', index === 0 ? 'text-slate-900' : 'text-slate-500')}>
                         {event.status}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs font-medium text-muted-foreground uppercase">
                         {new Date(event.timestamp).toLocaleString('en-IN', {
                           day: 'numeric',
                           month: 'short',
@@ -284,7 +286,7 @@ export function OrderTracking({
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">{event.description}</p>
                     {event.location && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                      <p className="text-xs font-bold text-primary flex items-center gap-1 mt-1 uppercase tracking-widest">
                         <MapPin className="h-3 w-3" />
                         {event.location}
                       </p>

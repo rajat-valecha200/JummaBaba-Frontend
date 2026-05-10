@@ -247,8 +247,8 @@ export default function BuyerProfile() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-slate-50/50 px-6 py-4">
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Building className="h-5 w-5" />
@@ -372,8 +372,8 @@ export default function BuyerProfile() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-slate-50/50 px-6 py-4">
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <MapPin className="h-5 w-5" />

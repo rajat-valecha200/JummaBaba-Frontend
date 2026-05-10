@@ -45,7 +45,24 @@ export const normalizeProduct = (product: any) => {
   };
 };
 
+export const normalizeRfq = (rfq: any) => {
+  const images = parseJsonField(rfq.product_images, []);
+  const shippingDetails = parseJsonField(rfq.shipping_details, {});
+  const responseDetails = parseJsonField(rfq.response_details, {});
+  
+  return {
+    ...rfq,
+    product_images: Array.isArray(images) && images.length > 0 
+      ? images.map((img: any) => typeof img === 'string' && !img.startsWith('http') ? `${API_BASE_URL}${img.startsWith('/') ? '' : '/'}${img}` : img)
+      : ['https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=100'],
+    shipping_details: shippingDetails,
+    response_details: responseDetails,
+    supplierId: rfq.supplier_id ?? rfq.supplierId,
+  };
+};
+
 export const normalizeProfile = (profile: any) => {
+  if (!profile) return null;
   const docs = profile.document_paths || profile.documents || {};
   const logo = profile.logo_url || profile.logo || docs.logo;
   
@@ -75,6 +92,8 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     ...options.headers,
   };
 
+  const method = (options.method || 'GET').toUpperCase();
+
   if (!(options.body instanceof FormData) && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
@@ -83,10 +102,13 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  // Hardening: Ensure POST/PUT/PATCH/DELETE requests always have a body if JSON
+  const fetchOptions = { ...options, headers };
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !fetchOptions.body && headers['Content-Type'] === 'application/json') {
+    fetchOptions.body = JSON.stringify({});
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
 
   const data = await response.json();
   if (!response.ok) {
@@ -122,6 +144,16 @@ export const api = {
         body: JSON.stringify({ email, phone }),
       }),
     logout: () => localStorage.removeItem('jb_token'),
+    sendOtp: (email: string) =>
+      apiFetch('/auth/otp/send', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }),
+    verifyOtp: (email: string, code: string) =>
+      apiFetch('/auth/otp/verify', {
+        method: 'POST',
+        body: JSON.stringify({ email, code }),
+      }),
   },
   products: {
     list: async (status?: string, supplierId?: string) => {
@@ -153,13 +185,24 @@ export const api = {
       apiFetch(`/products/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, rejection_reason }) }),
   },
   rfqs: {
-    list: () => apiFetch('/rfqs'),
+    list: async () => {
+      const rfqs = await apiFetch('/rfqs');
+      return Array.isArray(rfqs) ? rfqs.map(normalizeRfq) : [];
+    },
     create: (data: any) => apiFetch('/rfqs', { method: 'POST', body: JSON.stringify(data) }),
-    forward: (id: string, supplier_id?: string) => 
-      apiFetch(`/rfqs/${id}/forward`, { method: 'PATCH', body: JSON.stringify({ supplier_id }) }),
-    update: (id: string, data: any) => apiFetch(`/rfqs/${id}/status`, { method: 'PATCH', body: JSON.stringify(data) }),
-    updateQuoteStatus: (id: string, status: string, rejection_reason?: string, admin_notes?: string) =>
-      apiFetch(`/rfqs/${id}/quote-status`, { method: 'PATCH', body: JSON.stringify({ status, rejection_reason, admin_notes }) }),
+    forward: (id: string, supplier_id: string) => 
+      apiFetch(`/rfqs/${id}/forward`, { method: 'POST', body: JSON.stringify({ supplier_id }) }),
+    submitQuote: (id: string, quoteDetails: any) =>
+      apiFetch(`/rfqs/${id}/quote`, { method: 'POST', body: JSON.stringify(quoteDetails) }),
+    approveQuote: (id: string, approval: { status: 'approved' | 'rejected', rejection_reason?: string, admin_notes?: string }) =>
+      apiFetch(`/rfqs/${id}/approve-quote`, { method: 'POST', body: JSON.stringify(approval) }),
+    acceptQuote: (id: string) =>
+      apiFetch(`/rfqs/${id}/accept`, { method: 'POST' }),
+    updateFulfillment: (id: string, data: any) =>
+      apiFetch(`/rfqs/${id}/fulfillment`, { method: 'PATCH', body: JSON.stringify(data) }),
+    togglePrivacy: (id: string, share_buyer_details: boolean) =>
+      apiFetch(`/rfqs/${id}/privacy`, { method: 'PATCH', body: JSON.stringify({ share_buyer_details }) }),
+    // Legacy/Generic actions
     buyerAction: (id: string, action: string, notes?: string) =>
       apiFetch(`/rfqs/${id}/buyer-action`, { method: 'PATCH', body: JSON.stringify({ action, notes }) }),
     vendorAction: (id: string, action: string, notes?: string) =>
@@ -179,6 +222,7 @@ export const api = {
     markAllSystemAsRead: () => apiFetch('/notifications/read-all', { method: 'PATCH' }),
     deleteSystemNotification: (id: string) => apiFetch(`/notifications/${id}`, { method: 'DELETE' }),
     clearAllSystemNotifications: () => apiFetch('/notifications/clear-all', { method: 'DELETE' }),
+    getMaintenanceStatus: () => apiFetch('/maintenance-status'),
   },
   profiles: {
     me: () => apiFetch('/profiles/me'),
@@ -191,6 +235,11 @@ export const api = {
       apiFetch(`/profiles/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, rejection_reason }) }),
     update: (id: string, data: any) =>
       apiFetch(`/profiles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  },
+  admin: {
+    getSettings: () => apiFetch('/admin/settings'),
+    updateSettings: (data: any) => apiFetch('/admin/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+    getStats: () => apiFetch('/admin/stats'),
   },
   stats: {
     get: async () => {
@@ -206,5 +255,41 @@ export const api = {
       const categories = await apiFetch('/categories/public');
       return Array.isArray(categories) ? categories.map(normalizeCategory) : [];
     },
+    create: (data: any) => apiFetch('/categories', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) => apiFetch(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    remove: (id: string) => apiFetch(`/categories/${id}`, { method: 'DELETE' }),
+  },
+  genesis: {
+    reset: (secret: string) => 
+      apiFetch('/genesis/reset', { 
+        method: 'POST', 
+        headers: { 'x-genesis-secret': secret } 
+      }),
+    createAdmin: (secret: string) => 
+      apiFetch('/genesis/create-admin', { 
+        method: 'POST', 
+        headers: { 'x-genesis-secret': secret } 
+      }),
+  },
+  orders: {
+    listBuyer: async () => {
+      const data = await api.rfqs.list();
+      return data.filter((r: any) => 
+        r.is_direct_order === true || 
+        ['ordered', 'confirmed', 'shipped', 'delivered', 'completed', 'cancelled'].includes(r.status)
+      );
+    },
+    listVendor: async () => {
+      const data = await api.rfqs.list();
+      return data.filter((r: any) => 
+        r.is_direct_order === true || 
+        ['ordered', 'confirmed', 'shipped', 'delivered', 'completed', 'cancelled'].includes(r.status)
+      );
+    },
+    getById: (id: string) => apiFetch(`/rfqs/${id}`),
+    updateFulfillment: (id: string, status: string, trackingDetails?: any) =>
+      api.rfqs.updateFulfillment(id, { status, shipping_details: trackingDetails }),
+    submitFeedback: (id: string, data: { rating: number, text: string }) =>
+      apiFetch(`/rfqs/${id}/feedback`, { method: 'PATCH', body: JSON.stringify(data) })
   }
 };

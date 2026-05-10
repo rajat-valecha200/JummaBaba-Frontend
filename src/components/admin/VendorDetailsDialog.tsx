@@ -77,7 +77,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
                 <div className="flex flex-col gap-2 pt-2">
                   <div className="flex flex-wrap gap-2">
                     {vendor.status === 'approved' ? (
-                      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20 px-3">
+                      <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 hover:bg-blue-500/20 px-3">
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Approved
                       </Badge>
@@ -199,7 +199,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
                   <span className="font-medium">{vendor.email}</span>
                 </div>
                 <div className="flex items-center gap-3 text-sm p-3 rounded-xl bg-card border shadow-sm">
-                  <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-600">
+                  <div className="h-8 w-8 rounded-lg bg-sky-500/10 flex items-center justify-center text-blue-600">
                     <Phone className="h-4 w-4" />
                   </div>
                   <span className="font-medium">{vendor.phone || 'N/A'}</span>
@@ -326,7 +326,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
                   Reject
                 </Button>
                 <Button
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 h-12 rounded-xl"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 h-12 rounded-xl"
                   onClick={() => onApprove?.(vendor.id)}
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />

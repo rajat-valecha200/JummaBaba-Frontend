@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatsCard } from '@/components/b2b/StatsCard';
+import { SalesChart } from '@/components/b2b/SalesChart';
 import { formatPrice } from '@/lib/utils';
 
 export default function VendorDashboard() {
@@ -27,7 +28,7 @@ export default function VendorDashboard() {
         setLiveRfqs(rfqData);
         setRealOrders(
           rfqData
-            .filter((rfq: any) => ['confirmed', 'shipped', 'delivered'].includes(rfq.vendor_status))
+            .filter((rfq: any) => ['pending', 'confirmed', 'shipped', 'delivered'].includes(rfq.vendor_status))
             .slice(0, 3)
         );
       } catch (error) {
@@ -39,7 +40,9 @@ export default function VendorDashboard() {
     fetchStats();
   }, []);
 
-  const displayedRfqs = Array.isArray(liveRfqs) && liveRfqs.length > 0 ? liveRfqs.slice(0, 3) : [];
+  const displayedRfqs = Array.isArray(liveRfqs) 
+    ? liveRfqs.filter((rfq: any) => rfq.status === 'pending').slice(0, 3) 
+    : [];
 
   if (loading) {
     return (
@@ -96,9 +99,9 @@ export default function VendorDashboard() {
         <StatsCard title="Revenue" value={formatPrice(stats?.revenue || 0)} icon={TrendingUp} iconClassName="bg-success/10 text-success" />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+      <div className="grid lg:grid-cols-1 gap-6">
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-slate-50/50 px-6 py-4">
             <CardTitle className="text-lg">Recent Orders</CardTitle>
             <Button asChild variant="ghost" size="sm"><Link to="/vendor/orders">View All</Link></Button>
           </CardHeader>
@@ -115,8 +118,9 @@ export default function VendorDashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-slate-50/50 px-6 py-4">
             <CardTitle className="text-lg">Pending RFQs</CardTitle>
             <Button asChild variant="ghost" size="sm"><Link to="/vendor/rfqs">View All</Link></Button>
           </CardHeader>

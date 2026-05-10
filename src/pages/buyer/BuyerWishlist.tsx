@@ -48,7 +48,7 @@ export default function BuyerWishlist() {
           <p className="text-muted-foreground">Products you've saved for later</p>
         </div>
 
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
           <CardContent className="py-16 text-center">
             <Heart className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
             <h2 className="text-xl font-semibold mb-2">Your wishlist is empty</h2>

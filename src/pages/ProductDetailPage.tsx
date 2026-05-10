@@ -1,22 +1,28 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { 
-  ChevronRight, 
-  MessageSquare, 
+import {
+  ChevronRight,
+  MessageSquare,
   ShoppingCart,
   FileText,
   Share2,
   Heart,
-  ZoomIn,
-  Star,
-  Building,
+  Clock,
+  Shield,
   Package,
+  Building,
+  CheckCircle,
+  Star,
+  Plus,
+  Minus,
+  Check,
+  AlertCircle,
+  ZoomIn,
   Send,
-  Loader2,
-  Construction
+  Loader2
 } from 'lucide-react';
-import { UnderConstructionModal } from '@/components/ui/UnderConstructionModal';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -54,12 +60,11 @@ export default function ProductDetailPage() {
   const { isInWishlist, toggleWishlist } = useWishlist();
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState<number>(0);
-  const [constructionOpen, setConstructionOpen] = useState(false);
-  const [featureName, setFeatureName] = useState('');
+  // Removed UnderConstructionModal logic for F-006
   const [rfqOpen, setRfqOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submittingRfq, setSubmittingRfq] = useState(false);
-  
+
   const [product, setProduct] = useState<any>(null);
   const [supplier, setSupplier] = useState<any>(null);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
@@ -72,6 +77,14 @@ export default function ProductDetailPage() {
     description: '',
   });
 
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutForm, setCheckoutForm] = useState({
+    address: '',
+    city: '',
+    state: '',
+    phone: '',
+  });
+
   useEffect(() => {
     const fetchProductDetails = async () => {
       setLoading(true);
@@ -80,7 +93,7 @@ export default function ProductDetailPage() {
         // Better would be a direct get-by-slug endpoint, but this works for now
         const data = await api.products.list('approved');
         const found = data.find((p: any) => p.slug === slug);
-        
+
         if (found) {
           const pricingSlabs = typeof found.pricing_slabs === 'string' ? JSON.parse(found.pricing_slabs) : found.pricing_slabs;
           setProduct({
@@ -88,7 +101,7 @@ export default function ProductDetailPage() {
             pricingSlabs: pricingSlabs,
             specifications: typeof found.specifications === 'string' ? JSON.parse(found.specifications) : found.specifications || {}
           });
-          
+
           setQuantity(found.moq || 0);
 
           // Fetch supplier info
@@ -112,7 +125,7 @@ export default function ProductDetailPage() {
               yearEstablished: 2018
             });
           }
-          
+
           // Set related
           const related = data
             .filter((p: any) => String(p.categoryId) === String(found.categoryId) && p.id !== found.id)
@@ -150,15 +163,12 @@ export default function ProductDetailPage() {
       </div>
     );
   }
-  
-  const openConstruction = (name: string) => {
-    setFeatureName(name);
-    setConstructionOpen(true);
-  };
+
+  // Removed UnderConstructionModal logic for F-006
 
   const getActiveTier = (qty: number) => {
     if (!product.pricingSlabs) return null;
-    return product.pricingSlabs.find(slab => 
+    return product.pricingSlabs.find(slab =>
       qty >= slab.minQty && (slab.maxQty === null || qty <= slab.maxQty)
     ) || product.pricingSlabs[0];
   };
@@ -186,6 +196,80 @@ export default function ProductDetailPage() {
     setRfqOpen(true);
   };
 
+  const handleBuyNow = () => {
+    if (!user) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please login to place an order.',
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
+
+    if (quantity < product.moq) {
+      toast({
+        title: 'Invalid Quantity',
+        description: `Minimum order quantity is ${product.moq} ${product.unit}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setCheckoutForm({
+      address: '',
+      city: '',
+      state: '',
+      phone: user.phone || '',
+    });
+    setCheckoutOpen(true);
+  };
+
+  const handleConfirmPurchase = async () => {
+    if (!checkoutForm.address || !checkoutForm.city || !checkoutForm.state || !checkoutForm.phone) {
+      toast({ title: 'Please fill all shipping details', variant: 'destructive' });
+      return;
+    }
+
+    setSubmittingRfq(true);
+    try {
+      const fullAddress = `${checkoutForm.address}, ${checkoutForm.city}, ${checkoutForm.state}`;
+      await api.rfqs.create({
+        product_id: product.id,
+        buyer_id: user?.id,
+        quantity: quantity,
+        unit: product.unit,
+        target_price: activeTier?.pricePerUnit || product.minPrice,
+        delivery_location: fullAddress,
+        description: `FAST-TRACK ORDER: Direct purchase via Buy Now. Contact: ${checkoutForm.phone}`,
+        is_direct_order: true,
+        share_buyer_details: true,
+        product_name: product.name,
+        category_id: product.categoryId,
+        supplier_id: product.supplier_id,
+        buyer_phone: checkoutForm.phone
+      });
+
+      toast({
+        title: 'Order Placed!',
+        description: 'Your direct order has been received. Our team will contact you for payment/delivery.',
+        action: (
+          <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
+            <Link to="/buyer/orders">Track Order</Link>
+          </Button>
+        )
+      });
+      setCheckoutOpen(false);
+    } catch (error: any) {
+      toast({
+        title: 'Order Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+    setSubmittingRfq(false);
+  };
+
   const handleSubmitRfq = async () => {
     if (!rfqForm.quantity || !rfqForm.deliveryLocation) {
       toast({ title: 'Please fill required fields', variant: 'destructive' });
@@ -201,10 +285,13 @@ export default function ProductDetailPage() {
         unit: rfqForm.unit,
         target_price: rfqForm.targetPrice ? parseFloat(rfqForm.targetPrice) : null,
         delivery_location: rfqForm.deliveryLocation,
-        description: rfqForm.description
+        description: rfqForm.description,
+        product_name: product.name,
+        category_id: product.categoryId,
+        supplier_id: product.supplier_id
       });
-      toast({ 
-        title: 'RFQ Submitted Successfully!', 
+      toast({
+        title: 'RFQ Submitted Successfully!',
         description: 'Your request has been sent to our admin team for mediation.',
         action: (
           <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
@@ -261,9 +348,8 @@ export default function ProductDetailPage() {
                 <button
                   key={index}
                   onClick={() => setSelectedImage(index)}
-                  className={`w-20 h-20 rounded-lg border-2 overflow-hidden flex-shrink-0 transition-colors ${
-                    selectedImage === index ? 'border-primary' : 'border-transparent'
-                  }`}
+                  className={`w-20 h-20 rounded-lg border-2 overflow-hidden flex-shrink-0 transition-colors ${selectedImage === index ? 'border-primary' : 'border-transparent'
+                    }`}
                 >
                   <img
                     src={image}
@@ -279,23 +365,52 @@ export default function ProductDetailPage() {
           <div className="space-y-6">
             <div>
               <div className="flex items-start justify-between gap-4">
-                <h1 className="text-2xl md:text-3xl font-bold">{product.name}</h1>
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="text-2xl md:text-3xl font-bold">{product.name}</h1>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold uppercase text-[10px] tracking-widest px-3 py-1">
+                        <CheckCircle className="h-3 w-3 mr-1" /> Verified Product
+                      </Badge>
+                      {supplier?.isTopSupplier && (
+                        <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-bold uppercase text-[10px] tracking-widest px-3 py-1">
+                          <Star className="h-3 w-3 mr-1 fill-current" /> Top Rated
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="icon">
-                    <Heart className="h-5 w-5" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => toggleWishlist(product.id, product.name)}
+                    className={cn(isInWishlist(product.id) ? "text-destructive" : "")}
+                  >
+                    <Heart className={cn("h-5 w-5", isInWishlist(product.id) && "fill-current")} />
                   </Button>
-                  <Button variant="ghost" size="icon">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({
+                          title: product.name,
+                          text: product.shortDescription,
+                          url: window.location.href,
+                        });
+                      } else {
+                        navigator.clipboard.writeText(window.location.href);
+                        toast({ title: 'Link copied to clipboard!' });
+                      }
+                    }}
+                  >
                     <Share2 className="h-5 w-5" />
                   </Button>
                 </div>
               </div>
               <p className="text-muted-foreground mt-2">{product.shortDescription}</p>
-              <TrustBadges 
-                isVerified={product.isVerified}
-                isTopSupplier={supplier?.isTopSupplier}
-                className="mt-3"
-                size="md"
-              />
             </div>
 
             {/* Pricing */}
@@ -316,6 +431,80 @@ export default function ProductDetailPage() {
               <h3 className="font-semibold mb-2">Quantity-Based Pricing</h3>
               <PricingSlabsTable slabs={product.pricingSlabs} unit={product.unit} />
             </div>
+
+            {/* Checkout Dialog */}
+            <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-bold">Complete Your Order</DialogTitle>
+                  <DialogDescription>
+                    Provide your shipping details to finalize the purchase.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4 py-4">
+                  <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
+                    <div className="flex justify-between items-start mb-2">
+                      <p className="font-bold text-slate-900">{product.name}</p>
+                      <Badge variant="outline" className="bg-white">{quantity} {product.unit}</Badge>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-primary/10">
+                      <span className="text-sm text-muted-foreground uppercase font-bold tracking-widest">Total Amount</span>
+                      <span className="text-lg font-black text-primary">{formatPrice(totalPrice)}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="address">Full Shipping Address *</Label>
+                      <Textarea 
+                        id="address" 
+                        placeholder="House No, Street, Landmark..." 
+                        value={checkoutForm.address}
+                        onChange={(e) => setCheckoutForm({...checkoutForm, address: e.target.value})}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="city">City *</Label>
+                        <Input 
+                          id="city" 
+                          placeholder="e.g. Mumbai" 
+                          value={checkoutForm.city}
+                          onChange={(e) => setCheckoutForm({...checkoutForm, city: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="state">State *</Label>
+                        <Input 
+                          id="state" 
+                          placeholder="e.g. Maharashtra" 
+                          value={checkoutForm.state}
+                          onChange={(e) => setCheckoutForm({...checkoutForm, state: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Contact Number *</Label>
+                      <Input 
+                        id="phone" 
+                        placeholder="10-digit mobile number" 
+                        value={checkoutForm.phone}
+                        onChange={(e) => setCheckoutForm({...checkoutForm, phone: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter className="flex-col sm:flex-row gap-2">
+                  <Button variant="outline" onClick={() => setCheckoutOpen(false)} className="flex-1">Cancel</Button>
+                  <Button onClick={handleConfirmPurchase} className="flex-1 font-bold uppercase tracking-widest" disabled={submittingRfq}>
+                    {submittingRfq ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                    Confirm Purchase
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* Actions */}
             <div className="space-y-4">
@@ -339,9 +528,22 @@ export default function ProductDetailPage() {
                       className="text-lg py-6 font-bold"
                     />
                   </div>
-                  <Button className="px-8 py-6 text-lg font-bold uppercase tracking-widest shadow-lg hover:shadow-primary/20 transition-all">
-                    <ShoppingCart className="h-5 w-5 mr-2" />
-                    Buy Now
+                  <Button
+                    onClick={handleBuyNow}
+                    disabled={submittingRfq}
+                    className="px-8 py-6 text-lg font-bold uppercase tracking-widest shadow-lg hover:shadow-primary/20 transition-all"
+                  >
+                    {submittingRfq ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Ordering...
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="h-5 w-5 mr-2" />
+                        Buy Now
+                      </>
+                    )}
                   </Button>
                 </div>
                 {activeTier && (
@@ -356,24 +558,6 @@ export default function ProductDetailPage() {
                   <FileText className="h-4 w-4 mr-2" />
                   Request Bulk Quote
                 </Button>
-                <Button variant="secondary" className="flex-1 h-12 font-bold uppercase tracking-wider text-xs" onClick={() => openConstruction('Business Negotiation Chat')}>
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Negotiate Price
-                </Button>
-              </div>
-              <div className="flex gap-3">
-                <Button 
-                  variant="outline" 
-                  className={isInWishlist(product.id) ? "text-destructive hover:text-destructive" : ""}
-                  onClick={() => toggleWishlist(product.id, product.name)}
-                >
-                  <Heart className={`h-4 w-4 mr-2 ${isInWishlist(product.id) ? "fill-current" : ""}`} />
-                  {isInWishlist(product.id) ? "Saved" : "Save to Wishlist"}
-                </Button>
-                <Button variant="ghost">
-                  <Share2 className="h-4 w-4 mr-2" />
-                  Share
-                </Button>
               </div>
             </div>
 
@@ -383,7 +567,7 @@ export default function ProductDetailPage() {
                 <DialogHeader>
                   <DialogTitle>Request for Quotation</DialogTitle>
                   <DialogDescription>
-                    Get a custom quote from <span className="font-semibold"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba<span className="text-b2b-orange">.com</span></span> Platform
+                    Get a custom quote from <span className="font-semibold"><span className="font-extrabold text-black">J</span>umma<span className="font-extrabold text-b2b-gst">B</span>aba<span className="text-b2b-orange">.com</span></span> Platform
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -471,129 +655,160 @@ export default function ProductDetailPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-
-            {/* Platform Seller Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Sold by Platform</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <p className="font-semibold"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba<span className="text-b2b-orange">.com</span> Marketplace Pvt Ltd</p>
-                  <p className="text-sm text-muted-foreground">GSTIN: 27AABCJ1234A1Z5</p>
-                  <p className="text-sm text-muted-foreground">Mumbai, Maharashtra</p>
-                </div>
-
-                {supplier && (
-                  <div className="pt-3 border-t">
-                    <p className="text-xs text-muted-foreground mb-2">Fulfilled via Verified Supplier</p>
-                    <TrustBadges 
-                      isTopSupplier={supplier.isTopSupplier}
-                      isVerified={true}
-                      size="sm"
-                    />
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t">
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 text-primary">
-                      <Star className="h-4 w-4 fill-current" />
-                      <span className="font-semibold">4.8</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Platform Rating</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <Package className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-semibold">50K+</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Orders</p>
-                  </div>
-                </div>
-
-                <Button variant="outline" className="w-full" onClick={() => openConstruction('Platform Seller Profile')}>
-                  <Building className="h-4 w-4 mr-2" />
-                  View Platform Profile
-                </Button>
-              </CardContent>
-            </Card>
           </div>
         </div>
 
-        <UnderConstructionModal 
-          isOpen={constructionOpen} 
-          onClose={() => setConstructionOpen(false)} 
-          featureName={featureName} 
-        />
 
-        {/* Product Details Tabs */}
-        <div className="mt-10">
-          <Tabs defaultValue="description">
-            <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0">
-              <TabsTrigger 
-                value="description"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-              >
-                Description
-              </TabsTrigger>
-              <TabsTrigger 
-                value="specifications"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-              >
-                Specifications
-              </TabsTrigger>
-              <TabsTrigger 
-                value="shipping"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-              >
-                Shipping
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="description" className="mt-6">
-              <Card>
-                <CardContent className="p-6">
-                  <p className="text-muted-foreground leading-relaxed">
-                    {product.description}
-                  </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="specifications" className="mt-6">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {Object.entries(product.specifications).map(([key, value]) => (
-                      <div key={key} className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">{key}</span>
-                        <span className="font-medium">{value}</span>
+        {/* Product Details & Seller Info Grid */}
+        <div className="grid lg:grid-cols-2 gap-8 mt-10">
+          {/* Details Section (Left) */}
+          <div className="space-y-6">
+            <Card className="h-full">
+              <CardHeader className="border-b pb-4 bg-muted/20">
+                <CardTitle className="text-xl font-bold flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  Product Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y border-b">
+                  {/* Description Section */}
+                  <div className="p-6">
+                    <h3 className="font-bold text-sm uppercase tracking-widest text-primary mb-3">Description</h3>
+                    <p className="text-muted-foreground leading-relaxed text-sm">
+                      {product.description}
+                    </p>
+                  </div>
+
+                  {/* Specifications Section */}
+                  <div className="p-6">
+                    <h3 className="font-bold text-sm uppercase tracking-widest text-primary mb-4">Specifications</h3>
+                    <div className="flex flex-col space-y-0">
+                      {Object.entries(product.specifications).map(([key, value]) => (
+                        <div key={key} className="flex items-center justify-between py-3 border-b border-zinc-100 last:border-0 hover:bg-zinc-50/50 transition-colors px-2 -mx-2 rounded-lg">
+                          <span className="text-muted-foreground text-sm font-medium">{key}</span>
+                          <span className="font-bold text-sm text-foreground">{value as string}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Shipping Section */}
+                  <div className="p-6 bg-muted/10">
+                    <h3 className="font-bold text-sm uppercase tracking-widest text-primary mb-3">Shipping & Returns</h3>
+                    <div className="grid sm:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold">Delivery Time</p>
+                            <p className="text-[11px] text-muted-foreground">5-7 business days (Pan India)</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold">Returns</p>
+                            <p className="text-[11px] text-muted-foreground">7-day easy return policy</p>
+                          </div>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="shipping" className="mt-6">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium mb-1">Shipping Time</h4>
-                      <p className="text-muted-foreground">5-7 business days (Pan India)</p>
-                    </div>
-                    <div>
-                      <h4 className="font-medium mb-1">Shipping Cost</h4>
-                      <p className="text-muted-foreground">Calculated at checkout based on quantity and location</p>
-                    </div>
-                    <div>
-                      <h4 className="font-medium mb-1">Returns</h4>
-                      <p className="text-muted-foreground">7-day return policy for damaged or defective items</p>
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold">Safe & Secure</p>
+                            <p className="text-[11px] text-muted-foreground">Platform Protected Transaction</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Seller Information Section (Right) */}
+          <div className="h-full">
+            <Card className="h-full flex flex-col sticky top-24">
+              <CardHeader className="border-b pb-4 bg-muted/20">
+                <CardTitle className="text-xl font-bold flex items-center gap-2">
+                  <Building className="h-5 w-5 text-primary" />
+                  Seller Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 flex flex-col flex-grow space-y-6">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-1.5">Fulfilled by Platform</p>
+                  <div className="p-3 bg-primary/5 rounded-xl border border-primary/10">
+                    <p className="font-bold text-base">
+                      <span className="font-extrabold text-black">J</span>umma<span className='text-b2b-gst'><span className="font-extrabold">B</span>aba</span><span className="text-b2b-orange">.com</span> Marketplace
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Official platform fulfillment & quality guarantee</p>
+                  </div>
+                </div>
+
+                {supplier && (
+                  <div className="pt-6 border-t border-border">
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-2">Direct Seller Details</p>
+                    <Link 
+                      to={`/supplier/${supplier.id}`}
+                      className="group"
+                    >
+                      <h4 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors flex items-center gap-2">
+                        {supplier.companyName}
+                        <CheckCircle className="h-4 w-4 text-blue-500" />
+                      </h4>
+                    </Link>
+                    
+                    <div className="mt-4 grid grid-cols-2 gap-4">
+                      <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Established</p>
+                        <p className="text-sm font-bold">{supplier.yearEstablished}</p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Location</p>
+                        <p className="text-sm font-bold">Mumbai, India</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 px-3 py-1">
+                        <Shield className="h-3 w-3 mr-1.5" /> Verified Business Entity
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+
+                {/* Fake stats commented out for now as requested */}
+                {/* 
+                <div className="grid grid-cols-2 gap-4 pt-6 border-t border-border">
+                  <div className="text-center p-4 bg-muted/20 rounded-2xl border border-border">
+                    <div className="flex items-center justify-center gap-1.5 text-primary mb-1">
+                      <Star className="h-5 w-5 fill-current" />
+                      <span className="font-black text-lg">4.8</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Rating</p>
+                  </div>
+                  <div className="text-center p-4 bg-muted/20 rounded-2xl border border-border">
+                    <div className="flex items-center justify-center gap-1.5 text-foreground mb-1">
+                      <Package className="h-5 w-5 text-muted-foreground" />
+                      <span className="font-black text-lg">50K+</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Orders</p>
+                  </div>
+                </div>
+                */}
+
+                <div className="pt-6 mt-auto border-t">
+                  <Button variant="outline" className="w-full h-12 font-bold uppercase tracking-widest border-2 hover:bg-primary hover:text-white hover:border-primary transition-all" asChild>
+                    <Link to={`/supplier/${supplier?.id}`}>View Full Profile</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Related Products */}

@@ -92,13 +92,13 @@ export default function VendorActivity() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{activities.length}</div>
             <p className="text-sm text-muted-foreground">Total Activities</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-success">
               {activities.filter(a => a.type === 'product_approved' || a.type === 'quote_approved' || a.type === 'quote_submitted').length}
@@ -106,7 +106,7 @@ export default function VendorActivity() {
             <p className="text-sm text-muted-foreground">Approvals</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-primary">
               {activities.filter(a => a.type === 'order_received' || a.type === 'rfq_received').length}
@@ -114,7 +114,7 @@ export default function VendorActivity() {
             <p className="text-sm text-muted-foreground">New Orders/RFQs</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-warning">
               {activities.filter(a => a.type === 'admin_message').length}
@@ -124,8 +124,8 @@ export default function VendorActivity() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+        <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
             Recent Activity

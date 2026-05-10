@@ -41,8 +41,8 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    /* Success */
-    --success: 142 70% 45%;
+    /* Success - Blue instead of Green */
+    --success: 215 50% 55%;
     --success-foreground: 0 0% 100%;
 
     /* Warning */
@@ -71,8 +71,8 @@
     --b2b-orange-light: 24 100% 60%;
     --b2b-orange-dark: 24 100% 40%;
     --b2b-black: 0 0% 0%;
-    --b2b-trust-green: 142 70% 45%;
-    --b2b-verified: 142 70% 45%;
+    --b2b-trust-blue: 215 50% 55%;
+    --b2b-verified: 215 50% 55%;
     --b2b-gst: 215 50% 55%;
     --b2b-top-supplier: 24 100% 50%;
   }
@@ -102,7 +102,8 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --success: 142 70% 50%;
+    /* Success - Blue instead of Green */
+    --success: 215 50% 55%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 55%;
@@ -125,9 +126,9 @@
     --b2b-orange-light: 24 100% 65%;
     --b2b-orange-dark: 24 100% 45%;
     --b2b-black: 0 0% 0%;
-    --b2b-trust-green: 142 70% 50%;
-    --b2b-verified: 142 70% 50%;
-    --b2b-gst: 215 50% 60%;
+    --b2b-trust-blue: 215 50% 55%;
+    --b2b-verified: 215 50% 55%;
+    --b2b-gst: 215 50% 55%;
     --b2b-top-supplier: 24 100% 55%;
   }
 }
@@ -142,7 +143,12 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-semibold tracking-tight;
   }
 }
@@ -206,8 +212,9 @@
 
 /* Print Styles for Vendor Auditing */
 @media print {
+
   /* Hide everything except the sheet content */
-  body > *:not([role="dialog"]),
+  body>*:not([role="dialog"]),
   header,
   footer,
   aside,

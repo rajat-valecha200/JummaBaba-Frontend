@@ -40,8 +40,12 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RfqTimeline, getRfqSteps } from '@/components/b2b/RfqTimeline';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 export default function AdminRfqs() {
   const { toast } = useToast();
@@ -55,11 +59,35 @@ export default function AdminRfqs() {
   const [vendors, setVendors] = useState<any[]>([]);
   const [forwardDialogOpen, setForwardDialogOpen] = useState(false);
   const [selectedVendorId, setSelectedVendorId] = useState('');
+  const [updatingPrivacy, setUpdatingPrivacy] = useState(false);
+  const [isForwarding, setIsForwarding] = useState(false);
+  const [isModerating, setIsModerating] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const fetchRfqs = async () => {
     try {
       const data = await api.rfqs.list();
-      setRfqs(data);
+      const normalizedData = data.map((r: any) => {
+        let details = typeof r.response_details === 'string' 
+          ? JSON.parse(r.response_details) 
+          : r.response_details || {};
+        
+        // Un-nest if double wrapped
+        if (details.response_details && typeof details.response_details === 'object') {
+          details = { ...details, ...details.response_details };
+        }
+
+        return {
+          ...r,
+          response_details: details
+        };
+      });
+      setRfqs(normalizedData);
+      if (selectedRfq) {
+        const updated = normalizedData.find((r: any) => r.id === selectedRfq.id);
+        if (updated) setSelectedRfq(updated);
+      }
     } catch (error) {
       console.error('Failed to fetch RFQs:', error);
       toast({ title: 'Error', description: 'Failed to load RFQs', variant: 'destructive' });
@@ -70,6 +98,8 @@ export default function AdminRfqs() {
 
   useEffect(() => {
     fetchRfqs();
+    const interval = setInterval(() => fetchRfqs(true), 15000); // 15s live refresh
+    
     const fetchVendors = async () => {
       try {
         const data = await api.profiles.list('vendor', 'approved');
@@ -79,6 +109,7 @@ export default function AdminRfqs() {
       }
     };
     fetchVendors();
+    return () => clearInterval(interval);
   }, []);
 
   const handleForward = async (rfq: any) => {
@@ -89,6 +120,7 @@ export default function AdminRfqs() {
     }
 
     try {
+      setIsForwarding(true);
       await api.rfqs.forward(rfq.id, selectedVendorId || rfq.supplier_id);
       toast({ title: 'Success', description: 'RFQ forwarded to seller' });
       setForwardDialogOpen(false);
@@ -96,59 +128,88 @@ export default function AdminRfqs() {
       fetchRfqs();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsForwarding(false);
     }
   };
 
   const handleQuoteAction = async (id: string, status: 'approved' | 'rejected') => {
     try {
+      setIsModerating(true);
       if (status === 'rejected' && !rejectionReason.trim()) {
         toast({ title: 'Error', description: 'Please provide a rejection reason', variant: 'destructive' });
         return;
       }
 
-      await api.rfqs.updateQuoteStatus(id, status, status === 'rejected' ? rejectionReason : undefined);
+      await api.rfqs.approveQuote(id, { 
+        status, 
+        rejection_reason: status === 'rejected' ? rejectionReason : undefined 
+      });
       toast({ title: 'Success', description: `Quote ${status}` });
       setDetailsOpen(false);
       setRejectDialogOpen(false);
       fetchRfqs();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsModerating(false);
+    }
+  };
+
+  const handleTogglePrivacy = async (id: string, checked: boolean) => {
+    setUpdatingPrivacy(true);
+    try {
+      await api.rfqs.togglePrivacy(id, checked);
+      toast({ title: 'Privacy Updated', description: checked ? 'Contact details now visible to seller' : 'Contact details hidden from seller' });
+      fetchRfqs();
+    } catch (err: any) {
+      toast({ title: 'Update Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setUpdatingPrivacy(false);
     }
   };
 
   const handleCancellationAction = async (id: string, status: 'approved' | 'rejected') => {
     try {
+      setIsCancelling(true);
       await api.rfqs.updateCancellation(id, status);
       toast({ title: 'Success', description: `Cancellation ${status}` });
       setDetailsOpen(false);
       fetchRfqs();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsCancelling(false);
     }
   };
 
   const getModerationBadge = (status: string) => {
     switch (status) {
       case 'pending_moderation':
-        return <Badge className="bg-warning/20 text-warning border-warning/30 hover:bg-warning/30">New RFQ</Badge>;
+        return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest">New Inquiry</Badge>;
       case 'forwarded':
-        return <Badge className="bg-blue-500/20 text-blue-500 border-blue-500/30 hover:bg-blue-500/30">With Seller</Badge>;
+        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest">Sent to Seller</Badge>;
       case 'quote_pending':
-        return <Badge className="bg-accent/20 text-accent border-accent/30 animate-pulse">Quote Received</Badge>;
+        return <Badge className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest animate-pulse">Quote Received</Badge>;
       case 'quote_approved':
-        return <Badge className="bg-success/20 text-success border-success/30">Approved</Badge>;
+        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest">Audit Passed</Badge>;
       case 'quote_rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
+        return <Badge variant="destructive" className="font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest">Rejected</Badge>;
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary" className="font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest">{status}</Badge>;
     }
   };
 
-  const filteredRfqs = rfqs.filter(rfq => 
-    rfq.product_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    rfq.buyer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    rfq.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredRfqs = rfqs.filter(r => {
+    const matchesStatus = statusFilter === 'all' || r.moderation_status === statusFilter;
+    const isStandardInquiry = r.is_direct_order !== true; // Only show non-direct orders here
+    const matchesSearch = 
+      (r.product_name && r.product_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (r.buyer_name && r.buyer_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (r.id && r.id.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+    return matchesStatus && matchesSearch && isStandardInquiry;
+  });
 
   if (loading) {
     return (
@@ -167,24 +228,38 @@ export default function AdminRfqs() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 overflow-hidden rounded-2xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50" />
+        <CardHeader className="relative z-10 border-b border-border/50 bg-slate-50/50">
           <div className="flex items-center gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Search by product or buyer name..." 
-                className="pl-9"
+                placeholder="Search by product, buyer, or ID..." 
+                className="pl-9 bg-white border-border/50 focus:border-primary/50 transition-all"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-            </Button>
+            <div className="flex gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px] bg-white border-border/50">
+                  <Filter className="h-3 w-3 mr-2" />
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Moderation</SelectItem>
+                  <SelectItem value="pending_moderation">New Inquiries</SelectItem>
+                  <SelectItem value="forwarded">Sent to Seller</SelectItem>
+                  <SelectItem value="quote_pending">Quote Received</SelectItem>
+                  <SelectItem value="quote_approved">Audit Passed</SelectItem>
+                  <SelectItem value="quote_rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="relative z-10 p-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -209,16 +284,24 @@ export default function AdminRfqs() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <img 
-                          src={rfq.product_images?.[0] || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=100'} 
+                          src={rfq.product_images?.[0]} 
                           className="w-10 h-10 rounded object-cover"
                           alt={rfq.product_name}
+                          onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=100'; }}
                         />
                         <span className="font-medium">{rfq.product_name}</span>
                       </div>
                     </TableCell>
-                    <TableCell>{rfq.buyer_name}</TableCell>
+                    <TableCell>{rfq.buyer_name || 'Anonymous'}</TableCell>
                     <TableCell>{rfq.quantity} {rfq.unit}</TableCell>
-                    <TableCell>{formatPrice(rfq.target_price)}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Target: {rfq.target_price ? formatPrice(rfq.target_price) : 'N/A'}</div>
+                        {rfq.response_details?.price && (
+                          <div className="text-sm font-black text-primary">Quote: {formatPrice(rfq.response_details.price)}</div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{getModerationBadge(rfq.moderation_status)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -226,13 +309,13 @@ export default function AdminRfqs() {
                           <Eye className="h-4 w-4" />
                         </Button>
                         {rfq.moderation_status === 'pending_moderation' && (
-                          <Button size="sm" onClick={() => handleForward(rfq)}>
-                            <ArrowRight className="h-4 w-4 mr-2" />
+                          <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black uppercase tracking-widest shadow-lg shadow-orange-600/20 px-4" onClick={() => handleForward(rfq)} disabled={isForwarding}>
+                            {isForwarding ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4 mr-2" />}
                             Forward
                           </Button>
                         )}
                         {rfq.moderation_status === 'quote_pending' && (
-                          <Button size="sm" className="bg-accent hover:bg-accent/90" onClick={() => { setSelectedRfq(rfq); setDetailsOpen(true); }}>
+                          <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black uppercase tracking-widest shadow-lg shadow-orange-600/20 px-4" onClick={() => { setSelectedRfq(rfq); setDetailsOpen(true); }}>
                             <CheckCircle className="h-4 w-4 mr-2" />
                             Review Quote
                           </Button>
@@ -248,126 +331,172 @@ export default function AdminRfqs() {
       </Card>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>RFQ & Quote Details</DialogTitle>
-            <DialogDescription>Review and manage the request workflow</DialogDescription>
-          </DialogHeader>
-          
-          {selectedRfq && (
-            <div className="space-y-6">
-              {selectedRfq.cancellation_request?.status === 'pending' && (
-                <div className="p-4 bg-destructive/10 border-2 border-destructive/20 rounded-lg space-y-3">
-                  <div className="flex items-center gap-2 text-destructive font-bold">
-                    <XCircle className="h-5 w-5" /> Cancellation Request Received
-                  </div>
-                  <div className="text-sm space-y-1">
-                    <p><span className="font-semibold">Reason:</span> {selectedRfq.cancellation_request.reason}</p>
-                    <p><span className="font-semibold">Requested At:</span> {new Date(selectedRfq.cancellation_request.requested_at).toLocaleString()}</p>
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <Button variant="outline" size="sm" className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => handleCancellationAction(selectedRfq.id, 'rejected')}>
-                      Reject Cancellation
-                    </Button>
-                    <Button size="sm" className="bg-destructive text-white hover:bg-destructive/90" onClick={() => handleCancellationAction(selectedRfq.id, 'approved')}>
-                      Approve Cancellation
-                    </Button>
-                  </div>
-                </div>
+        <DialogContent className="max-w-4xl border-border/50 bg-card/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-0 overflow-hidden">
+          <div className="flex h-[80vh]">
+            <div className="w-80 border-r border-border/50 bg-slate-50/50 p-8 hidden md:block">
+              <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-8">Moderation Lifecycle</h3>
+              {selectedRfq && (
+                <RfqTimeline steps={getRfqSteps(selectedRfq.status, selectedRfq.moderation_status)} />
               )}
-              <Tabs defaultValue="rfq" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="rfq">Buyer Request</TabsTrigger>
-                  <TabsTrigger value="quote" disabled={!selectedRfq.response_details || Object.keys(selectedRfq.response_details).length === 0}>
-                    Seller Quote
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="rfq" className="space-y-4 pt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-muted/50 rounded-lg space-y-3">
-                      <div className="flex items-center gap-2 text-sm font-semibold">
-                        <User className="h-4 w-4 text-primary" /> Buyer Information
-                      </div>
-                      <div className="text-sm">
-                        <p className="font-medium">{selectedRfq.buyer_name}</p>
-                        <p className="text-muted-foreground">{selectedRfq.buyer_email}</p>
-                        <p className="text-muted-foreground">{selectedRfq.buyer_phone}</p>
-                      </div>
-                    </div>
-                    <div className="p-4 bg-muted/50 rounded-lg space-y-3">
-                      <div className="flex items-center gap-2 text-sm font-semibold">
-                        <Package className="h-4 w-4 text-primary" /> Request Details
-                      </div>
-                      <div className="text-sm">
-                        <p><span className="text-muted-foreground">Qty:</span> {selectedRfq.quantity} {selectedRfq.unit}</p>
-                        <p><span className="text-muted-foreground">Target:</span> {formatPrice(selectedRfq.target_price)}</p>
-                        <p><span className="text-muted-foreground">Loc:</span> {selectedRfq.delivery_location}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Description</p>
-                    <p className="text-sm">{selectedRfq.description || 'No description provided'}</p>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="quote" className="space-y-4 pt-4">
-                  <div className="p-6 bg-accent/5 border border-accent/20 rounded-xl space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-accent font-bold">
-                        <FileText className="h-5 w-5" /> Seller Submission
-                      </div>
-                      <Badge className="bg-accent/20 text-accent border-accent/30">
-                        {selectedRfq.moderation_status === 'quote_pending' ? 'Awaiting Approval' : 'Reviewed'}
-                      </Badge>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Quoted Price</p>
-                        <p className="text-2xl font-bold text-primary">{formatPrice(selectedRfq.response_details?.price)}</p>
-                        <p className="text-xs text-muted-foreground">Buyer Target: {formatPrice(selectedRfq.target_price)}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Lead Time</p>
-                        <p className="text-xl font-semibold">{selectedRfq.response_details?.lead_time || 'N/A'}</p>
-                      </div>
-                    </div>
-                    
-                    {selectedRfq.response_details?.notes && (
-                      <div className="pt-2">
-                        <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Seller Notes</p>
-                        <p className="text-sm bg-background/50 p-3 rounded border italic">
-                          "{selectedRfq.response_details.notes}"
-                        </p>
+            </div>
+
+            <div className="flex-1 flex flex-col">
+              <DialogHeader className="p-8 pb-4 border-b border-white/5">
+                <div className="flex items-center justify-between mb-2">
+                  <DialogTitle className="text-2xl font-black tracking-tighter">Inquiry Moderation</DialogTitle>
+                  {selectedRfq && getModerationBadge(selectedRfq.moderation_status)}
+                </div>
+                <DialogDescription className="font-bold text-muted-foreground uppercase text-[10px] tracking-widest">
+                  Reference ID: {selectedRfq?.id}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                {selectedRfq && (
+                  <div className="space-y-6">
+                    {selectedRfq.cancellation_request?.status === 'pending' && (
+                      <div className="p-4 bg-destructive/10 border-2 border-destructive/20 rounded-lg space-y-3">
+                        <div className="flex items-center gap-2 text-destructive font-bold">
+                          <XCircle className="h-5 w-5" /> Cancellation Request Received
+                        </div>
+                        <div className="text-sm space-y-1">
+                          <p><span className="font-semibold">Reason:</span> {selectedRfq.cancellation_request.reason}</p>
+                          <p><span className="font-semibold">Requested At:</span> {new Date(selectedRfq.cancellation_request.requested_at).toLocaleString()}</p>
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="border-destructive text-destructive hover:bg-destructive/10" 
+                            onClick={() => handleCancellationAction(selectedRfq.id, 'rejected')}
+                            disabled={isCancelling}
+                          >
+                            {isCancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <XCircle className="h-4 w-4 mr-2" />}
+                            Reject Cancellation
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            className="bg-destructive text-white hover:bg-destructive/90" 
+                            onClick={() => handleCancellationAction(selectedRfq.id, 'approved')}
+                            disabled={isCancelling}
+                          >
+                            {isCancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                            Approve Cancellation
+                          </Button>
+                        </div>
                       </div>
                     )}
+                    <Tabs defaultValue="rfq" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="rfq">Buyer Request</TabsTrigger>
+                        <TabsTrigger value="quote" disabled={!selectedRfq.response_details || Object.keys(selectedRfq.response_details).length === 0}>
+                          Seller Quote
+                        </TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="rfq" className="space-y-4 pt-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2 text-sm font-semibold">
+                                <User className="h-4 w-4 text-primary" /> Buyer Information
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Checkbox 
+                                  id="share_buyer_details" 
+                                  checked={selectedRfq.share_buyer_details} 
+                                  onCheckedChange={(checked) => handleTogglePrivacy(selectedRfq.id, !!checked)}
+                                  disabled={updatingPrivacy}
+                                />
+                                <Label htmlFor="share_buyer_details" className="text-[10px] font-bold uppercase cursor-pointer">Share Details</Label>
+                              </div>
+                            </div>
+                            <div className="text-sm">
+                              <p className="font-medium">{selectedRfq.buyer_name}</p>
+                              <p className="text-muted-foreground">{selectedRfq.buyer_email}</p>
+                              <p className="text-muted-foreground">{selectedRfq.buyer_phone}</p>
+                            </div>
+                          </div>
+                          <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                            <div className="flex items-center gap-2 text-sm font-semibold">
+                              <Package className="h-4 w-4 text-primary" /> Request Details
+                            </div>
+                            <div className="text-sm">
+                               <p><span className="text-muted-foreground">Qty:</span> {selectedRfq.quantity} {selectedRfq.unit}</p>
+                               <p><span className="text-muted-foreground">Target:</span> {selectedRfq.target_price ? formatPrice(selectedRfq.target_price) : 'N/A'}</p>
+                               <p><span className="text-muted-foreground">Loc:</span> {selectedRfq.delivery_location || 'N/A'}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-4 border rounded-lg">
+                          <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Description</p>
+                          <p className="text-sm">{selectedRfq.description || 'No description provided'}</p>
+                        </div>
+                      </TabsContent>
+                      
+                      <TabsContent value="quote" className="space-y-4 pt-4">
+                        <div className="p-6 bg-accent/5 border border-accent/20 rounded-xl space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-accent font-bold">
+                              <FileText className="h-5 w-5" /> Seller Submission
+                            </div>
+                            <Badge className="bg-accent/20 text-accent border-accent/30">
+                              {selectedRfq.moderation_status === 'quote_pending' ? 'Awaiting Approval' : 'Reviewed'}
+                            </Badge>
+                          </div>
+                          
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-1">
+                            <p className="text-sm font-bold text-slate-500">Seller's Quoted Price</p>
+                            <p className="text-3xl font-black text-primary">
+                              {selectedRfq.response_details?.price ? formatPrice(selectedRfq.response_details.price) : 'NOT QUOTED'}
+                            </p>
+                            <p className="text-xs font-bold text-slate-400">Buyer's Original Target: {formatPrice(selectedRfq.target_price)}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-bold text-slate-500">Estimated Lead Time</p>
+                            <p className="text-xl font-black text-slate-900">{selectedRfq.response_details?.lead_time || 'Immediate'}</p>
+                          </div>
+                        </div>
+                          
+                          {selectedRfq.response_details?.notes && (
+                            <div className="pt-2">
+                              <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Seller Notes</p>
+                              <p className="text-sm bg-background/50 p-3 rounded border italic">
+                                "{selectedRfq.response_details.notes}"
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </TabsContent>
+                    </Tabs>
                   </div>
-                </TabsContent>
-              </Tabs>
-            </div>
-          )}
+                )}
+              </div>
 
-          <DialogFooter className="flex sm:justify-between gap-2">
-            <div className="flex gap-2">
-              {selectedRfq?.moderation_status === 'pending_moderation' && (
-                <Button onClick={() => handleForward(selectedRfq)}>
-                  Forward to Seller
-                </Button>
-              )}
-              {selectedRfq?.moderation_status === 'quote_pending' && (
-                <>
-                  <Button variant="outline" className="text-destructive" onClick={() => setRejectDialogOpen(true)}>
-                    <XCircle className="h-4 w-4 mr-2" /> Reject Quote
-                  </Button>
-                  <Button className="bg-success hover:bg-success/90" onClick={() => handleQuoteAction(selectedRfq.id, 'approved')}>
-                    <CheckCircle className="h-4 w-4 mr-2" /> Approve Quote
-                  </Button>
-                </>
-              )}
+              <DialogFooter className="p-8 border-t border-white/5">
+                <div className="flex gap-2">
+                  {selectedRfq?.moderation_status === 'pending_moderation' && (
+                    <Button onClick={() => handleForward(selectedRfq)} disabled={isForwarding}>
+                      {isForwarding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Forward to Seller
+                    </Button>
+                  )}
+                  {selectedRfq?.moderation_status === 'quote_pending' && (
+                    <>
+                      <Button variant="outline" className="text-destructive" onClick={() => setRejectDialogOpen(true)} disabled={isModerating}>
+                        <XCircle className="h-4 w-4 mr-2" /> Reject Quote
+                      </Button>
+                      <Button className="bg-success hover:bg-success/90" onClick={() => handleQuoteAction(selectedRfq.id, 'approved')} disabled={isModerating}>
+                        {isModerating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                        Approve Quote
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <Button variant="ghost" onClick={() => setDetailsOpen(false)}>Close</Button>
+              </DialogFooter>
             </div>
-            <Button variant="ghost" onClick={() => setDetailsOpen(false)}>Close</Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -385,8 +514,9 @@ export default function AdminRfqs() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => handleQuoteAction(selectedRfq?.id, 'rejected')} disabled={!rejectionReason.trim()}>
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)} disabled={isModerating}>Cancel</Button>
+            <Button variant="destructive" onClick={() => handleQuoteAction(selectedRfq?.id, 'rejected')} disabled={!rejectionReason.trim() || isModerating}>
+              {isModerating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Confirm Rejection
             </Button>
           </DialogFooter>
@@ -422,8 +552,9 @@ export default function AdminRfqs() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setForwardDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => selectedRfq && handleForward(selectedRfq)} disabled={!selectedVendorId}>
+            <Button variant="outline" onClick={() => setForwardDialogOpen(false)} disabled={isForwarding}>Cancel</Button>
+            <Button onClick={() => selectedRfq && handleForward(selectedRfq)} disabled={!selectedVendorId || isForwarding}>
+              {isForwarding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Confirm & Forward
             </Button>
           </DialogFooter>

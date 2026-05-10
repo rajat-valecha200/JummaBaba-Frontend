@@ -128,8 +128,8 @@ export default function OrderConfirmationPage() {
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Order Timeline / Tracking */}
-          <Card>
-            <CardHeader>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Truck className="h-5 w-5 text-primary" />
                 Order Status & Tracking
@@ -214,8 +214,8 @@ export default function OrderConfirmationPage() {
           </Card>
 
           {/* Payment Instructions */}
-          <Card>
-            <CardHeader>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2 text-base">
                 <CreditCard className="h-5 w-5 text-primary" />
                 Payment Instructions
@@ -312,7 +312,7 @@ export default function OrderConfirmationPage() {
 
         {/* Order Summary */}
         <Card className="mt-6">
-          <CardHeader>
+          <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-base">
               <Package className="h-5 w-5 text-primary" />
               Order Summary

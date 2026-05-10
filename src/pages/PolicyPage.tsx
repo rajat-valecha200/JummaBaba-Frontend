@@ -1,92 +1,203 @@
 import React from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, FileText, Lock, ChevronLeft } from 'lucide-react';
+import { Shield, FileText, Lock, ChevronLeft, Mail, Phone, MapPin, CheckCircle2 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
+import { Button } from '@/components/ui/button';
 
 export default function PolicyPage() {
   const { type: paramType } = useParams();
   const location = useLocation();
   const type = paramType || location.pathname.substring(1);
   
-  const content = {
+  const contentMap = {
     privacy: {
       title: 'Privacy Policy',
       icon: Lock,
-      description: 'How we handle your data at JummaBaba.com',
-      lastUpdated: 'April 15, 2024'
+      description: 'Global Data Protection Standards',
+      lastUpdated: 'May 09, 2026',
+      sections: [
+        {
+          title: '1. Information We Collect',
+          content: 'We collect personal identifiers (Name, phone number, email), business credentials for B2B verification, billing/shipping logistics data, and encrypted payment tokens.'
+        },
+        {
+          title: '2. How We Use Your Information',
+          content: 'Data is utilized to facilitate high-velocity B2B transactions, provide multi-channel customer support, optimize marketplace algorithms, and execute regulatory compliance checks.'
+        },
+        {
+          title: '3. Data Protection Protocol',
+          content: 'JummaBaba implements industry-leading AES-256 encryption and TLS 1.3 for all data in transit. We maintain strict internal access controls to ensure your business intelligence remains confidential.'
+        },
+        {
+          title: '4. Information Dissemination',
+          content: 'We never sell data. Information is shared strictly with authorized payment processors, logistics partners (for order fulfillment), and judicial authorities when legally mandated.'
+        },
+        {
+          title: '5. Rights & Governance',
+          content: 'Users maintain full rights to access, rectify, or purge their data. All data processing follows the spirit of GDPR and Indian IT Act 2000.'
+        }
+      ]
     },
     terms: {
       title: 'Terms of Service',
       icon: FileText,
-      description: 'Rules and regulations for using our marketplace',
-      lastUpdated: 'April 12, 2024'
-    },
-    help: {
-      title: 'Help Center',
-      icon: Shield,
-      description: 'Frequently asked questions and support guides',
-      lastUpdated: 'Daily Updates'
+      description: 'Platform Usage & Legal Framework',
+      lastUpdated: 'May 09, 2026',
+      sections: [
+        {
+          title: '1. Platform Mandate',
+          content: 'JummaBaba.com is a premier B2B and industrial e-commerce infrastructure connecting global buyers with verified Indian industrial suppliers.'
+        },
+        {
+          title: '2. User Conduct',
+          content: 'All participants must provide verified business documentation. Fraudulent activity, industrial espionage, or policy circumvention results in immediate permanent ban.'
+        },
+        {
+          title: '3. Transactional Integrity',
+          content: 'Orders are legally binding contracts. Payments are held in secure escrow or processed via verified gateways. Platform fees are non-refundable unless specified in service-level agreements.'
+        },
+        {
+          title: '4. Liability Framework',
+          content: 'While we verify all participants, JummaBaba serves as an orchestrator. Product quality and delivery timelines are the primary responsibility of the registered vendor.'
+        },
+        {
+          title: '5. Jurisdictional Law',
+          content: 'These terms are governed by the laws of India, with exclusive jurisdiction in the courts of Haryana.'
+        }
+      ]
     }
-  }[type as keyof typeof content] || content.help;
+  };
+
+  const activeContent = contentMap[type as keyof typeof contentMap] || contentMap.privacy;
 
   return (
-    <div className="min-h-screen bg-muted/30 py-12">
-      <div className="b2b-container max-w-4xl">
-        <Link to="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-8 transition-colors">
-          <ChevronLeft className="h-4 w-4" />
-          Back to Marketplace
-        </Link>
-        
-        <Card className="border-primary/10 shadow-xl overflow-hidden">
-          <div className="h-2 bg-gradient-to-r from-b2b-black via-blue-600 to-b2b-orange" />
-          <CardHeader className="pb-8 pt-10 text-center">
-            <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-              <content.icon className="h-8 w-8 text-primary" />
+    <div className="min-h-screen bg-slate-50 py-20 font-inter">
+      <div className="max-w-5xl mx-auto px-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
+          <div>
+            <Link to="/" className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-primary transition-all group mb-4">
+              <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+              Back to System
+            </Link>
+            <h1 className="text-5xl font-black uppercase tracking-tighter text-slate-900">
+              {activeContent.title}
+            </h1>
+            <div className="flex items-center gap-3 mt-4">
+              <Badge className="bg-primary/10 text-primary border-primary/20 uppercase font-black tracking-widest text-[10px]">
+                Official Document
+              </Badge>
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Last Synchronized: {activeContent.lastUpdated}
+              </span>
             </div>
-            <CardTitle className="text-3xl font-bold">{content.title}</CardTitle>
-            <p className="text-muted-foreground mt-2">{content.description}</p>
-            <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60 mt-4">Last Updated: {content.lastUpdated}</p>
-          </CardHeader>
-          <CardContent className="prose prose-blue max-w-none px-10 pb-16">
-            <div className="space-y-8">
-              <section>
-                <h3 className="text-xl font-bold mb-3">1. Introduction</h3>
-                <p className="text-muted-foreground leading-relaxed">
-                  Welcome to <Logo size="sm" className="inline-block" />. We are committed to providing a secure and transparent B2B trading environment. This document outlines the standards we uphold for our global community of buyers and suppliers.
-                </p>
-              </section>
+          </div>
+          <Logo size="lg" />
+        </div>
 
-              <section>
-                <h3 className="text-xl font-bold mb-3">2. Core Principles</h3>
-                <div className="grid md:grid-cols-2 gap-4 mt-4">
-                  <div className="p-4 bg-muted rounded-lg border border-border">
-                    <p className="font-bold text-sm mb-1">Transparency</p>
-                    <p className="text-xs text-muted-foreground">Every transaction and vendor detail is verified by our platform team.</p>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
+          {/* Sticky Navigation */}
+          <div className="hidden lg:block space-y-2 sticky top-32 h-fit">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-4">Legal Directory</p>
+            {Object.entries(contentMap).map(([key, val]) => (
+              <Link 
+                key={key}
+                to={`/${key}`}
+                className={cn(
+                  "block px-4 py-3 rounded-xl text-sm font-bold uppercase tracking-wider transition-all",
+                  type === key 
+                    ? "bg-white shadow-lg shadow-primary/5 text-primary border-l-4 border-primary" 
+                    : "text-muted-foreground hover:bg-white hover:text-foreground"
+                )}
+              >
+                {val.title}
+              </Link>
+            ))}
+          </div>
+
+          {/* Main Content */}
+          <div className="lg:col-span-3 space-y-12">
+            <Card className="border-none shadow-2xl bg-white/80 backdrop-blur-md rounded-3xl overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-b2b-black via-primary to-b2b-orange" />
+              <CardHeader className="p-10 border-b border-slate-100">
+                <div className="flex items-start gap-6">
+                  <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center shrink-0">
+                    <activeContent.icon className="h-8 w-8 text-primary" />
                   </div>
-                  <div className="p-4 bg-muted rounded-lg border border-border">
-                    <p className="font-bold text-sm mb-1">Security</p>
-                    <p className="text-xs text-muted-foreground">Your business data and payment information are encrypted and shielded.</p>
+                  <div>
+                    <CardTitle className="text-2xl font-black uppercase tracking-tight">Executive Summary</CardTitle>
+                    <p className="text-muted-foreground mt-2 font-medium">{activeContent.description}</p>
                   </div>
                 </div>
-              </section>
+              </CardHeader>
+              <CardContent className="p-10 space-y-12">
+                {activeContent.sections.map((section, idx) => (
+                  <section key={idx} className="group">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
+                        {idx + 1}
+                      </div>
+                      <h2 className="text-xl font-black uppercase tracking-wide group-hover:text-primary transition-colors">
+                        {section.title.split('. ')[1]}
+                      </h2>
+                    </div>
+                    <div className="pl-9">
+                      <p className="text-slate-600 leading-relaxed font-medium">
+                        {section.content}
+                      </p>
+                      {idx === 2 && (
+                        <div className="mt-6 p-6 bg-primary/5 border border-primary/10 rounded-2xl flex items-start gap-4">
+                          <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                          <p className="text-sm font-bold text-slate-800 italic">
+                            "Compliance verified by JummaBaba Trust Council for global B2B operations."
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                ))}
 
-              <section className="bg-primary/5 p-6 rounded-xl border border-primary/20">
-                <h3 className="text-xl font-bold mb-3 text-primary">Status: Professional Draft</h3>
-                <p className="text-sm text-muted-foreground">
-                  Our legal team is currently finalizing the full text of this policy to ensure it meets the highest international B2B commerce standards. For immediate inquiries, please contact <span className="font-bold text-foreground">legal@jummababa.com</span>.
-                </p>
-              </section>
+                <div className="pt-12 border-t border-slate-100 flex flex-col md:flex-row gap-8">
+                  <div className="flex-1 p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Mail className="h-5 w-5 text-primary" />
+                      <span className="font-black uppercase text-xs tracking-widest">Legal Inquiries</span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-900">legal@jummababa.com</p>
+                  </div>
+                  <div className="flex-1 p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Phone className="h-5 w-5 text-primary" />
+                      <span className="font-black uppercase text-xs tracking-widest">Global Support</span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-900">+91 (800) JUMMA-BABA</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center justify-center gap-8 py-10 opacity-40">
+              <Shield className="h-8 w-8" />
+              <div className="h-12 w-[1px] bg-slate-300" />
+              <Logo size="sm" />
+              <div className="h-12 w-[1px] bg-slate-300" />
+              <MapPin className="h-8 w-8" />
             </div>
-          </CardContent>
-        </Card>
-        
-        <div className="mt-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} <Logo size="sm" /> Marketplace Pvt Ltd. All rights reserved.
-          </p>
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+function Badge({ children, className }: { children: React.ReactNode, className?: string }) {
+  return (
+    <span className={cn("px-2 py-1 rounded text-[10px] font-bold", className)}>
+      {children}
+    </span>
+  );
+}
+
+function cn(...classes: any[]) {
+  return classes.filter(Boolean).join(' ');
 }

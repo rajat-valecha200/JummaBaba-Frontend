@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
-import { 
-  Facebook, 
-  Twitter, 
-  Linkedin, 
+import {
+  Facebook,
+  Twitter,
+  Linkedin,
   Instagram,
   MapPin,
   Phone,
@@ -69,8 +69,7 @@ export function Footer() {
               <Logo size="lg" />
             </h2>
             <p className="text-sm text-secondary-foreground/80 mb-4">
-              India's leading B2B marketplace connecting buyers with verified suppliers 
-              for wholesale and bulk buying.
+              Verified B2B marketplace connecting businesses with trusted manufacturers for direct wholesale sourcing.
             </p>
             <div className="flex gap-3">
               <a href="#" className="p-2 rounded-full bg-secondary-foreground/10 hover:bg-primary transition-colors">
@@ -107,7 +106,7 @@ export function Footer() {
             <h3 className="font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2 text-sm text-secondary-foreground/80">
               <li><Link to="/about" className="hover:text-primary transition-colors">About Us</Link></li>
-              <li><Link to="/vendor/register" className="hover:text-primary transition-colors">Sell on <span className="font-semibold"><span className="font-extrabold">J</span>umma<span className="font-extrabold">B</span>aba</span></Link></li>
+              <li><Link to="/vendor/register" className="hover:text-primary transition-colors">Sell on <span className="font-semibold"><span className="font-extrabold text-black">J</span>umma<span className="font-extrabold text-b2b-gst">B</span>aba<span className="text-b2b-orange">.com</span></span></Link></li>
               <li><Link to="/post-requirement" className="hover:text-primary transition-colors">Post Requirement</Link></li>
               <li><Link to="/buyer/dashboard" className="hover:text-primary transition-colors">Buyer Dashboard</Link></li>
               <li><Link to="/help" className="hover:text-primary transition-colors">Help Center</Link></li>
@@ -140,7 +139,7 @@ export function Footer() {
       <div className="border-t border-secondary-foreground/10">
         <div className="b2b-container py-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-secondary-foreground/70">
-            <p>© {new Date().getFullYear()} JummaBaba.com. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} <span className="font-bold text-black">J</span>umma<span className='text-b2b-gst'><span className="font-bold">B</span>aba</span><span className="text-b2b-orange font-bold">.com</span>. All rights reserved.</p>
             <div className="flex gap-4">
               <Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
               <Link to="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>

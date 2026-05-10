@@ -96,13 +96,13 @@ export default function VendorSettings() {
       {/* --- Verification Status --- */}
       <Card className={cn(
         'border-2',
-        isApproved ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20' : 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20'
+        isApproved ? 'border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20' : 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20'
       )}>
         <CardContent className="pt-5">
           <div className="flex items-center gap-4">
             <div className={cn(
               'w-12 h-12 rounded-full flex items-center justify-center shrink-0',
-              isApproved ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+              isApproved ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'
             )}>
               {isApproved ? <CheckCircle className="h-6 w-6" /> : <Clock className="h-6 w-6" />}
             </div>
@@ -112,7 +112,7 @@ export default function VendorSettings() {
                 <Badge className={cn(
                   'text-xs',
                   isApproved
-                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                    ? 'bg-blue-100 text-blue-700 border-blue-200'
                     : 'bg-amber-100 text-amber-700 border-amber-200'
                 )}>
                   {isApproved ? 'Approved' : 'Pending Review'}
@@ -131,7 +131,7 @@ export default function VendorSettings() {
               )}
             </div>
             <div className="shrink-0">
-              <Shield className={cn('h-8 w-8', isApproved ? 'text-emerald-400' : 'text-amber-400')} />
+              <Shield className={cn('h-8 w-8', isApproved ? 'text-blue-400' : 'text-amber-400')} />
             </div>
           </div>
         </CardContent>
@@ -146,7 +146,7 @@ export default function VendorSettings() {
           <p className="text-sm text-muted-foreground mt-1">Update your login password. Use a strong, unique password.</p>
         </div>
         <div className="md:col-span-2">
-          <Card>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Change Password</CardTitle>
               <CardDescription>Password must be at least 8 characters.</CardDescription>
@@ -230,7 +230,7 @@ export default function VendorSettings() {
           <p className="text-sm text-muted-foreground mt-1">Quick guides to help you get started and grow on JummaBaba.</p>
         </div>
         <div className="md:col-span-2">
-          <Card>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
             <CardContent className="pt-5 divide-y">
               {guideItems.map((item, i) => (
                 <a
@@ -256,7 +256,7 @@ export default function VendorSettings() {
           <p className="text-sm text-muted-foreground mt-1">Having trouble? Our team is here to help.</p>
         </div>
         <div className="md:col-span-2 space-y-3">
-          <Card>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
             <CardContent className="pt-5">
               <div className="grid sm:grid-cols-2 gap-3">
                 <a
@@ -277,9 +277,9 @@ export default function VendorSettings() {
                   href="https://wa.me/911234567890"
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-3 p-4 rounded-xl border hover:border-emerald-500 hover:bg-emerald-50 transition-all group dark:hover:bg-emerald-950/30"
+                  className="flex items-center gap-3 p-4 rounded-xl border hover:border-blue-500 hover:bg-blue-50 transition-all group dark:hover:bg-blue-950/30"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                  <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all">
                     <MessageSquare className="h-5 w-5" />
                   </div>
                   <div>

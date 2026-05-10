@@ -12,22 +12,22 @@ const badgeConfig = {
   verified: {
     icon: CheckCircle,
     label: 'Verified',
-    className: 'bg-success/10 text-success border-success/20',
+    className: 'bg-blue-600 text-white border-none shadow-sm font-black',
   },
   gst: {
     icon: Shield,
     label: 'GST Verified',
-    className: 'bg-secondary/10 text-secondary border-secondary/20',
+    className: 'bg-blue-700 text-white border-none shadow-sm font-black',
   },
   'top-supplier': {
     icon: Award,
     label: 'Top Supplier',
-    className: 'bg-primary/10 text-primary border-primary/20',
+    className: 'bg-orange-500 text-white border-none shadow-sm font-black',
   },
   trusted: {
     icon: Star,
     label: 'Trusted',
-    className: 'bg-warning/10 text-warning border-warning/20',
+    className: 'bg-amber-500 text-white border-none shadow-sm font-black',
   },
 };
 

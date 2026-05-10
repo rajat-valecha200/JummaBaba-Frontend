@@ -412,7 +412,7 @@ export default function AdminMessages() {
                             <div className="flex items-center gap-1.5">
                               <p className="text-sm font-semibold truncate">{p.full_name}</p>
                               {p.is_online && (
-                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" title="Online" />
+                                <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse shrink-0" title="Online" />
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground">{p.business_name || p.email}</p>
@@ -468,7 +468,7 @@ export default function AdminMessages() {
                           </AvatarFallback>
                         </Avatar>
                         {conv.isOnline && (
-                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-card rounded-full" />
+                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-sky-500 border-2 border-card rounded-full" />
                         )}
                       </div>
 
@@ -479,7 +479,7 @@ export default function AdminMessages() {
                               {conv.participantName}
                             </span>
                             {conv.isOnline && (
-                              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" title="Online" />
+                              <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse shrink-0" title="Online" />
                             )}
                             {conv.isVerified && (
                               <Shield className="h-3.5 w-3.5 text-b2b-orange flex-shrink-0" />
@@ -562,7 +562,7 @@ export default function AdminMessages() {
                     </AvatarFallback>
                   </Avatar>
                   {selectedConversation.isOnline && (
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-card rounded-full" />
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-sky-500 border-2 border-card rounded-full" />
                   )}
                 </div>
 
@@ -692,7 +692,7 @@ export default function AdminMessages() {
                   </Button>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-2 text-center">
-                  You are responding as <span className="text-b2b-orange font-medium">JummaBaba Support</span>
+                  You are responding as <span className="font-medium"><span className="font-extrabold text-black">J</span>umma<span className="font-extrabold text-b2b-gst">B</span>aba<span className="text-b2b-orange">.com</span> Support</span>
                 </p>
               </div>
             </>

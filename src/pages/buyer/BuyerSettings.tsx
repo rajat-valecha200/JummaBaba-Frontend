@@ -91,7 +91,7 @@ export default function BuyerSettings() {
       {/* --- Verification Status --- */}
       <Card className={cn(
         "border-2",
-        user?.status === 'approved' ? "border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20" : 
+        user?.status === 'approved' ? "border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20" : 
         user?.status === 'rejected' ? "border-destructive/30 bg-destructive/5" :
         "border-orange-500/30 bg-orange-50/50"
       )}>
@@ -99,7 +99,7 @@ export default function BuyerSettings() {
           <div className="flex items-center gap-4">
             <div className={cn(
               "w-12 h-12 rounded-full flex items-center justify-center shrink-0",
-              user?.status === 'approved' ? "bg-emerald-100 text-emerald-600" :
+              user?.status === 'approved' ? "bg-blue-100 text-blue-600" :
               user?.status === 'rejected' ? "bg-destructive/10 text-destructive" :
               "bg-orange-100 text-orange-600"
             )}>
@@ -110,7 +110,7 @@ export default function BuyerSettings() {
                 <p className="font-semibold">Account Status</p>
                 <Badge className={cn(
                   "text-xs border",
-                  user?.status === 'approved' ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
+                  user?.status === 'approved' ? "bg-blue-100 text-blue-700 border-blue-200" :
                   user?.status === 'rejected' ? "bg-destructive/10 text-destructive border-destructive/20" :
                   "bg-orange-100 text-orange-700 border-orange-200"
                 )}>
@@ -126,7 +126,7 @@ export default function BuyerSettings() {
             <div className="shrink-0">
               <Shield className={cn(
                 "h-8 w-8",
-                user?.status === 'approved' ? "text-emerald-400" : "text-orange-400"
+                user?.status === 'approved' ? "text-blue-400" : "text-orange-400"
               )} />
             </div>
           </div>
@@ -142,7 +142,7 @@ export default function BuyerSettings() {
           <p className="text-sm text-muted-foreground mt-1">Update your login password. Use a strong, unique password.</p>
         </div>
         <div className="md:col-span-2">
-          <Card>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Change Password</CardTitle>
               <CardDescription>Password must be at least 8 characters.</CardDescription>
@@ -226,7 +226,7 @@ export default function BuyerSettings() {
           <p className="text-sm text-muted-foreground mt-1">Quick guides to help you make the most of JummaBaba.</p>
         </div>
         <div className="md:col-span-2">
-          <Card>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
             <CardContent className="pt-5 divide-y">
               {guideItems.map((item, i) => (
                 <a
@@ -252,7 +252,7 @@ export default function BuyerSettings() {
           <p className="text-sm text-muted-foreground mt-1">Need help with an order or RFQ? Our team is available.</p>
         </div>
         <div className="md:col-span-2 space-y-3">
-          <Card>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
             <CardContent className="pt-5">
               <div className="grid sm:grid-cols-2 gap-3">
                 <a
@@ -273,9 +273,9 @@ export default function BuyerSettings() {
                   href="https://wa.me/911234567890"
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-3 p-4 rounded-xl border hover:border-emerald-500 hover:bg-emerald-50 transition-all group dark:hover:bg-emerald-950/30"
+                  className="flex items-center gap-3 p-4 rounded-xl border hover:border-blue-500 hover:bg-blue-50 transition-all group dark:hover:bg-blue-950/30"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                  <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all">
                     <MessageSquare className="h-5 w-5" />
                   </div>
                   <div>

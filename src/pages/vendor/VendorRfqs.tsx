@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, Search, Filter, MessageSquare, Clock, CheckCircle, Send, Info, HelpCircle } from 'lucide-react';
+import { Eye, Search, Filter, MessageSquare, Clock, CheckCircle, Send, Info, HelpCircle, Package, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -36,10 +36,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, cn } from '@/lib/utils';
 import { api, apiFetch } from '@/lib/api';
 import { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { RfqTimeline, getRfqSteps } from '@/components/b2b/RfqTimeline';
+import { QuoteForm } from '@/components/b2b/QuoteForm';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Extended RFQ status flow
 type RfqStatus = 'pending' | 'quoted' | 'admin_approved' | 'sent_to_buyer' | 'closed';
@@ -67,8 +70,6 @@ interface Rfq {
   response?: RfqResponse;
 }
 
-// Use database-driven RFQs
-
 export default function VendorRfqs() {
   const { toast } = useToast();
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
@@ -78,34 +79,43 @@ export default function VendorRfqs() {
   const [selectedRfq, setSelectedRfq] = useState<Rfq | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [responseOpen, setResponseOpen] = useState(false);
-  const [responseForm, setResponseForm] = useState({
-    price: 0,
-    deliveryDays: 7,
-    message: '',
-  });
 
   useEffect(() => {
     const fetchRfqs = async () => {
       try {
         const data = await api.rfqs.list();
-        setRfqs(data.map((r: any) => ({
-          ...r,
-          productName: r.product_name || r.productName,
-          buyerName: r.buyer_name || r.buyerName || 'Client',
-          buyerEmail: r.buyer_email || r.buyerEmail || 'client@jummababa.com',
-          buyerPhone: r.buyer_phone || r.buyerPhone || 'N/A',
-          deliveryLocation: r.delivery_location || r.deliveryLocation || 'N/A',
-          description: r.description || '',
-          createdAt: r.created_at,
-          targetPrice: Number(r.target_price) || null,
-          status: (r.vendor_status || r.status || 'pending') as RfqStatus,
-          response: r.response_details ? {
-            price: Number(r.response_details.price) || 0,
-            deliveryDays: Number(r.response_details.deliveryDays) || 0,
-            message: r.response_details.message || '',
-            respondedAt: r.response_details.respondedAt || r.created_at,
-          } : undefined,
-        })));
+        const normalizedData = data.map((r: any) => {
+          let details = typeof r.response_details === 'string' 
+            ? JSON.parse(r.response_details) 
+            : r.response_details || {};
+          
+          if (details.response_details && typeof details.response_details === 'object') {
+            details = { ...details, ...details.response_details };
+          }
+          
+          return {
+            ...r,
+            productName: r.product_name || r.productName,
+            buyerName: r.buyer_name || r.buyerName || 'Client',
+            buyerEmail: r.buyer_email || r.buyerEmail || 'client@jummababa.com',
+            buyerPhone: r.buyer_phone || r.buyerPhone || 'N/A',
+            deliveryLocation: r.delivery_location || r.deliveryLocation || 'N/A',
+            description: r.description || '',
+            createdAt: r.created_at,
+            targetPrice: Number(r.target_price) || null,
+            status: (r.vendor_status || r.status || 'pending') as RfqStatus,
+            response: details.price ? {
+              price: Number(details.price) || 0,
+              lead_time: details.lead_time || 'N/A',
+              notes: details.notes || details.message || '',
+              respondedAt: details.respondedAt || r.created_at,
+            } : undefined,
+            response_details: details,
+            moderationStatus: r.moderation_status,
+            rejectionReason: r.quote_rejection_reason
+          };
+        });
+        setRfqs(normalizedData);
       } catch (err) {
         console.error('RFQ fetch failed');
       } finally {
@@ -119,41 +129,24 @@ export default function VendorRfqs() {
     const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
     const matchesSearch = r.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.buyerName.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesSearch && !r.is_direct_order;
   });
 
   const handleOpenResponse = (rfq: Rfq) => {
     setSelectedRfq(rfq);
-    setResponseForm({
-      price: rfq.targetPrice || 0,
-      deliveryDays: 7,
-      message: '',
-    });
     setResponseOpen(true);
   };
 
-  const handleSubmitResponse = async () => {
+  const handleSubmitResponse = async (details: any) => {
     if (!selectedRfq) return;
-    
-    if (responseForm.price <= 0) {
-      toast({ title: 'Please enter a valid price', variant: 'destructive' });
-      return;
-    }
-    if (!responseForm.message.trim()) {
-      toast({ title: 'Please enter a message', variant: 'destructive' });
-      return;
-    }
-
+    setLoading(true);
     try {
-      await api.rfqs.update(selectedRfq.id, {
-        status: 'responded',
-        vendor_status: 'quoted',
-        response_details: {
-          price: responseForm.price,
-          deliveryDays: responseForm.deliveryDays,
-          message: responseForm.message,
-          respondedAt: new Date().toISOString(),
-        }
+      await api.rfqs.submitQuote(selectedRfq.id, {
+        price: details.price_slabs[0].unit_price,
+        price_slabs: details.price_slabs,
+        lead_time: details.lead_time,
+        notes: details.vendor_notes,
+        respondedAt: new Date().toISOString(),
       });
 
       setRfqs(rfqs.map(r => 
@@ -162,9 +155,9 @@ export default function VendorRfqs() {
               ...r,
               status: 'quoted' as RfqStatus,
               response: {
-                price: responseForm.price,
-                deliveryDays: responseForm.deliveryDays,
-                message: responseForm.message,
+                price: details.price_slabs[0].unit_price,
+                lead_time: details.lead_time,
+                notes: details.vendor_notes,
                 respondedAt: new Date().toISOString(),
               },
             }
@@ -176,33 +169,28 @@ export default function VendorRfqs() {
       setSelectedRfq(null);
     } catch (err: any) {
       toast({ title: 'Failed to submit quote', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getStatusBadge = (status: RfqStatus) => {
+  const getStatusBadge = (rfq: any) => {
+    const status = rfq.status as RfqStatus;
+    const moderationStatus = rfq.moderationStatus;
+    
     switch (status) {
-      case 'quoted':
-        return (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge className="bg-warning/10 text-warning border-warning/20 cursor-help">
-                <Clock className="h-3 w-3 mr-1" />
-                Waiting Approval
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              Your quote will be shared with the buyer after admin approval.
-            </TooltipContent>
-          </Tooltip>
-        );
-      case 'admin_approved':
-        return <Badge className="bg-secondary/10 text-secondary border-secondary/20"><CheckCircle className="h-3 w-3 mr-1" />Admin Approved</Badge>;
-      case 'sent_to_buyer':
-        return <Badge className="bg-success/10 text-success border-success/20"><CheckCircle className="h-3 w-3 mr-1" />Sent to Buyer</Badge>;
       case 'closed':
-        return <Badge variant="secondary">Closed</Badge>;
+        return <Badge variant="secondary" className="font-bold uppercase text-[10px] tracking-widest">Closed</Badge>;
+      case 'quoted':
+        if (moderationStatus === 'quote_rejected') {
+          return <Badge variant="destructive" className="font-bold uppercase text-[10px] tracking-widest animate-pulse">Revision Required</Badge>;
+        }
+        return <Badge className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-bold uppercase text-[10px] tracking-widest"><Clock className="h-3 w-3 mr-1" />Awaiting Audit</Badge>;
+      case 'admin_approved':
+      case 'sent_to_buyer':
+        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold uppercase text-[10px] tracking-widest"><CheckCircle className="h-3 w-3 mr-1" />Live Quote</Badge>;
       default:
-        return <Badge className="bg-primary/10 text-primary border-primary/20"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+        return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-bold uppercase text-[10px] tracking-widest"><Clock className="h-3 w-3 mr-1" />New Lead</Badge>;
     }
   };
 
@@ -233,62 +221,62 @@ export default function VendorRfqs() {
       </Alert>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl  shadow-lg">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <MessageSquare className="h-5 w-5 text-primary" />
+              <div className="p-2 bg-primary/10 rounded-xl">
+                <MessageSquare className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{rfqs.length}</div>
-                <p className="text-sm text-muted-foreground">Total RFQs</p>
+                <div className="text-2xl font-black">{rfqs.length}</div>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Total Opportunities</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl  shadow-lg">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Clock className="h-5 w-5 text-primary" />
+              <div className="p-2 bg-amber-500/10 rounded-xl">
+                <ArrowRight className="h-6 w-6 text-amber-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{pendingCount}</div>
-                <p className="text-sm text-muted-foreground">Awaiting Response</p>
+                <div className="text-2xl font-black">{pendingCount}</div>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">New Leads</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl  shadow-lg">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-warning/10 rounded-lg">
-                <Clock className="h-5 w-5 text-warning" />
+              <div className="p-2 bg-indigo-500/10 rounded-xl">
+                <Clock className="h-6 w-6 text-indigo-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{quotedCount}</div>
-                <p className="text-sm text-muted-foreground">Waiting Approval</p>
+                <div className="text-2xl font-black">{quotedCount}</div>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Awaiting Audit</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl  shadow-lg">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-success/10 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-success" />
+              <div className="p-2 bg-blue-500/10 rounded-xl">
+                <CheckCircle className="h-6 w-6 text-blue-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{approvedCount}</div>
-                <p className="text-sm text-muted-foreground">Approved</p>
+                <div className="text-2xl font-black">{approvedCount}</div>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Live Quotes</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+        <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row gap-4 justify-between">
             <CardTitle className="flex items-center gap-2">
               Incoming RFQs
@@ -350,7 +338,7 @@ export default function VendorRfqs() {
                     {rfq.targetPrice ? formatPrice(rfq.targetPrice) : <span className="text-muted-foreground">Not specified</span>}
                   </TableCell>
                   <TableCell>{rfq.deliveryLocation}</TableCell>
-                  <TableCell>{getStatusBadge(rfq.status)}</TableCell>
+                  <TableCell>{getStatusBadge(rfq)}</TableCell>
                   <TableCell>{new Date(rfq.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -370,6 +358,12 @@ export default function VendorRfqs() {
                           Quote
                         </Button>
                       )}
+                      {rfq.moderationStatus === 'quote_rejected' && (
+                        <Button size="sm" variant="destructive" onClick={() => handleOpenResponse(rfq)}>
+                          <Send className="h-4 w-4 mr-1" />
+                          Revise
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -387,145 +381,137 @@ export default function VendorRfqs() {
 
       {/* RFQ Details Dialog */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>RFQ Details</DialogTitle>
-            <DialogDescription>Buyer inquiry details</DialogDescription>
-          </DialogHeader>
-          {selectedRfq && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                {getStatusBadge(selectedRfq.status)}
-                <span className="text-sm text-muted-foreground">
-                  {new Date(selectedRfq.createdAt).toLocaleString()}
-                </span>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Product Required</h4>
-                <div className="p-3 bg-muted/50 rounded-lg">
-                  <p className="font-medium">{selectedRfq.productName}</p>
-                  <div className="flex gap-4 mt-2 text-sm">
-                    <span>Qty: <strong>{selectedRfq.quantity} {selectedRfq.unit}</strong></span>
-                    {selectedRfq.targetPrice && (
-                      <span>Target: <strong>{formatPrice(selectedRfq.targetPrice)}/{selectedRfq.unit}</strong></span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Requirements</h4>
-                <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-lg">
-                  {selectedRfq.description}
-                </p>
-              </div>
-
-              <Separator />
-
-              <div>
-                <h4 className="font-medium mb-2">Buyer Information</h4>
-                <div className="p-3 bg-muted/50 rounded-lg space-y-1">
-                  <p className="font-medium">{selectedRfq.buyerName}</p>
-                  <p className="text-sm text-muted-foreground">{selectedRfq.buyerEmail}</p>
-                  <p className="text-sm text-muted-foreground">{selectedRfq.buyerPhone}</p>
-                  <p className="text-sm text-muted-foreground">📍 {selectedRfq.deliveryLocation}</p>
-                </div>
-              </div>
-
-              {selectedRfq.response && (
-                <>
-                  <Separator />
-                  <div>
-                    <h4 className="font-medium mb-2 text-success">Your Response</h4>
-                    <div className="p-3 bg-success/5 border border-success/20 rounded-lg space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Quoted Price:</span>
-                        <strong>{formatPrice(selectedRfq.response.price)}/{selectedRfq.unit}</strong>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Delivery Time:</span>
-                        <strong>{selectedRfq.response.deliveryDays} days</strong>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-2">{selectedRfq.response.message}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Responded on {new Date(selectedRfq.response.respondedAt).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                </>
+        <DialogContent className="max-w-4xl border-border/50 bg-card/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-0 overflow-hidden">
+          <div className="flex h-[80vh]">
+            <div className="w-80 border-r border-border/50 bg-slate-50/50 p-8 hidden md:block">
+              <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-8">Inquiry Progress</h3>
+              {selectedRfq && (
+                <RfqTimeline steps={getRfqSteps(selectedRfq.status, selectedRfq.status === 'quoted' ? 'quote_pending' : selectedRfq.status)} />
               )}
             </div>
-          )}
-          <DialogFooter>
-            {selectedRfq?.status === 'pending' && (
-              <Button onClick={() => { setDetailsOpen(false); handleOpenResponse(selectedRfq); }}>
-                <Send className="h-4 w-4 mr-2" />
-                Send Quote
-              </Button>
-            )}
-          </DialogFooter>
+
+            <div className="flex-1 flex flex-col">
+              <DialogHeader className="p-8 pb-4 border-b border-white/5">
+                <div className="flex items-center justify-between mb-2">
+                  <DialogTitle className="text-2xl font-black tracking-tighter">Requirement Details</DialogTitle>
+                  {selectedRfq && getStatusBadge(selectedRfq)}
+                </div>
+                <DialogDescription className="font-bold text-muted-foreground uppercase text-[10px] tracking-widest">
+                  Reference ID: {selectedRfq?.id}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                {selectedRfq && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      {getStatusBadge(selectedRfq)}
+                      <span className="text-sm text-muted-foreground">
+                        {new Date(selectedRfq.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="font-medium mb-2">Product Required</h4>
+                      <div className="p-3 bg-muted/50 rounded-lg">
+                        <p className="font-medium">{selectedRfq.productName}</p>
+                        <div className="flex gap-4 mt-2 text-sm">
+                          <span>Qty: <strong>{selectedRfq.quantity} {selectedRfq.unit}</strong></span>
+                          {selectedRfq.targetPrice && (
+                            <span>Target: <strong>{formatPrice(selectedRfq.targetPrice)}/{selectedRfq.unit}</strong></span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-medium mb-2">Requirements</h4>
+                      <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-lg">
+                        {selectedRfq.description}
+                      </p>
+                    </div>
+
+                    <Separator />
+
+                    <div>
+                      <h4 className="font-medium mb-2">Buyer Information</h4>
+                      <div className="p-3 bg-muted/50 rounded-lg space-y-1">
+                        <p className="font-medium">{selectedRfq.buyerName}</p>
+                        <p className="text-sm text-muted-foreground">{selectedRfq.buyerEmail}</p>
+                        <p className="text-sm text-muted-foreground">{selectedRfq.buyerPhone}</p>
+                        <p className="text-sm text-muted-foreground">📍 {selectedRfq.deliveryLocation}</p>
+                      </div>
+                    </div>
+
+                    {selectedRfq.response && (
+                      <>
+                        <Separator />
+                        <div>
+                          <h4 className="font-medium mb-2 text-success">Your Response</h4>
+                          <div className={cn(
+                            "p-3 rounded-lg space-y-2",
+                            selectedRfq.moderationStatus === 'quote_rejected' ? "bg-destructive/5 border border-destructive/20" : "bg-success/5 border border-success/20"
+                          )}>
+                            {selectedRfq.moderationStatus === 'quote_rejected' && (
+                              <div className="mb-3 p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                                <p className="text-xs font-black uppercase text-destructive mb-1">Admin Rejection Reason</p>
+                                <p className="text-sm font-bold text-destructive">{selectedRfq.rejectionReason || 'Price revision required'}</p>
+                              </div>
+                            )}
+                            <div className="flex justify-between text-sm">
+                              <span>Quoted Price:</span>
+                              <strong>{formatPrice(selectedRfq.response.price)}/{selectedRfq.unit}</strong>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Lead Time:</span>
+                              <strong>{selectedRfq.response.lead_time}</strong>
+                            </div>
+                            {selectedRfq.response.notes && (
+                              <p className="text-sm text-muted-foreground mt-2 italic">"{selectedRfq.response.notes}"</p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Responded on {new Date(selectedRfq.response.respondedAt).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="p-6 border-t border-white/5">
+                {selectedRfq?.status === 'pending' && (
+                  <Button onClick={() => { setDetailsOpen(false); handleOpenResponse(selectedRfq); }}>
+                    <Send className="h-4 w-4 mr-2" />
+                    Prepare Formal Quote
+                  </Button>
+                )}
+                {selectedRfq?.moderationStatus === 'quote_rejected' && (
+                  <Button variant="destructive" onClick={() => { setDetailsOpen(false); handleOpenResponse(selectedRfq); }}>
+                    <Send className="h-4 w-4 mr-2" />
+                    Revise & Resubmit Quote
+                  </Button>
+                )}
+                <Button variant="ghost" onClick={() => setDetailsOpen(false)}>Close</Button>
+              </DialogFooter>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Send Quote Dialog */}
       <Dialog open={responseOpen} onOpenChange={setResponseOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Send Quote</DialogTitle>
-            <DialogDescription>
-              Respond to {selectedRfq?.buyerName}'s inquiry for {selectedRfq?.productName}
-            </DialogDescription>
+        <DialogContent className="max-w-xl p-0 border-none bg-transparent shadow-none">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Submit Quote</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="p-3 bg-muted/50 rounded-lg text-sm">
-              <p><strong>Requested:</strong> {selectedRfq?.quantity} {selectedRfq?.unit}</p>
-              {selectedRfq?.targetPrice && (
-                <p><strong>Target Price:</strong> {formatPrice(selectedRfq.targetPrice)}/{selectedRfq.unit}</p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="price">Your Price (₹/{selectedRfq?.unit})</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  value={responseForm.price}
-                  onChange={(e) => setResponseForm({ ...responseForm, price: parseFloat(e.target.value) || 0 })}
-                  min={0}
-                />
-              </div>
-              <div>
-                <Label htmlFor="delivery">Delivery Days</Label>
-                <Input
-                  id="delivery"
-                  type="number"
-                  value={responseForm.deliveryDays}
-                  onChange={(e) => setResponseForm({ ...responseForm, deliveryDays: parseInt(e.target.value) || 0 })}
-                  min={1}
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="message">Message to Buyer</Label>
-              <Textarea
-                id="message"
-                value={responseForm.message}
-                onChange={(e) => setResponseForm({ ...responseForm, message: e.target.value })}
-                placeholder="Include details about MOQ, payment terms, shipping, etc."
-                rows={4}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setResponseOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmitResponse}>
-              <Send className="h-4 w-4 mr-2" />
-              Send Quote
-            </Button>
-          </DialogFooter>
+          <QuoteForm 
+            onSubmit={handleSubmitResponse} 
+            isLoading={loading} 
+            initialPrice={selectedRfq?.targetPrice}
+            initialQuantity={selectedRfq?.quantity}
+          />
         </DialogContent>
       </Dialog>
     </div>

@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, Building, Settings, BarChart3, Shield, Menu, X, ChevronLeft, Bell, MessageSquare, LogOut, ShoppingCart } from 'lucide-react';
+import { Link, Outlet } from 'react-router-dom';
+import { Menu, Bell } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { UnifiedSidebar } from './UnifiedSidebar';
+import { Logo } from '@/components/ui/Logo';
 
 export function AdminLayout() {
-  const { signOut } = useAuth();
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState<any>(null);
-  const location = useLocation();
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -20,195 +21,57 @@ export function AdminLayout() {
         const data = await api.stats.get('admin');
         setStats(data);
       } catch (error) {
-        console.error('Failed to fetch admin stats for sidebar:', error);
+        console.error('Failed to fetch admin stats:', error);
       }
     };
     fetchStats();
-    
-    // Listen for custom refresh events from other components (like messaging)
-    const handleRefresh = () => fetchStats();
-    window.addEventListener('refreshAdminStats', handleRefresh);
-    
-    // Poll every 10 seconds for live updates (was 30s)
-    const interval = setInterval(fetchStats, 10000);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('refreshAdminStats', handleRefresh);
-    };
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
   }, []);
-
-  const adminNavItems = [
-    {
-      icon: LayoutDashboard,
-      label: 'Dashboard',
-      path: '/admin',
-      badge: null
-    },
-    {
-      icon: MessageSquare,
-      label: 'Messages',
-      path: '/admin/messages',
-      badge: stats?.unreadMessages || null
-    },
-    {
-      icon: ShoppingCart,
-      label: 'Orders & RFQs',
-      path: '/admin/rfqs',
-      badge: null
-    },
-    {
-      icon: Building,
-      label: 'Vendor Approvals',
-      path: '/admin/vendors',
-      badge: stats?.pendingVendors || null
-    },
-    {
-      icon: Package,
-      label: 'Product Moderation',
-      path: '/admin/products',
-      badge: stats?.pendingProducts || null
-    },
-    {
-      icon: Users,
-      label: 'User Management',
-      path: '/admin/users',
-      badge: null
-    },
-    {
-      icon: BarChart3,
-      label: 'Analytics',
-      path: '/admin/analytics',
-      badge: null
-    },
-    {
-      icon: Shield,
-      label: 'Commissions',
-      path: '/admin/commissions',
-      badge: null
-    },
-    {
-      icon: Settings,
-      label: 'Settings',
-      path: '/admin/settings',
-      badge: null
-    }
-  ];
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-muted/30 font-inter">
-        {/* Mobile header */}
-        <header className="lg:hidden sticky top-0 z-50 bg-card border-b px-4 py-3 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
-            <Menu className="h-5 w-5" />
-          </Button>
-          <Link to="/" className="text-xl font-bold">
-            <span className="text-b2b-black">Jumma</span>
-            <span className="text-blue-600">Baba</span>
-            <span className="text-b2b-orange">.com</span>
-          </Link>
-          <div className="ml-auto flex items-center gap-2">
-            {((stats?.pendingVendors || 0) + (stats?.pendingProducts || 0) + (stats?.unreadMessages || 0)) > 0 && (
-              <Badge variant="destructive" className="h-5 px-1.5 text-xs rounded-full">
-                {(stats?.pendingVendors || 0) + (stats?.pendingProducts || 0) + (stats?.unreadMessages || 0)}
-              </Badge>
-            )}
-          </div>
-        </header>
+      <div className="min-h-screen bg-[#F1F5F9] flex">
+        {/* Mobile Sidebar Overlay */}
+        <div className={cn('fixed inset-0 z-50 lg:hidden transition-opacity bg-black/50', sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')} onClick={() => setSidebarOpen(false)} />
+        
+        {/* Sidebar */}
+        <UnifiedSidebar 
+          role="admin" 
+          onClose={() => setSidebarOpen(false)} 
+          className={cn('fixed lg:sticky top-0 z-50 w-64 h-screen transition-transform lg:translate-x-0', sidebarOpen ? 'translate-x-0' : '-translate-x-full')} 
+        />
 
-        <div className="flex">
-          {/* Sidebar - Mobile */}
-          <div className={cn('fixed inset-0 z-50 lg:hidden transition-opacity', sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')}>
-            <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-            <aside className={cn('absolute left-0 top-0 bottom-0 w-64 bg-sidebar transition-transform', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
-              <div className="p-4 flex items-center justify-between border-b border-sidebar-border">
-                <Link to="/" className="text-xl font-bold">
-                  <span className="text-b2b-black">Jumma</span>
-                  <span className="text-blue-600">Baba</span>
-                </Link>
-                <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
-                  <X className="h-5 w-5 text-sidebar-foreground" />
-                </Button>
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-sidebar-border px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
+                <Menu className="h-5 w-5" />
+              </Button>
+              <Logo size="sm" className="lg:hidden" />
+              <div className="hidden lg:block">
+                <h2 className="text-xs font-black uppercase tracking-[0.2em] text-destructive">Administrative Control</h2>
               </div>
-              <nav className="p-4 space-y-1">
-                {adminNavItems.map(item => <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)} className={cn('flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground transition-colors', location.pathname === item.path ? 'bg-sidebar-accent text-sidebar-primary' : 'hover:bg-sidebar-accent')}>
-                    <item.icon className={cn("h-5 w-5", location.pathname === item.path ? "text-sidebar-primary" : "text-sidebar-foreground/60")} />
-                    <span className="flex-1 font-medium">{item.label}</span>
-                    {item.badge ? <Badge variant="destructive" className="h-5 px-1.5 text-xs">
-                        {item.badge}
-                      </Badge> : null}
-                  </Link>)}
-                <button
-                  onClick={() => signOut()}
-                  className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-destructive hover:bg-destructive/10 transition-colors mt-auto"
-                >
-                  <LogOut className="h-5 w-5" />
-                  <span className="font-medium">Logout</span>
-                </button>
-              </nav>
-            </aside>
-          </div>
-
-          {/* Sidebar - Desktop */}
-          <aside className="hidden lg:flex flex-col w-64 bg-sidebar min-h-screen sticky top-0 border-r border-sidebar-border">
-            <div className="p-6 border-b border-sidebar-border">
-              <Link to="/" className="text-xl font-bold">
-                <span className="text-b2b-black">Jumma</span>
-                <span className="text-blue-600">Baba</span>
-                <span className="text-b2b-orange">.com</span>
-              </Link>
-              <div className="mt-1 flex items-center justify-between">
-                <span className="text-[10px] bg-destructive/10 text-destructive px-2 py-0.5 rounded font-bold uppercase tracking-wider">Admin Control</span>
-                {(stats?.unreadMessages > 0 || stats?.pendingVendors > 0 || stats?.pendingProducts > 0) && (
-                  <Link to="/admin/messages" className="relative group/bell cursor-pointer">
-                    <Bell className="h-4 w-4 text-muted-foreground group-hover/bell:text-primary animate-pulse transition-colors" />
-                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-destructive rounded-full" />
-                  </Link>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" className="relative">
+                <Bell className="h-5 w-5" />
+                {((stats?.pendingVendors || 0) + (stats?.pendingProducts || 0) + (stats?.unreadMessages || 0)) > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px] font-bold" variant="destructive">
+                    {(stats?.pendingVendors || 0) + (stats?.pendingProducts || 0) + (stats?.unreadMessages || 0)}
+                  </Badge>
                 )}
+              </Button>
+              <div className="h-8 w-[1px] bg-border mx-2 hidden sm:block" />
+              <div className="flex flex-col items-end hidden sm:flex">
+                <p className="text-xs font-black uppercase tracking-wider">{user?.name}</p>
+                <Badge variant="outline" className="text-[10px] h-4 bg-destructive/10 text-destructive border-destructive/20 uppercase font-bold tracking-widest">Super Admin</Badge>
               </div>
             </div>
-            <nav className="p-4 space-y-1 flex-1">
-              {adminNavItems.map(item => (
-                <Link 
-                  key={item.path} 
-                  to={item.path} 
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-3 rounded-lg text-sidebar-foreground transition-all duration-200', 
-                    location.pathname === item.path 
-                      ? 'bg-sidebar-accent text-sidebar-primary shadow-sm font-semibold' 
-                      : 'hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-                  )}
-                >
-                  <item.icon className={cn("h-5 w-5", location.pathname === item.path ? "text-sidebar-primary" : "text-sidebar-foreground/40")} />
-                  <span className="flex-1 font-medium">{item.label}</span>
-                  {item.badge ? (
-                    <Badge variant="destructive" className="h-5 px-1.5 text-xs animate-in zoom-in-50">
-                      {item.badge}
-                    </Badge>
-                  ) : null}
-                </Link>
-              ))}
-              <button
-                onClick={() => signOut()}
-                className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive transition-all duration-200 mt-2"
-              >
-                <LogOut className="h-5 w-5 text-sidebar-foreground/40" />
-                <span className="flex-1 font-medium text-left">Logout</span>
-              </button>
-            </nav>
-            <div className="p-6 border-t border-sidebar-border">
-              <button 
-                onClick={() => signOut()}
-                className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Exit Admin Panel
-              </button>
-            </div>
-          </aside>
+          </header>
 
-          {/* Main content */}
-          <main className="flex-1 p-4 lg:p-8">
+          <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
             <div className="max-w-7xl mx-auto">
               <Outlet />
             </div>

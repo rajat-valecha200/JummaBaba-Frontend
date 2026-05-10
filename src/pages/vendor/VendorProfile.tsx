@@ -288,7 +288,7 @@ export default function VendorProfile() {
       </Alert>
 
       {/* Trust Badges Overview */}
-      <Card>
+      <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
         <CardContent className="pt-6">
           <div className="flex flex-wrap gap-3">
             {user?.status === 'approved' && (
@@ -313,8 +313,8 @@ export default function VendorProfile() {
         {/* Main Profile Info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Company Info */}
-          <Card>
-            <CardHeader>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2">
                 <Building className="h-5 w-5" />
                 Company Information
@@ -447,8 +447,8 @@ export default function VendorProfile() {
           </Card>
 
           {/* Address */}
-          <Card>
-            <CardHeader>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2">
                 <MapPin className="h-5 w-5" />
                 Business Address
@@ -511,8 +511,8 @@ export default function VendorProfile() {
           </Card>
 
           {/* Contact */}
-          <Card>
-            <CardHeader>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2">
                 <Phone className="h-5 w-5" />
                 Contact Information
@@ -563,8 +563,8 @@ export default function VendorProfile() {
         {/* Sidebar - GST & Verification */}
         <div className="space-y-6">
           {/* GST Verification */}
-          <Card>
-            <CardHeader>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
                 GST & PAN Verification
@@ -689,8 +689,8 @@ export default function VendorProfile() {
           </Card>
 
           {/* Profile Completion */}
-          <Card>
-            <CardHeader>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
               <CardTitle>Profile Strength</CardTitle>
             </CardHeader>
             <CardContent>
@@ -725,8 +725,8 @@ export default function VendorProfile() {
           </Card>
 
           {/* Account Stats — real data */}
-          <Card>
-            <CardHeader>
+          <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
               <CardTitle>Account Stats</CardTitle>
             </CardHeader>
             <CardContent>
@@ -745,7 +745,7 @@ export default function VendorProfile() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Account Status</span>
-                  <span className={`font-medium capitalize ${user?.status === 'approved' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  <span className={`font-medium capitalize ${user?.status === 'approved' ? 'text-blue-600' : 'text-amber-600'}`}>
                     {user?.status || 'Pending'}
                   </span>
                 </div>
@@ -763,7 +763,7 @@ export default function VendorProfile() {
 
       {/* Image Preview Modal */}
       <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
-        <DialogContent className="max-w-3xl p-0 overflow-hidden bg-black/5 border-none">
+        <DialogContent className="max-w-3xl p-0 overflow-hidden bg-white border-none">
           <DialogHeader className="p-4 bg-background border-b">
             <DialogTitle>{previewTitle}</DialogTitle>
           </DialogHeader>

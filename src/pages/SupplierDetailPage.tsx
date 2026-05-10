@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
+import { TrustBadges } from '@/components/b2b/TrustBadge';
 import {
   Dialog,
   DialogContent,
@@ -34,7 +35,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ProductCard } from '@/components/b2b/ProductCard';
-import { api } from '@/lib/api';
+import { api, normalizeProfile } from '@/lib/api';
 import { formatPrice, formatNumber } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -57,27 +58,27 @@ export default function SupplierDetailPage() {
     const fetchSupplierData = async () => {
       setLoading(true);
       try {
-        const profiles = await api.profiles.list('vendor');
-        const found = profiles.find((v: any) => v.id === id);
+        const found = await api.profiles.getPublicById(id!);
         
         if (found) {
+          const normalized = normalizeProfile(found);
           const mappedSupp = {
-            ...normalizeProfile(found),
+            ...normalized,
             location: found.location || 'Maharashtra',
             state: found.state || 'India',
             yearEstablished: found.established_year || 2020,
             rating: found.rating || 4.8,
             totalProducts: found.total_products || 0,
             gstVerified: !!found.gst_number,
-            businessType: 'Manufacturer',
-            annualTurnover: '₹5 - 10 Cr',
+            businessType: found.business_type || 'Manufacturer',
+            annualTurnover: found.annual_turnover || '₹5 - 10 Cr',
             description: found.description || 'A verified supplier on JummaBaba B2B Marketplace.'
           };
           setSupplier(mappedSupp);
 
-          // Fetch products for this supplier
-          const allProducts = await api.products.list('approved');
-          setSupplierProducts(allProducts.filter((p: any) => p.supplier_id === id));
+          // Fetch products for this supplier using public list
+          const allProducts = await api.products.list('approved', id);
+          setSupplierProducts(allProducts);
         }
       } catch (err) {
         console.error('Failed to fetch supplier details:', err);
@@ -109,19 +110,31 @@ export default function SupplierDetailPage() {
     );
   }
 
-  const yearsInBusiness = new Date().getFullYear() - supplier.yearEstablished;
+  const maskString = (str: string, showFirst = 2, showLast = 2) => {
+    if (!str || str.length <= (showFirst + showLast)) return str;
+    const first = str.substring(0, showFirst);
+    const last = str.substring(str.length - showLast);
+    const masked = 'X'.repeat(str.length - (showFirst + showLast));
+    return `${first}${masked}${last}`;
+  };
+
+  const yearsInBusiness = new Date().getFullYear() - (supplier.yearEstablished || 2015);
+  
+  // Mask sensitive details
   const details = {
-    email: supplier.email,
-    phone: supplier.phone || '+91 98XXX XXX00',
-    website: supplier.website || 'www.supplier.com',
+    email: supplier.email ? `${supplier.email[0]}****@${supplier.email.split('@')[1]}` : 's****@company.com',
+    phone: supplier.phone ? maskString(supplier.phone, 3, 2) : '+91 98XXX XXX00',
+    website: supplier.website || 'www.supplier-portal.com',
     employees: '50-100',
-    certifications: ['ISO 9001:2015'],
-    paymentTerms: 'Net 30',
+    certifications: ['ISO 9001:2015', 'MSME Registered'],
+    paymentTerms: 'Negotiable / Net 30',
     exportCountries: [],
     responseTime: '< 8 hours',
     onTimeDelivery: 95,
     qualityRating: 4.8,
     reviewCount: 12,
+    gstNumber: supplier.gst_number ? maskString(supplier.gst_number, 2, 2) : 'Verified',
+    panNumber: supplier.pan_number ? maskString(supplier.pan_number, 2, 2) : 'Protected'
   };
 
   const handleContactSubmit = (e: React.FormEvent) => {
@@ -152,18 +165,12 @@ export default function SupplierDetailPage() {
               <div className="flex-1">
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   <h1 className="text-2xl sm:text-3xl font-bold">{supplier.companyName}</h1>
-                  {supplier.gstVerified && (
-                    <Badge variant="secondary" className="bg-success/10 text-success">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      GST Verified
-                    </Badge>
-                  )}
-                  {supplier.isTopSupplier && (
-                    <Badge className="bg-primary">
-                      <Award className="h-3 w-3 mr-1" />
-                      Top Supplier
-                    </Badge>
-                  )}
+                  <TrustBadges 
+                    gstVerified={supplier.gstVerified}
+                    isTopSupplier={supplier.isTopSupplier}
+                    isVerified={true}
+                    size="md"
+                  />
                 </div>
                 <div className="flex items-center gap-1 text-muted-foreground mb-3">
                   <MapPin className="h-4 w-4" />
@@ -210,9 +217,10 @@ export default function SupplierDetailPage() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Contact {supplier.companyName}</DialogTitle>
-                  <DialogDescription>
-                    Send an inquiry to this supplier. They typically respond within {details.responseTime}.
+                  <DialogTitle className="text-2xl font-black tracking-tight">Contact {supplier.companyName}</DialogTitle>
+                  <DialogDescription className="text-zinc-500 font-medium">
+                    Send a secure inquiry. <span className="text-primary font-bold">All messages are moderated by JummaBaba Admin</span> for quality assurance and security. 
+                    Suppliers typically respond within {details.responseTime}.
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleContactSubmit} className="space-y-4">
@@ -257,18 +265,13 @@ export default function SupplierDetailPage() {
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full">Send Inquiry</Button>
+                  <Button type="submit" className="w-full font-black uppercase tracking-widest h-12">
+                    Send Moderated Inquiry
+                  </Button>
                 </form>
               </DialogContent>
             </Dialog>
-            <Button variant="outline" size="lg">
-              <Phone className="h-4 w-4 mr-2" />
-              {details.phone}
-            </Button>
-            <Button variant="outline" size="lg">
-              <Mail className="h-4 w-4 mr-2" />
-              Email
-            </Button>
+            {/* Removed direct contact buttons for privacy */}
           </div>
         </CardContent>
       </Card>
@@ -328,6 +331,17 @@ export default function SupplierDetailPage() {
                     <p className="text-sm text-muted-foreground">Annual Turnover</p>
                     <p className="font-medium">{supplier.annualTurnover}</p>
                   </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">GST Status</p>
+                    <p className="font-medium text-success flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      {details.gstNumber}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">PAN Status</p>
+                    <p className="font-medium">{details.panNumber}</p>
+                  </div>
                 </div>
                 <Separator />
                 <div>
@@ -383,34 +397,23 @@ export default function SupplierDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Contact Information */}
-            <Card className="lg:col-span-2">
+            {/* Secure Connection Message */}
+            <Card className="lg:col-span-2 bg-primary/5 border-primary/20">
               <CardHeader>
-                <CardTitle>Contact Information</CardTitle>
+                <CardTitle className="text-primary flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5" />
+                  Secure Business Connection
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg">
-                    <Phone className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Phone</p>
-                      <p className="font-medium">{details.phone}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg">
-                    <Mail className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Email</p>
-                      <p className="font-medium">{details.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg">
-                    <Globe className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Website</p>
-                      <p className="font-medium">{details.website}</p>
-                    </div>
-                  </div>
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                  <p className="text-zinc-600 max-w-xl">
+                    To maintain the security of our marketplace and ensure quality of service, direct contact details are protected. 
+                    Please use the <strong>Contact Supplier</strong> button above to send a formal inquiry or request a quote.
+                  </p>
+                  <Button onClick={() => setContactOpen(true)} className="whitespace-nowrap">
+                    Send Secure Inquiry
+                  </Button>
                 </div>
               </CardContent>
             </Card>

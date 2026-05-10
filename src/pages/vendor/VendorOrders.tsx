@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle, ArrowLeft, Upload, Info, AlertTriangle, Loader2 } from 'lucide-react';
+import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle, ArrowLeft, Upload, Info, AlertTriangle, Loader2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -56,17 +56,18 @@ interface Order {
   status: OrderStatus;
   createdAt: string;
   shippingAddress: string;
+  shippingDetails: any;
 }
 
 // Order management logic synchronized with database
 
 const statusConfig: Record<OrderStatus, { label: string; icon: typeof Package; color: string }> = {
-  pending: { label: 'Pending', icon: Clock, color: 'bg-warning/10 text-warning border-warning/20' },
-  confirmed: { label: 'Confirmed', icon: CheckCircle, color: 'bg-secondary/10 text-secondary border-secondary/20' },
-  shipped: { label: 'Shipped', icon: Truck, color: 'bg-primary/10 text-primary border-primary/20' },
-  delivered: { label: 'Delivered', icon: Package, color: 'bg-success/10 text-success border-success/20' },
-  cancel_requested: { label: 'Cancellation Pending', icon: AlertTriangle, color: 'bg-warning/10 text-warning border-warning/20' },
-  cancelled: { label: 'Cancelled', icon: XCircle, color: 'bg-destructive/10 text-destructive border-destructive/20' },
+  pending: { label: 'New Order', icon: Clock, color: 'bg-amber-500/10 text-amber-500 border-amber-500/20 font-black uppercase text-[10px] tracking-widest' },
+  confirmed: { label: 'Accepted', icon: CheckCircle, color: 'bg-blue-500/10 text-blue-500 border-blue-500/20 font-black uppercase text-[10px] tracking-widest' },
+  shipped: { label: 'In Transit', icon: Truck, color: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-black uppercase text-[10px] tracking-widest' },
+  delivered: { label: 'Delivered', icon: Package, color: 'bg-blue-500/10 text-blue-500 border-blue-500/20 font-black uppercase text-[10px] tracking-widest' },
+  cancel_requested: { label: 'Flagged', icon: AlertTriangle, color: 'bg-destructive/10 text-destructive border-destructive/20 font-black uppercase text-[10px] tracking-widest' },
+  cancelled: { label: 'Revoked', icon: XCircle, color: 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20 font-black uppercase text-[10px] tracking-widest' },
 };
 
 export default function VendorOrders() {
@@ -79,24 +80,42 @@ export default function VendorOrders() {
       try {
         const data = await api.rfqs.list();
         setDbOrders(data
-          .filter((r: any) => r.response_details || ['confirmed', 'shipped', 'delivered', 'cancelled', 'cancel_requested'].includes(r.vendor_status))
-          .map((r: any) => ({
-          id: r.id,
-          orderNumber: `RFQ-${r.id.slice(0, 8).toUpperCase()}`,
-          buyerName: r.buyer_name || 'Client',
-          buyerEmail: r.buyer_email || 'client@jummababa.com',
-          buyerPhone: r.buyer_phone || 'N/A',
-          items: [{
-            productId: r.product_id,
-            productName: r.product_name,
-            quantity: r.quantity,
-            pricePerUnit: Number(r.response_details?.price) || Number(r.target_price) || 0
-          }],
-          totalAmount: (Number(r.response_details?.price) || Number(r.target_price) || 0) * r.quantity,
-          status: (r.vendor_status || 'pending') as OrderStatus,
-          createdAt: r.created_at,
-          shippingAddress: r.delivery_location || 'N/A'
-        })));
+          .filter((r: any) => r.is_direct_order === true || r.status === 'ordered' || r.status === 'confirmed' || r.status === 'shipped' || r.status === 'delivered' || ['confirmed', 'shipped', 'delivered', 'cancelled', 'cancel_requested'].includes(r.vendor_status))
+          .map((r: any) => {
+            // Normalize status for UI
+            let uiStatus: OrderStatus = 'pending';
+            const vStatus = r.vendor_status;
+            if (['confirmed', 'shipped', 'delivered', 'cancelled', 'cancel_requested'].includes(vStatus)) {
+              uiStatus = vStatus as OrderStatus;
+            } else if (r.status === 'ordered' || vStatus === 'pending_processing') {
+              uiStatus = 'pending';
+            } else if (r.status === 'confirmed') {
+              uiStatus = 'confirmed';
+            } else if (r.status === 'shipped') {
+              uiStatus = 'shipped';
+            } else if (r.status === 'delivered') {
+              uiStatus = 'delivered';
+            }
+
+            return {
+              id: r.id,
+              orderNumber: `RFQ-${r.id.slice(0, 8).toUpperCase()}`,
+              buyerName: r.buyer_name || 'Client',
+              buyerEmail: r.buyer_email || 'client@jummababa.com',
+              buyerPhone: r.buyer_phone || 'N/A',
+              items: [{
+                productId: r.product_id,
+                productName: r.product_name,
+                quantity: r.quantity,
+                pricePerUnit: Number(r.response_details?.price) || Number(r.target_price) || 0
+              }],
+              totalAmount: (Number(r.response_details?.price) || Number(r.target_price) || 0) * r.quantity,
+              status: uiStatus,
+              createdAt: r.created_at,
+              shippingAddress: r.delivery_location || 'N/A',
+              shippingDetails: r.shipping_details || {}
+            };
+          }));
       } catch (e) {
         console.error('Vendor orders fetch failed', e);
       } finally {
@@ -115,6 +134,7 @@ export default function VendorOrders() {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [shippingCarrier, setShippingCarrier] = useState('');
   const [shippingNotes, setShippingNotes] = useState('');
+  const [dispatchLocation, setDispatchLocation] = useState('');
   const [shippingProof, setShippingProof] = useState<File | null>(null);
   const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -129,13 +149,13 @@ export default function VendorOrders() {
 
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
     try {
-      await api.rfqs.update(orderId, {
-        status: newStatus === 'delivered' ? 'closed' : 'responded',
-        vendor_status: newStatus,
+      await api.rfqs.updateFulfillment(orderId, {
+        status: newStatus,
         shipping_details: {
           trackingNumber,
           shippingCarrier,
           shippingNotes,
+          dispatchLocation,
         }
       });
 
@@ -191,7 +211,7 @@ export default function VendorOrders() {
   };
 
   const getStatusBadge = (status: OrderStatus) => {
-    const config = statusConfig[status];
+    const config = statusConfig[status] || statusConfig.pending;
     const Icon = config.icon;
     return (
       <Badge className={config.color}>
@@ -245,19 +265,29 @@ export default function VendorOrders() {
               currentStatus={selectedOrder.status}
               orderNumber={selectedOrder.orderNumber}
               orderDate={selectedOrder.createdAt}
-              estimatedDelivery="January 25, 2024"
-              shippingCarrier={shippingCarrier || 'BlueDart Express'}
-              trackingNumber={trackingNumber || 'BD123456789IN'}
+              shippingCarrier={selectedOrder.shippingDetails?.shippingCarrier}
+              trackingNumber={selectedOrder.shippingDetails?.trackingNumber}
+              shippedAt={selectedOrder.shippingDetails?.shippedAt}
+              deliveredAt={selectedOrder.shippingDetails?.deliveredAt}
+              dispatchLocation={selectedOrder.shippingDetails?.dispatchLocation}
             />
           </div>
 
           <div className="space-y-4">
             {/* Order Actions Card */}
-            <Card>
-              <CardHeader>
+            <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+              <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
                 <CardTitle className="text-lg">Order Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {selectedOrder.status === 'pending' && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mb-2">
+                    <div className="flex items-center gap-2 text-amber-600 font-bold text-sm mb-1">
+                      <Clock className="h-4 w-4" /> Action Required
+                    </div>
+                    <p className="text-xs text-amber-600/80 leading-relaxed">The buyer has accepted your quote. Please <strong>Confirm Order</strong> below to start processing and shipping.</p>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Current Status</span>
                   {getStatusBadge(selectedOrder.status)}
@@ -300,6 +330,16 @@ export default function VendorOrders() {
                         onChange={(e) => setShippingNotes(e.target.value)}
                         rows={2}
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="dispatch">Dispatch City/Warehouse *</Label>
+                      <Input
+                        id="dispatch"
+                        placeholder="e.g. Bhiwandi Hub, Mumbai"
+                        value={dispatchLocation}
+                        onChange={(e) => setDispatchLocation(e.target.value)}
+                      />
+                      <p className="text-[10px] text-muted-foreground italic">Required to show buyer where the shipment started.</p>
                     </div>
                     {/* Shipping Proof Upload */}
                     <div className="space-y-2">
@@ -381,7 +421,7 @@ export default function VendorOrders() {
             </Card>
 
             {/* Buyer Info Card */}
-            <Card>
+            <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
               <CardContent className="pt-6">
                 <h3 className="font-semibold mb-3">Buyer Information</h3>
                 <div className="space-y-2 text-sm">
@@ -393,7 +433,7 @@ export default function VendorOrders() {
             </Card>
 
             {/* Shipping Address Card */}
-            <Card>
+            <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
               <CardContent className="pt-6">
                 <h3 className="font-semibold mb-3">Shipping Address</h3>
                 <p className="text-sm text-muted-foreground">{selectedOrder.shippingAddress}</p>
@@ -401,7 +441,7 @@ export default function VendorOrders() {
             </Card>
 
             {/* Order Summary Card */}
-            <Card>
+            <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
               <CardContent className="pt-6 space-y-4">
                 <div>
                   <h3 className="font-semibold mb-3">Order Summary</h3>
@@ -439,70 +479,73 @@ export default function VendorOrders() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Order Management</h1>
-        <p className="text-muted-foreground">Manage and track your orders</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black uppercase tracking-tighter">Order Fulfillment</h1>
+          <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Execute and track your successful quotes</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl  shadow-lg">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-warning/10 rounded-lg">
-                <Clock className="h-5 w-5 text-warning" />
+              <div className="p-2 bg-amber-500/10 rounded-xl">
+                <Clock className="h-6 w-6 text-amber-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{pendingCount}</div>
-                <p className="text-sm text-muted-foreground">Pending</p>
+                <div className="text-2xl font-black">{pendingCount}</div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">To Confirm</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl  shadow-lg">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-secondary/10 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-secondary" />
+              <div className="p-2 bg-blue-500/10 rounded-xl">
+                <CheckCircle className="h-6 w-6 text-blue-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{confirmedCount}</div>
-                <p className="text-sm text-muted-foreground">Confirmed</p>
+                <div className="text-2xl font-black">{confirmedCount}</div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Processing</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl  shadow-lg">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Truck className="h-5 w-5 text-primary" />
+              <div className="p-2 bg-indigo-500/10 rounded-xl">
+                <Truck className="h-6 w-6 text-indigo-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{shippedCount}</div>
-                <p className="text-sm text-muted-foreground">Shipped</p>
+                <div className="text-2xl font-black">{shippedCount}</div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">En Route</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl  shadow-lg">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-success/10 rounded-lg">
-                <Package className="h-5 w-5 text-success" />
+              <div className="p-2 bg-blue-500/10 rounded-xl">
+                <Package className="h-6 w-6 text-blue-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{deliveredCount}</div>
-                <p className="text-sm text-muted-foreground">Delivered</p>
+                <div className="text-2xl font-black">{deliveredCount}</div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Success</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl  shadow-2xl overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50" />
+        <CardHeader className="relative z-10 border-b border-border/50 bg-slate-50/50 px-6 py-4">
           <div className="flex flex-col sm:flex-row gap-4 justify-between">
-            <CardTitle>All Orders</CardTitle>
+            <CardTitle className="text-xl font-black uppercase tracking-tighter">Fulfillment Queue</CardTitle>
             <div className="flex gap-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

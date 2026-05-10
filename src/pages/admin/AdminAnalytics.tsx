@@ -62,7 +62,7 @@ export default function AdminAnalytics() {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -79,7 +79,7 @@ export default function AdminAnalytics() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -96,7 +96,7 @@ export default function AdminAnalytics() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -113,7 +113,7 @@ export default function AdminAnalytics() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -133,8 +133,8 @@ export default function AdminAnalytics() {
       </div>
 
       {/* Revenue Chart */}
-      <Card>
-        <CardHeader>
+      <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+        <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
           <CardTitle className="flex items-center justify-between">
             <span>Revenue Overview</span>
             <Badge variant="outline">2024</Badge>
@@ -142,7 +142,7 @@ export default function AdminAnalytics() {
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
+            {/* <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={revenueData}>
                 <defs>
                   <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
@@ -173,20 +173,20 @@ export default function AdminAnalytics() {
                   fill="url(#revenueGradient)"
                 />
               </AreaChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer> */}
           </div>
         </CardContent>
       </Card>
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* User Growth Chart */}
-        <Card>
-          <CardHeader>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
             <CardTitle>User Growth</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
+              {/* <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={userGrowthData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
@@ -215,7 +215,7 @@ export default function AdminAnalytics() {
                     name="Vendors"
                   />
                 </LineChart>
-              </ResponsiveContainer>
+              </ResponsiveContainer> */}
             </div>
             <div className="flex justify-center gap-6 mt-4">
               <div className="flex items-center gap-2">
@@ -231,13 +231,13 @@ export default function AdminAnalytics() {
         </Card>
 
         {/* Orders by Status */}
-        <Card>
-          <CardHeader>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
             <CardTitle>Orders by Status</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
+              {/* <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={orderStatusData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
                   <XAxis type="number" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
@@ -262,7 +262,7 @@ export default function AdminAnalytics() {
                     ))}
                   </Bar>
                 </BarChart>
-              </ResponsiveContainer>
+              </ResponsiveContainer> */}
             </div>
           </CardContent>
         </Card>
@@ -270,13 +270,13 @@ export default function AdminAnalytics() {
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Category Revenue Distribution */}
-        <Card>
-          <CardHeader>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
             <CardTitle>Revenue by Category</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
+              {/* <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={categoryRevenue}
@@ -300,7 +300,7 @@ export default function AdminAnalytics() {
                     formatter={(value: number) => [`${value}%`, 'Share']}
                   />
                 </PieChart>
-              </ResponsiveContainer>
+              </ResponsiveContainer> */}
             </div>
             <div className="flex flex-wrap justify-center gap-4 mt-4">
               {categoryRevenue.map((cat, index) => (
@@ -314,13 +314,13 @@ export default function AdminAnalytics() {
         </Card>
 
         {/* Monthly Orders */}
-        <Card>
-          <CardHeader>
+        <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
             <CardTitle>Monthly Orders</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
+              {/* <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={revenueData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
@@ -335,7 +335,7 @@ export default function AdminAnalytics() {
                   />
                   <Bar dataKey="orders" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} />
                 </BarChart>
-              </ResponsiveContainer>
+              </ResponsiveContainer> */}
             </div>
           </CardContent>
         </Card>
