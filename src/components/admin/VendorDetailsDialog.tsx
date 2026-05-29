@@ -1,7 +1,11 @@
-import { useState } from 'react';
-import { CheckCircle, XCircle, FileText, Building, MapPin, Phone, Mail, Globe, Eye, Clock, CreditCard, Tag, Briefcase, Printer, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CheckCircle, XCircle, FileText, Building, MapPin, Phone, Mail, Globe, Eye, Clock, CreditCard, Tag, Briefcase, Printer, X, Sliders, Save, Percent } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { api } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 import {
   Sheet,
   SheetContent,
@@ -23,15 +27,79 @@ interface VendorDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onApprove?: (id: string) => void;
-  onReject?: (id: string) => void;
+  onReject?: (id: string, reason?: string) => void;
+  onUpdate?: () => void;
 }
 
-export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onReject }: VendorDetailsDialogProps) {
+export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onReject, onUpdate }: VendorDetailsDialogProps) {
+  const { toast } = useToast();
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [imagePreviewTitle, setImagePreviewTitle] = useState('');
   const [isRejecting, setIsRejecting] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isSubmittingReject, setIsSubmittingReject] = useState(false);
+
+  const [overrideCancellationDays, setOverrideCancellationDays] = useState<string>('');
+  const [overrideEscrowRate, setOverrideEscrowRate] = useState<string>('');
+  
+  const [commissionType, setCommissionType] = useState<'percentage' | 'tiered'>('percentage');
+  const [commissionRate, setCommissionRate] = useState<string>('');
+  const [commissionMinCap, setCommissionMinCap] = useState<string>('');
+  const [commissionPayerRoute, setCommissionPayerRoute] = useState<'seller_deduct' | 'buyer_add' | 'split_both'>('seller_deduct');
+  
+  const [isSavingOverrides, setIsSavingOverrides] = useState(false);
+
+  useEffect(() => {
+    if (vendor) {
+      setOverrideCancellationDays(vendor.cancellation_window_days !== undefined && vendor.cancellation_window_days !== null ? String(vendor.cancellation_window_days) : '');
+      setOverrideEscrowRate(vendor.escrow_confirmation_rate !== undefined && vendor.escrow_confirmation_rate !== null ? String(vendor.escrow_confirmation_rate) : '');
+      
+      const rules = vendor.commission_rules || {};
+      setCommissionType(rules.type || 'percentage');
+      setCommissionRate(rules.rate !== undefined && rules.rate !== null ? String(rules.rate) : '5');
+      setCommissionMinCap(rules.min_cap !== undefined && rules.min_cap !== null ? String(rules.min_cap) : '100');
+      setCommissionPayerRoute(rules.payer_route || 'seller_deduct');
+    }
+  }, [vendor]);
+
+  const handleSaveOverrides = async () => {
+    if (!vendor) return;
+    setIsSavingOverrides(true);
+    try {
+      const updatedRules = {
+        type: commissionType,
+        rate: commissionRate === '' ? null : parseFloat(commissionRate),
+        min_cap: commissionMinCap === '' ? null : parseFloat(commissionMinCap),
+        payer_route: commissionPayerRoute,
+        tiers: vendor.commission_rules?.tiers || []
+      };
+
+      const updatePayload = {
+        cancellation_window_days: overrideCancellationDays === '' ? null : parseInt(overrideCancellationDays, 10),
+        escrow_confirmation_rate: overrideEscrowRate === '' ? null : parseFloat(overrideEscrowRate),
+        commission_rules: updatedRules
+      };
+
+      await api.profiles.update(vendor.id, updatePayload);
+      
+      toast({
+        title: "Vendor Overrides Saved",
+        description: `Marketplace configurations for ${vendor.companyName} have been updated.`,
+      });
+
+      if (onUpdate) {
+        onUpdate();
+      }
+    } catch (err: any) {
+      toast({
+        title: "Failed to Save Overrides",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsSavingOverrides(false);
+    }
+  };
 
   if (!vendor) return null;
 
@@ -303,6 +371,143 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
                 })}
               </div>
             </div>
+
+            {/* Marketplace Overrides Section */}
+            {vendor.status === 'approved' && (
+              <div className="space-y-6 pt-6 border-t animate-in fade-in duration-300">
+                <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-600 flex items-center gap-2">
+                  <Sliders className="h-4 w-4" />
+                  B2B Overrides & Custom Fees
+                </h4>
+                
+                <div className="space-y-4 p-4 bg-indigo-500/5 rounded-2xl border border-indigo-500/10">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cancellation Window (Days)</Label>
+                      <Input 
+                        type="number" 
+                        placeholder="e.g. 7 (Global)"
+                        className="font-bold bg-background h-9 text-xs" 
+                        value={overrideCancellationDays}
+                        onChange={(e) => setOverrideCancellationDays(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Escrow Confirmation Rate (%)</Label>
+                      <Input 
+                        type="number" 
+                        placeholder="e.g. 30 (Global)"
+                        className="font-bold bg-background h-9 text-xs" 
+                        value={overrideEscrowRate}
+                        onChange={(e) => setOverrideEscrowRate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">Vendor Payer Fee Route</Label>
+                    <div className="flex gap-2">
+                      {[
+                        { id: 'seller_deduct', label: 'Seller Deducts' },
+                        { id: 'buyer_add', label: 'Buyer Adds' },
+                        { id: 'split_both', label: 'Split both' }
+                      ].map((route) => (
+                        <button
+                          key={route.id}
+                          type="button"
+                          onClick={() => setCommissionPayerRoute(route.id as any)}
+                          className={`flex-1 py-1.5 rounded-lg border text-center text-[10px] font-bold uppercase tracking-wider transition-all ${
+                            commissionPayerRoute === route.id
+                              ? 'border-indigo-600 bg-indigo-600/10 text-indigo-700 font-extrabold'
+                              : 'bg-background hover:bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {route.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">Commission Structure</Label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCommissionType('percentage')}
+                        className={`flex-1 py-1.5 rounded-lg border text-center text-[10px] font-bold uppercase tracking-wider transition-all ${
+                          commissionType === 'percentage'
+                            ? 'border-indigo-600 bg-indigo-600/10 text-indigo-700 font-extrabold'
+                            : 'bg-background hover:bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        Percentage
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCommissionType('tiered')}
+                        className={`flex-1 py-1.5 rounded-lg border text-center text-[10px] font-bold uppercase tracking-wider transition-all ${
+                          commissionType === 'tiered'
+                            ? 'border-indigo-600 bg-indigo-600/10 text-indigo-700 font-extrabold'
+                            : 'bg-background hover:bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        Tiered
+                      </button>
+                    </div>
+                  </div>
+
+                  {commissionType === 'percentage' && (
+                    <div className="grid grid-cols-2 gap-4 pt-2 animate-in fade-in duration-200">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Percentage Rate (%)</Label>
+                        <div className="relative">
+                          <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input 
+                            type="number" 
+                            step="0.1" 
+                            className="pr-8 font-bold bg-background h-9 text-xs" 
+                            value={commissionRate}
+                            onChange={(e) => setCommissionRate(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Minimum Cap (₹)</Label>
+                        <Input 
+                          type="number" 
+                          className="font-bold bg-background h-9 text-xs" 
+                          value={commissionMinCap}
+                          onChange={(e) => setCommissionMinCap(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {commissionType === 'tiered' && (
+                    <div className="p-3 bg-background border border-dashed rounded-xl mt-2 animate-in fade-in duration-200">
+                      <p className="text-[10px] text-muted-foreground leading-relaxed italic text-center">
+                        This vendor will follow the custom tiered quantity milestones configured in their vendor profile rules or falls back to system global tiers.
+                      </p>
+                    </div>
+                  )}
+
+                  <Button 
+                    type="button" 
+                    onClick={handleSaveOverrides}
+                    disabled={isSavingOverrides}
+                    className="w-full mt-4 h-10 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/10 font-bold uppercase tracking-wider text-xs rounded-xl flex items-center justify-center gap-2"
+                  >
+                    {isSavingOverrides ? 'Applying Overrides...' : (
+                      <>
+                        <Save className="h-4 w-4" />
+                        Apply Override Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <SheetFooter className="p-6 border-t bg-background sticky bottom-0 z-10 sm:flex-row gap-3">

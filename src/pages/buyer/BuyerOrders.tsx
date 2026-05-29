@@ -232,6 +232,17 @@ export default function BuyerOrders() {
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-2">
+              <Button 
+                variant="outline" 
+                className="w-full border-primary/30 text-primary hover:bg-primary/5 font-bold"
+                onClick={() => {
+                  window.location.href = `/messages?rfqId=${selectedOrder.id}`;
+                }}
+              >
+                <span className="mr-2">💬</span>
+                Open Sourcing Chat
+              </Button>
+
               <Button variant="outline" className="w-full">
                 <Download className="h-4 w-4 mr-2" />
                 Download Invoice

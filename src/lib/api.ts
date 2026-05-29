@@ -211,11 +211,26 @@ export const api = {
       apiFetch(`/rfqs/${id}/cancellation`, { method: 'PATCH', body: JSON.stringify({ status, admin_notes }) }),
   },
   messages: {
-    send: (receiver_id: string, content: string) => 
-      apiFetch('/messages', { method: 'POST', body: JSON.stringify({ receiver_id, content }) }),
+    send: (receiver_id: string | null, content: string, chat_group_id?: string | null, metadata?: any) => 
+      apiFetch('/messages', { 
+        method: 'POST', 
+        body: JSON.stringify({ 
+          receiver_id, 
+          chat_group_id, 
+          content, 
+          metadata 
+        }) 
+      }),
     getConversations: () => apiFetch('/messages/conversations'),
-    getHistory: (otherUserId: string) => apiFetch(`/messages/history/${otherUserId}`),
-    markAsRead: (otherUserId: string) => apiFetch(`/messages/read/${otherUserId}`, { method: 'PATCH', body: JSON.stringify({}) }),
+    getHistory: (id: string, isGroup = false) => 
+      apiFetch(`/messages/history/${id}${isGroup ? '?isGroup=true' : ''}`),
+    markAsRead: (id: string, isGroup = false) => 
+      apiFetch(`/messages/read/${id}${isGroup ? '?isGroup=true' : ''}`, { method: 'PATCH', body: JSON.stringify({}) }),
+    toggleIntervention: (chatGroupId: string, canIntervene: boolean) =>
+      apiFetch(`/messages/group/${chatGroupId}/intervene`, { 
+        method: 'PATCH', 
+        body: JSON.stringify({ canIntervene }) 
+      }),
     getNotifications: () => apiFetch('/messages/notifications'),
     getSystemNotifications: () => apiFetch('/notifications'),
     markSystemAsRead: (id: string) => apiFetch(`/notifications/${id}/read`, { method: 'PATCH' }),
@@ -239,6 +254,8 @@ export const api = {
   admin: {
     getSettings: () => apiFetch('/admin/settings'),
     updateSettings: (data: any) => apiFetch('/admin/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+    getGlobalConfig: () => apiFetch('/admin/global-config'),
+    updateGlobalConfig: (data: any) => apiFetch('/admin/global-config', { method: 'PATCH', body: JSON.stringify(data) }),
     getStats: () => apiFetch('/admin/stats'),
   },
   stats: {

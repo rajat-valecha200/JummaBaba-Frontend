@@ -30,7 +30,14 @@ import {
   MessageSquare,
   Loader2,
   Users,
-  CornerDownRight
+  CornerDownRight,
+  Truck,
+  AlertTriangle,
+  CheckCircle2,
+  ArrowRight,
+  Lock,
+  Package,
+  FileCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -89,6 +96,9 @@ interface Message {
   reactions?: Reaction[];
   replyTo?: ReplyToMessage;
   isForwarded?: boolean;
+  metadata?: any;
+  senderName?: string;
+  senderRole?: string;
 }
 
 interface Conversation {
@@ -103,6 +113,474 @@ interface Conversation {
   isVerified: boolean;
   isTyping: boolean;
   messages: Message[];
+  isGroup?: boolean;
+  groupType?: string;
+  rfqId?: string;
+  canIntervene?: boolean;
+}
+
+interface SourcingActionCardProps {
+  message: Message;
+  userRole: string | undefined;
+  onRefresh: () => void;
+}
+
+function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCardProps) {
+  const metadata = message.metadata || {};
+  const cardType = metadata.type;
+  
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>(metadata.supplier_id || '');
+  const [isActioning, setIsActioning] = useState<boolean>(false);
+  const [disputeNotes, setDisputeNotes] = useState<string>('');
+  const [showDisputeInput, setShowDisputeInput] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string>('');
+
+  useEffect(() => {
+    if (cardType === 'rfq_specs' && userRole === 'admin') {
+      api.profiles.list('vendor', 'approved')
+        .then(data => {
+          setSuppliers(data);
+          if (metadata.supplier_id) {
+            setSelectedSupplierId(metadata.supplier_id);
+          } else if (data.length > 0) {
+            setSelectedSupplierId(data[0].id);
+          }
+        })
+        .catch(err => console.error("Failed to load suppliers:", err));
+    }
+  }, [cardType, userRole, metadata.supplier_id]);
+
+  if (!cardType) return null;
+
+  const handleForward = async () => {
+    if (!selectedSupplierId) return;
+    try {
+      setIsActioning(true);
+      setErrorMsg('');
+      await api.rfqs.forward(metadata.rfq_id, selectedSupplierId);
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Forward failed');
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
+  const handleAcceptQuote = async () => {
+    try {
+      setIsActioning(true);
+      setErrorMsg('');
+      await api.rfqs.acceptQuote(metadata.rfq_id);
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Accept failed');
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
+  const handleConfirmDelivery = async () => {
+    try {
+      setIsActioning(true);
+      setErrorMsg('');
+      await api.rfqs.buyerAction(metadata.rfq_id, 'confirm_delivery');
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Delivery confirmation failed');
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
+  const handleOpenDispute = async () => {
+    if (!disputeNotes.trim()) {
+      setErrorMsg('Please specify the reason for opening a dispute.');
+      return;
+    }
+    try {
+      setIsActioning(true);
+      setErrorMsg('');
+      await api.rfqs.buyerAction(metadata.rfq_id, 'open_dispute', disputeNotes.trim());
+      setShowDisputeInput(false);
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Dispute failed to open');
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
+  // Card designs using sleek glassmorphism and tailored dark/light HSL palettes
+  switch (cardType) {
+    case 'rfq_specs':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-cyan-500/25 bg-cyan-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-cyan-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">RFQ Sourcing Specifications</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Moderated Sourcing Inquiry</p>
+            </div>
+          </div>
+          
+          <div className="space-y-2.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Product Target:</span>
+              <span className="font-semibold text-foreground truncate max-w-[200px]">{metadata.product_name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Volume Required:</span>
+              <span className="font-semibold text-foreground">{metadata.quantity} {metadata.unit}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Target Price:</span>
+              <span className="font-bold text-cyan-600 dark:text-cyan-400">₹{Number(metadata.target_price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Delivery Site:</span>
+              <span className="font-semibold text-foreground truncate max-w-[200px]">{metadata.delivery_location}</span>
+            </div>
+            {metadata.supplier_name && (
+              <div className="flex justify-between border-t border-cyan-500/10 pt-2 text-cyan-600 dark:text-cyan-400 font-semibold">
+                <span>Requested Supplier:</span>
+                <span className="truncate max-w-[200px] underline">{metadata.supplier_name}</span>
+              </div>
+            )}
+            {metadata.description && (
+              <div className="mt-2 pt-2 border-t border-cyan-500/10">
+                <span className="text-[10px] uppercase text-muted-foreground tracking-wider block mb-1">Details & Requirements</span>
+                <p className="text-muted-foreground leading-relaxed italic">{metadata.description}</p>
+              </div>
+            )}
+          </div>
+
+          {userRole === 'admin' && (
+            <div className="mt-4 pt-4 border-t border-cyan-500/20 space-y-3">
+              {metadata.supplier_id ? (
+                // Direct product RFQ: Static supplier, no selector dropdown!
+                <div className="flex flex-col gap-2">
+                  <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-3 text-xs">
+                    <span className="text-[10px] uppercase text-muted-foreground font-bold block mb-1">Target Supplier (Buyer Choice)</span>
+                    <span className="font-semibold text-foreground">{metadata.supplier_name || 'Selected Vendor'}</span>
+                  </div>
+                  <Button 
+                    onClick={handleForward}
+                    className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                    disabled={isActioning}
+                  >
+                    {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : `⚡ Forward RFQ to ${metadata.supplier_name || 'Supplier'}`}
+                  </Button>
+                </div>
+              ) : (
+                // General Sourcing RFQ: Show selector dropdown
+                <>
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground block">Select Verified Supplier to Forward</label>
+                  {suppliers.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      <select 
+                        value={selectedSupplierId}
+                        onChange={(e) => setSelectedSupplierId(e.target.value)}
+                        className="w-full text-xs bg-muted border border-border rounded-lg h-9 px-2 focus:ring-1 focus:ring-cyan-500 font-medium"
+                      >
+                        {suppliers.map(s => (
+                          <option key={s.id} value={s.id}>{s.business_name || s.full_name}</option>
+                        ))}
+                      </select>
+                      <Button 
+                        onClick={handleForward}
+                        className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                        disabled={isActioning}
+                      >
+                        {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "⚡ Forward RFQ to Supplier"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-amber-500 italic">No approved suppliers found to forward to.</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {userRole !== 'admin' && (
+            <div className="mt-4 text-center">
+              <Badge variant="secondary" className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] py-1 border border-cyan-500/10">
+                Awaiting Admin Verification
+              </Badge>
+            </div>
+          )}
+          {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
+        </div>
+      );
+
+    case 'vendor_quote':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-emerald-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Official Commercial Quotation</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Direct Vendor Quote</p>
+            </div>
+          </div>
+
+          <div className="space-y-2.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Commercial Bid:</span>
+              <span className="font-bold text-lg text-emerald-600 dark:text-emerald-400">₹{Number(metadata.price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Estimated Lead Time:</span>
+              <span className="font-semibold text-foreground">{metadata.lead_time} Days</span>
+            </div>
+            {metadata.notes && (
+              <div className="mt-2 pt-2 border-t border-emerald-500/10">
+                <span className="text-[10px] uppercase text-muted-foreground tracking-wider block mb-1">Vendor Remarks</span>
+                <p className="text-muted-foreground leading-relaxed italic">"{metadata.notes}"</p>
+              </div>
+            )}
+          </div>
+
+          {userRole === 'buyer' && (
+            <div className="mt-4 pt-4 border-t border-emerald-500/20 flex gap-2">
+              <Button 
+                onClick={handleAcceptQuote}
+                className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                disabled={isActioning}
+              >
+                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "✅ Accept Quote"}
+              </Button>
+            </div>
+          )}
+
+          {userRole !== 'buyer' && (
+            <div className="mt-4 text-center">
+              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] py-1 border border-emerald-500/10">
+                Awaiting Buyer Decision
+              </Badge>
+            </div>
+          )}
+          {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
+        </div>
+      );
+
+    case 'order_init':
+      return (
+        <div className="w-full max-w-sm mx-auto my-3 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 backdrop-blur-md p-4 shadow-md text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center mx-auto mb-2 text-indigo-600 dark:text-indigo-400">
+            <Lock className="h-5 w-5" />
+          </div>
+          <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-1">Secure Order Group Activated</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Order chat initialized. Buyer, Vendor, and JummaBaba Support are now securely connected. Escrow tracking active.
+          </p>
+        </div>
+      );
+
+    case 'order_placed':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-indigo-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+              <Package className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Commercial Order Placed</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Fulfillment & Verification Stage</p>
+            </div>
+          </div>
+
+          <div className="space-y-2.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Order Value:</span>
+              <span className="font-bold text-indigo-600 dark:text-indigo-400">₹{Number(metadata.amount).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Quantity:</span>
+              <span className="font-semibold text-foreground">{metadata.quantity} {metadata.unit}</span>
+            </div>
+            {metadata.cancellation_deadline && (
+              <div className="mt-2 pt-2 border-t border-indigo-500/10 text-[10px] text-muted-foreground">
+                <span className="font-semibold text-amber-500 block mb-0.5">⚠️ Cancellation Deadline</span>
+                Order cancellation is allowed until {new Date(metadata.cancellation_deadline).toLocaleString()}.
+              </div>
+            )}
+          </div>
+        </div>
+      );
+
+    case 'order_confirmed':
+      return (
+        <div className="w-full max-w-sm mx-auto my-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 backdrop-blur-md p-4 shadow-md text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-2 text-amber-600 dark:text-amber-400">
+            <FileCheck className="h-5 w-5" />
+          </div>
+          <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-1">Order Confirmed by Seller</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Order confirmed. Production, loading, and transit preparation are now in progress.
+          </p>
+        </div>
+      );
+
+    case 'order_shipped':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-blue-500/25 bg-blue-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-blue-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <Truck className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Cargo Dispatched & In Transit</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Logistics update</p>
+            </div>
+          </div>
+
+          <div className="space-y-2.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Carrier/Provider:</span>
+              <span className="font-semibold text-foreground">{metadata.carrier || 'Standard Carrier'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">AWB/Tracking Number:</span>
+              <span className="font-bold text-blue-600 dark:text-blue-400">{metadata.awb || 'N/A'}</span>
+            </div>
+          </div>
+        </div>
+      );
+
+    case 'delivery_prompt':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-yellow-500/25 bg-yellow-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-yellow-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
+              <Package className="h-5 w-5 animate-bounce" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Delivery Verification Prompt</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Receipt Acknowledgement</p>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+            The supplier has marked this shipment as delivered. Have you successfully received your cargo and verified the contents?
+          </p>
+
+          {userRole === 'buyer' && !showDisputeInput && (
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleConfirmDelivery}
+                className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                disabled={isActioning}
+              >
+                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "📦 Yes, Confirm Delivery"}
+              </Button>
+              <Button 
+                onClick={() => setShowDisputeInput(true)}
+                variant="outline"
+                className="flex-1 text-xs h-9 border-destructive hover:bg-destructive/10 text-destructive rounded-lg shadow-sm font-semibold transition-all"
+                disabled={isActioning}
+              >
+                ⚠️ Open Dispute
+              </Button>
+            </div>
+          )}
+
+          {showDisputeInput && (
+            <div className="space-y-3 pt-3 border-t border-yellow-500/10">
+              <label className="text-[10px] uppercase font-bold text-destructive block">Dispute Reason / Concerns</label>
+              <textarea 
+                value={disputeNotes}
+                onChange={(e) => setDisputeNotes(e.target.value)}
+                placeholder="Describe product damage, volume mismatch, or cargo delays..."
+                className="w-full text-xs p-2 bg-muted border border-border rounded-lg h-16 focus:ring-1 focus:ring-destructive resize-none"
+              />
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleOpenDispute}
+                  className="flex-1 text-xs h-9 bg-destructive hover:bg-destructive/90 text-white rounded-lg font-semibold transition-all"
+                  disabled={isActioning}
+                >
+                  {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Submit Dispute"}
+                </Button>
+                <Button 
+                  onClick={() => { setShowDisputeInput(false); setErrorMsg(''); }}
+                  variant="ghost"
+                  className="text-xs h-9 rounded-lg"
+                  disabled={isActioning}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {userRole !== 'buyer' && (
+            <div className="mt-4 text-center">
+              <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 text-[10px] py-1 border border-yellow-500/10">
+                Awaiting Buyer Confirmation
+              </Badge>
+            </div>
+          )}
+          {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
+        </div>
+      );
+
+    case 'delivery_completed':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 backdrop-blur-md p-5 shadow-lg text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-3 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="h-6 w-6" />
+          </div>
+          <h4 className="font-bold text-sm text-foreground mb-1">Transaction Completed Successfully</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Successful delivery has been confirmed by the Buyer. Sourcing process closed successfully. Escrow released.
+          </p>
+        </div>
+      );
+
+    case 'dispute_opened':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-destructive/25 bg-destructive/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-destructive/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-destructive/10 text-destructive">
+              <AlertTriangle className="h-5 w-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Cargo Delivery Disputed</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Escrow Dispute Lock Active</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Dispute Logged Reason</span>
+            <p className="text-destructive font-medium italic bg-destructive/10 rounded-lg p-3">"{metadata.notes || 'Cargo delays/issues'}"</p>
+            <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">
+              Platform administrator has been flagged to intervene and mediate. Settlement processes paused.
+            </p>
+          </div>
+        </div>
+      );
+
+    case 'system_intervention':
+      return (
+        <div className={cn(
+          "w-full max-w-sm mx-auto my-3 rounded-xl border p-3 text-center text-xs font-semibold animate-in fade-in slide-in-from-bottom-2 duration-300",
+          metadata.active 
+            ? "border-amber-500/25 bg-amber-500/5 text-amber-700 dark:text-amber-400 animate-pulse"
+            : "border-border bg-muted/30 text-muted-foreground"
+        )}>
+          {message.text}
+        </div>
+      );
+
+    default:
+      return null;
+  }
 }
 
 // Admin-mediated chat - Buyers and Vendors only talk to JummaBaba Support
@@ -355,6 +833,11 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const isInputBlocked = user?.role === 'admin' && 
+                         selectedConversation?.isGroup && 
+                         selectedConversation?.groupType === 'order_group' && 
+                         !selectedConversation?.canIntervene;
+
   // Search messages across all conversations
   const handleMessageSearch = useCallback((query: string) => {
     setMessageSearchQuery(query);
@@ -566,7 +1049,11 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         isOnline: c.is_online,
         isVerified: true,
         isTyping: false,
-        messages: []
+        messages: [],
+        isGroup: c.is_group,
+        groupType: c.group_type,
+        rfqId: c.rfq_id,
+        canIntervene: c.can_intervene
       }));
 
       // Play sound if unread count increased globally
@@ -586,13 +1073,17 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const fetchMessages = useCallback(async () => {
     if (!selectedConversation?.id || !user?.id) return;
     try {
-      const history = await api.messages.getHistory(selectedConversation.id);
+      const isGroup = !!selectedConversation.isGroup;
+      const history = await api.messages.getHistory(selectedConversation.id, isGroup);
       const mappedMessages: Message[] = history.map((m: any) => ({
         id: m.id,
         senderId: m.sender_id === user.id ? 'me' : 'other',
         text: m.content,
         timestamp: new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-        status: m.is_read ? 'read' : 'sent'
+        status: m.is_read ? 'read' : 'sent',
+        metadata: m.metadata,
+        senderName: m.sender_name,
+        senderRole: m.sender_role
       }));
       
       setSelectedConversation(prev => {
@@ -601,10 +1092,10 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         return { ...prev, messages: mappedMessages };
       });
 
-      // If there are unread messages from the other user, mark them as read
+      // If there are unread messages from other users, mark them as read
       const hasUnread = history.some((m: any) => m.sender_id !== user.id && !m.is_read);
       if (hasUnread) {
-        api.messages.markAsRead(selectedConversation.id).then(() => {
+        api.messages.markAsRead(selectedConversation.id, isGroup).then(() => {
           window.dispatchEvent(new CustomEvent('refreshAdminStats'));
           fetchConversations();
         }).catch(err => console.error('Failed to mark as read in poll:', err));
@@ -612,13 +1103,33 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
     } catch (error) {
       console.error('Failed to fetch messages:', error);
     }
-  }, [selectedConversation?.id, user?.id, fetchConversations]);
+  }, [selectedConversation?.id, selectedConversation?.isGroup, user?.id, fetchConversations]);
 
   useEffect(() => {
     fetchConversations();
     const interval = setInterval(fetchConversations, 10000); // 10s for sidebar
     return () => clearInterval(interval);
   }, [fetchConversations]);
+
+  useEffect(() => {
+    if (conversations.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const chatGroupId = params.get('chatGroupId') || params.get('groupId');
+      const rfqId = params.get('rfqId');
+      
+      if (chatGroupId) {
+        const found = conversations.find(c => c.id === chatGroupId);
+        if (found && (!selectedConversation || selectedConversation.id !== found.id)) {
+          openConversation(found);
+        }
+      } else if (rfqId) {
+        const found = conversations.find(c => c.rfqId === rfqId);
+        if (found && (!selectedConversation || selectedConversation.id !== found.id)) {
+          openConversation(found);
+        }
+      }
+    }
+  }, [conversations, selectedConversation?.id]);
 
   useEffect(() => {
     if (selectedConversation?.id) {
@@ -635,7 +1146,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
       c.id === conv.id ? { ...c, unreadCount: 0 } : c
     ));
     try {
-      await api.messages.markAsRead(conv.id);
+      await api.messages.markAsRead(conv.id, !!conv.isGroup);
       // Trigger global stats refresh for the Admin Bell
       window.dispatchEvent(new CustomEvent('refreshAdminStats'));
       // Wait a bit for DB to commit before fetching fresh list
@@ -714,23 +1225,43 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
     }
   }, [selectedConversation?.isTyping, simulateIncomingMessage]);
 
+  const handleToggleIntervention = async () => {
+    if (!selectedConversation?.id) return;
+    const newStatus = !selectedConversation.canIntervene;
+    try {
+      await api.messages.toggleIntervention(selectedConversation.id, newStatus);
+      setSelectedConversation(prev => prev ? { ...prev, canIntervene: newStatus } : null);
+      fetchConversations();
+      fetchMessages();
+    } catch (err: any) {
+      console.error('Failed to toggle intervention:', err);
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation || isSending) return;
     
     try {
       setIsSending(true);
-      await api.messages.send(selectedConversation.id, messageInput.trim());
+      const isGroup = !!selectedConversation.isGroup;
+      const receiverId = isGroup ? null : selectedConversation.id;
+      const chatGroupId = isGroup ? selectedConversation.id : null;
+
+      await api.messages.send(receiverId, messageInput.trim(), chatGroupId);
       setMessageInput('');
       setReplyingTo(null);
       
       // Refresh messages immediately
-      const history = await api.messages.getHistory(selectedConversation.id);
+      const history = await api.messages.getHistory(selectedConversation.id, isGroup);
       const mappedMessages: Message[] = history.map((m: any) => ({
         id: m.id,
         senderId: m.sender_id === user?.id ? 'me' : 'other',
         text: m.content,
         timestamp: new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-        status: m.is_read ? 'read' : 'sent'
+        status: m.is_read ? 'read' : 'sent',
+        metadata: m.metadata,
+        senderName: m.sender_name,
+        senderRole: m.sender_role
       }));
       
       setSelectedConversation(prev => prev ? { ...prev, messages: mappedMessages } : null);
@@ -1114,11 +1645,26 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               >
                 {/* Avatar */}
                 <div className="relative flex-shrink-0">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={conv.participantAvatar} />
-                    <AvatarFallback className="text-lg">{conv.participantName[0]}</AvatarFallback>
-                  </Avatar>
-                  {conv.isOnline && (
+                  {conv.isGroup ? (
+                    <div className={cn(
+                      "h-12 w-12 rounded-full flex items-center justify-center shadow-inner border border-border/40",
+                      conv.groupType === 'negotiation'
+                        ? "bg-gradient-to-tr from-cyan-500/20 to-teal-500/20 text-cyan-600 dark:text-cyan-400"
+                        : "bg-gradient-to-tr from-indigo-500/20 to-violet-500/20 text-indigo-600 dark:text-indigo-400"
+                    )}>
+                      {conv.groupType === 'negotiation' ? (
+                        <MessageSquare className="h-5.5 w-5.5" />
+                      ) : (
+                        <Users className="h-5.5 w-5.5" />
+                      )}
+                    </div>
+                  ) : (
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={conv.participantAvatar} />
+                      <AvatarFallback className="text-lg">{conv.participantName[0]}</AvatarFallback>
+                    </Avatar>
+                  )}
+                  {conv.isOnline && !conv.isGroup && (
                     <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-success rounded-full border-2 border-background" />
                   )}
                 </div>
@@ -1128,10 +1674,20 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <p className="font-semibold truncate">{conv.participantName}</p>
-                      {conv.isOnline && (
+                      {conv.isGroup && (
+                        <Badge variant="outline" className={cn(
+                          "text-[9px] font-bold px-1.5 py-0 rounded flex-shrink-0 uppercase tracking-wider",
+                          conv.groupType === 'negotiation'
+                            ? "border-cyan-500/30 bg-cyan-500/5 text-cyan-600 dark:text-cyan-400"
+                            : "border-indigo-500/30 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400"
+                        )}>
+                          {conv.groupType === 'negotiation' ? 'Negotiation' : 'Order Chat'}
+                        </Badge>
+                      )}
+                      {conv.isOnline && !conv.isGroup && (
                         <span className="w-2 h-2 rounded-full bg-success animate-pulse flex-shrink-0" title="Online" />
                       )}
-                      {conv.isVerified && (
+                      {conv.isVerified && !conv.isGroup && (
                         <Shield className="h-4 w-4 text-success flex-shrink-0" />
                       )}
                     </div>
@@ -1216,11 +1772,26 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               
               {/* Supplier DP */}
               <div className="relative flex-shrink-0">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={selectedConversation.participantAvatar} />
-                  <AvatarFallback>{selectedConversation.participantName[0]}</AvatarFallback>
-                </Avatar>
-                {selectedConversation.isOnline && (
+                {selectedConversation.isGroup ? (
+                  <div className={cn(
+                    "h-10 w-10 rounded-full flex items-center justify-center border border-border/40 shadow-sm",
+                    selectedConversation.groupType === 'negotiation'
+                      ? "bg-gradient-to-tr from-cyan-500/20 to-teal-500/20 text-cyan-600 dark:text-cyan-400"
+                      : "bg-gradient-to-tr from-indigo-500/20 to-violet-500/20 text-indigo-600 dark:text-indigo-400"
+                  )}>
+                    {selectedConversation.groupType === 'negotiation' ? (
+                      <MessageSquare className="h-5 w-5" />
+                    ) : (
+                      <Users className="h-5 w-5" />
+                    )}
+                  </div>
+                ) : (
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={selectedConversation.participantAvatar} />
+                    <AvatarFallback>{selectedConversation.participantName[0]}</AvatarFallback>
+                  </Avatar>
+                )}
+                {selectedConversation.isOnline && !selectedConversation.isGroup && (
                   <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-success rounded-full border-2 border-background" />
                 )}
               </div>
@@ -1229,22 +1800,32 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               <div className="flex-1 min-w-0" onClick={() => {}}>
                 <div className="flex items-center gap-1.5">
                   <p className="font-semibold truncate">{selectedConversation.participantName}</p>
-                  {selectedConversation.isVerified && (
+                  {selectedConversation.isVerified && !selectedConversation.isGroup && (
                     <Shield className="h-4 w-4 text-success flex-shrink-0" />
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  {selectedConversation.isTyping ? (
-                    <span className="text-success font-medium">typing...</span>
-                  ) : selectedConversation.isOnline ? (
-                    <span className="text-success font-medium">Online</span>
+                  {selectedConversation.isGroup ? (
+                    <span>
+                      {selectedConversation.groupType === 'negotiation' 
+                        ? 'RFQ Negotiation Panel' 
+                        : 'Platform Escrow Orders & Support'}
+                    </span>
                   ) : (
-                    <span>Offline</span>
-                  )}
-                  {selectedConversation.isVerified && (
                     <>
-                      <span className="text-muted-foreground/50">•</span>
-                      <span className="text-success">Verified</span>
+                      {selectedConversation.isTyping ? (
+                        <span className="text-success font-medium">typing...</span>
+                      ) : selectedConversation.isOnline ? (
+                        <span className="text-success font-medium">Online</span>
+                      ) : (
+                        <span>Offline</span>
+                      )}
+                      {selectedConversation.isVerified && (
+                        <>
+                          <span className="text-muted-foreground/50">•</span>
+                          <span className="text-success">Verified</span>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -1290,6 +1871,50 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               </div>
             </div>
 
+            {/* Spectator Intervention Banner */}
+            {user?.role === 'admin' && selectedConversation.isGroup && selectedConversation.groupType === 'order_group' && (
+              selectedConversation.canIntervene ? (
+                <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-4 py-3 backdrop-blur-md animate-in slide-in-from-top duration-300 flex-shrink-0">
+                  <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Active Admin Intervention</p>
+                        <p className="text-[11px] text-muted-foreground">You are actively moderating this thread. Both parties can see your comments.</p>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm"
+                      variant="outline"
+                      onClick={handleToggleIntervention}
+                      className="text-xs h-8 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg font-semibold transition-all flex-shrink-0"
+                    >
+                      Exit Intervention
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-3 backdrop-blur-md animate-in slide-in-from-top duration-300 flex-shrink-0">
+                  <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-amber-500 animate-pulse flex-shrink-0" />
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Passive Spectator Mode</p>
+                        <p className="text-[11px] text-muted-foreground">You are currently observing this negotiation thread. Typing and actions are disabled.</p>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm"
+                      onClick={handleToggleIntervention}
+                      className="text-xs h-8 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-sm font-semibold transition-all flex items-center gap-1.5 flex-shrink-0"
+                    >
+                      ⚡ Intervene in Chat
+                    </Button>
+                  </div>
+                </div>
+              )
+            )}
+
             {/* Messages Area with Vertical Scroll - No Horizontal */}
             <div 
               ref={messagesContainerRef}
@@ -1307,154 +1932,191 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                   </span>
                 </div>
 
-                {selectedConversation.messages.map((message) => (
-                  <div
-                    key={message.id}
-                    id={`message-${message.id}`}
-                    className={cn(
-                      "flex w-full mb-2",
-                      message.senderId === 'me' ? "justify-end" : "justify-start"
-                    )}
-                  >
-                    <div className={cn(
-                      "flex flex-col gap-1 max-w-[85%] md:max-w-[70%]",
-                      message.senderId === 'me' ? "items-end" : "items-start"
-                    )}>
-                      <div className="relative group">
-                        {/* Message Actions Popup */}
-                        {showActionsFor === message.id && (
-                          <div className={cn(
-                            "absolute bottom-full mb-2 z-10",
-                            message.senderId === 'me' ? "right-0" : "left-0"
-                          )}>
-                            <MessageActions 
-                              onReply={() => handleReply(message)}
-                              onForward={() => {
-                                setForwardMessage(message);
-                                setShowActionsFor(null);
-                              }}
-                              onReact={() => {
-                                setShowReactionsFor(message.id);
-                                setShowActionsFor(null);
-                              }}
-                              isOwn={message.senderId === 'me'}
-                            />
-                          </div>
-                        )}
+                {selectedConversation.messages.map((message) => {
+                  if (message.metadata?.type) {
+                    const isCentered = [
+                      'order_init',
+                      'order_confirmed',
+                      'delivery_completed',
+                      'system_intervention'
+                    ].includes(message.metadata.type);
 
-                        {/* Quick Reactions Popup */}
-                        {showReactionsFor === message.id && (
-                          <div className={cn(
-                            "absolute bottom-full mb-2 z-10",
-                            message.senderId === 'me' ? "right-0" : "left-0"
-                          )}>
-                            <QuickReactions 
-                              onSelect={(emoji) => handleAddReaction(message.id, emoji)}
-                              isOwn={message.senderId === 'me'}
-                            />
-                          </div>
+                    return (
+                      <div
+                        key={message.id}
+                        id={`message-${message.id}`}
+                        className={cn(
+                          "w-full flex mb-2",
+                          isCentered ? "justify-center" : (message.senderId === 'me' ? "justify-end" : "justify-start")
                         )}
-
-                        <div
-                          className={cn(
-                            "rounded-2xl px-4 py-2.5 shadow-sm relative cursor-pointer transition-all",
-                            message.senderId === 'me'
-                              ? "bg-primary text-primary-foreground rounded-tr-none"
-                              : "bg-card text-foreground rounded-tl-none border border-border"
-                          )}
-                        onDoubleClick={() => setShowActionsFor(showActionsFor === message.id ? null : message.id)}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          setShowActionsFor(showActionsFor === message.id ? null : message.id);
-                        }}
                       >
-                        {/* Forwarded Label */}
-                        {message.isForwarded && (
-                          <div className={cn(
-                            "flex items-center gap-1 text-[10px] mb-1",
-                            message.senderId === 'me' ? "text-primary-foreground/60" : "text-muted-foreground"
-                          )}>
-                            <CornerUpRight className="h-3 w-3" />
-                            Forwarded
-                          </div>
-                        )}
+                        <SourcingActionCard 
+                          message={message} 
+                          userRole={user?.role} 
+                          onRefresh={() => { fetchConversations(); fetchMessages(); }} 
+                        />
+                      </div>
+                    );
+                  }
 
-                        {/* Quoted Reply */}
-                        {message.replyTo && (
-                          <QuotedMessage 
-                            replyTo={message.replyTo}
-                            isOwn={message.senderId === 'me'}
-                            onClick={() => scrollToMessage(message.replyTo!.id)}
-                          />
-                        )}
-
-                        {message.isMedia && message.mediaData ? (
-                          <MediaMessage 
-                            media={message.mediaData}
-                            isOwn={message.senderId === 'me'}
-                          />
-                        ) : message.isVoice && message.voiceData ? (
-                          <VoiceMessage 
-                            audioUrl={message.voiceData.audioUrl}
-                            duration={message.voiceData.duration}
-                            isOwn={message.senderId === 'me'}
-                          />
-                        ) : (
-                          <p className="text-sm leading-relaxed break-words">{message.text}</p>
-                        )}
-                        <div className={cn(
-                          "flex items-center gap-1 mt-1",
-                          message.senderId === 'me' ? "justify-end" : "justify-start"
-                        )}>
-                          <span className={cn(
-                            "text-[10px]",
-                            message.senderId === 'me' ? "text-primary-foreground/70" : "text-muted-foreground"
-                          )}>
-                            {message.timestamp}
+                  return (
+                    <div
+                      key={message.id}
+                      id={`message-${message.id}`}
+                      className={cn(
+                        "flex w-full mb-2",
+                        message.senderId === 'me' ? "justify-end" : "justify-start"
+                      )}
+                    >
+                      <div className={cn(
+                        "flex flex-col gap-1 max-w-[85%] md:max-w-[70%]",
+                        message.senderId === 'me' ? "items-end" : "items-start"
+                      )}>
+                        {selectedConversation.isGroup && message.senderId !== 'me' && (
+                          <span className="text-[10px] text-muted-foreground px-1 font-semibold mb-0.5">
+                            {message.senderName || 'User'} ({message.senderRole || 'member'})
                           </span>
-                          {message.senderId === 'me' && (
-                            <MessageStatus 
-                              status={message.status} 
-                              deliveredAt={message.deliveredAt}
-                              readAt={message.readAt}
-                            />
+                        )}
+                        <div className="relative group">
+                          {/* Message Actions Popup */}
+                          {showActionsFor === message.id && (
+                            <div className={cn(
+                              "absolute bottom-full mb-2 z-10",
+                              message.senderId === 'me' ? "right-0" : "left-0"
+                            )}>
+                              <MessageActions 
+                                onReply={() => handleReply(message)}
+                                onForward={() => {
+                                  setForwardMessage(message);
+                                  setShowActionsFor(null);
+                                }}
+                                onReact={() => {
+                                  setShowReactionsFor(message.id);
+                                  setShowActionsFor(null);
+                                }}
+                                isOwn={message.senderId === 'me'}
+                              />
+                            </div>
                           )}
+
+                          {/* Quick Reactions Popup */}
+                          {showReactionsFor === message.id && (
+                            <div className={cn(
+                              "absolute bottom-full mb-2 z-10",
+                              message.senderId === 'me' ? "right-0" : "left-0"
+                            )}>
+                              <QuickReactions 
+                                onSelect={(emoji) => handleAddReaction(message.id, emoji)}
+                                isOwn={message.senderId === 'me'}
+                              />
+                            </div>
+                          )}
+
+                          <div
+                            className={cn(
+                              "rounded-2xl px-4 py-2.5 shadow-sm relative cursor-pointer transition-all",
+                              message.senderId === 'me'
+                                ? "bg-primary text-primary-foreground rounded-tr-none"
+                                : "bg-card text-foreground rounded-tl-none border border-border"
+                            )}
+                            onDoubleClick={() => !isInputBlocked && setShowActionsFor(showActionsFor === message.id ? null : message.id)}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              if (!isInputBlocked) {
+                                setShowActionsFor(showActionsFor === message.id ? null : message.id);
+                              }
+                            }}
+                          >
+                            {/* Forwarded Label */}
+                            {message.isForwarded && (
+                              <div className={cn(
+                                "flex items-center gap-1 text-[10px] mb-1",
+                                message.senderId === 'me' ? "text-primary-foreground/60" : "text-muted-foreground"
+                              )}>
+                                <CornerUpRight className="h-3 w-3" />
+                                Forwarded
+                              </div>
+                            )}
+
+                            {/* Quoted Reply */}
+                            {message.replyTo && (
+                              <QuotedMessage 
+                                replyTo={message.replyTo}
+                                isOwn={message.senderId === 'me'}
+                                onClick={() => scrollToMessage(message.replyTo!.id)}
+                              />
+                            )}
+
+                            {message.isMedia && message.mediaData ? (
+                              <MediaMessage 
+                                media={message.mediaData}
+                                isOwn={message.senderId === 'me'}
+                              />
+                            ) : message.isVoice && message.voiceData ? (
+                              <VoiceMessage 
+                                audioUrl={message.voiceData.audioUrl}
+                                duration={message.voiceData.duration}
+                                isOwn={message.senderId === 'me'}
+                              />
+                            ) : (
+                              <p className="text-sm leading-relaxed break-words">{message.text}</p>
+                            )}
+                            <div className={cn(
+                              "flex items-center gap-1 mt-1",
+                              message.senderId === 'me' ? "justify-end" : "justify-start"
+                            )}>
+                              <span className={cn(
+                                "text-[10px]",
+                                message.senderId === 'me' ? "text-primary-foreground/70" : "text-muted-foreground"
+                              )}>
+                                {message.timestamp}
+                              </span>
+                              {message.senderId === 'me' && (
+                                <MessageStatus 
+                                  status={message.status} 
+                                  deliveredAt={message.deliveredAt}
+                                  readAt={message.readAt}
+                                />
+                              )}
+                            </div>
+
+                            {/* Hover action buttons */}
+                            {!isInputBlocked && (
+                              <div className={cn(
+                                "absolute top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity",
+                                message.senderId === 'me' ? "-left-20" : "-right-20"
+                              )}>
+                                <button
+                                  onClick={() => handleReply(message)}
+                                  className="w-7 h-7 rounded-full bg-card shadow-md flex items-center justify-center border hover:bg-muted transition-colors"
+                                  title="Reply"
+                                >
+                                  <Reply className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setShowActionsFor(showActionsFor === message.id ? null : message.id)}
+                                  className="w-7 h-7 rounded-full bg-card shadow-md flex items-center justify-center text-sm border hover:bg-muted transition-colors"
+                                  title="More"
+                                >
+                                  ⋮
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Hover action buttons */}
-                        <div className={cn(
-                          "absolute top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity",
-                          message.senderId === 'me' ? "-left-20" : "-right-20"
-                        )}>
-                          <button
-                            onClick={() => handleReply(message)}
-                            className="w-7 h-7 rounded-full bg-card shadow-md flex items-center justify-center border hover:bg-muted transition-colors"
-                            title="Reply"
-                          >
-                            <Reply className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setShowActionsFor(showActionsFor === message.id ? null : message.id)}
-                            className="w-7 h-7 rounded-full bg-card shadow-md flex items-center justify-center text-sm border hover:bg-muted transition-colors"
-                            title="More"
-                          >
-                            ⋮
-                          </button>
-                        </div>
+                        {/* Message Reactions */}
+                        {message.reactions && message.reactions.length > 0 && (
+                          <MessageReactions
+                            reactions={message.reactions}
+                            onReactionClick={(emoji) => handleAddReaction(message.id, emoji)}
+                            isOwn={message.senderId === 'me'}
+                          />
+                        )}
                       </div>
                     </div>
-
-                    {/* Message Reactions */}
-                    {message.reactions && message.reactions.length > 0 && (
-                      <MessageReactions
-                        reactions={message.reactions}
-                        onReactionClick={(emoji) => handleAddReaction(message.id, emoji)}
-                        isOwn={message.senderId === 'me'}
-                      />
-                    )}
-                  </div>
-                </div>
-                ))}
+                  );
+                })}
 
                 {/* Read Receipt Sync Indicator */}
                 {isReceiptSyncing && <ReadReceiptSyncIndicator isSyncing={isReceiptSyncing} />}
@@ -1551,7 +2213,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                       <EmojiPicker 
                         onSelect={(emoji) => setMessageInput(prev => prev + emoji)}
                         trigger={
-                          <Button variant="ghost" size="icon" className="rounded-full">
+                          <Button variant="ghost" size="icon" className="rounded-full" disabled={isInputBlocked}>
                             <Smile className="h-5 w-5 text-muted-foreground" />
                           </Button>
                         }
@@ -1564,11 +2226,12 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                     <div className="flex-1 relative">
                       <Input
                         ref={inputRef}
-                        placeholder="Type a message"
+                        placeholder={isInputBlocked ? "Spectating conversation... Toggle Intervention to type" : "Type a message"}
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && (selectedFiles.length > 0 ? handleSendMedia() : handleSendMessage())}
-                        className="pr-10 bg-muted/50 border-0 rounded-full"
+                        onKeyDown={(e) => e.key === "Enter" && !isInputBlocked && (selectedFiles.length > 0 ? handleSendMedia() : handleSendMessage())}
+                        disabled={isInputBlocked}
+                        className="pr-10 bg-muted/50 border-0 rounded-full disabled:opacity-60"
                       />
                       {/* Mobile image hidden */}
                     </div>
@@ -1578,7 +2241,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                         onClick={selectedFiles.length > 0 ? handleSendMedia : handleSendMessage}
                         size="icon"
                         className="rounded-full flex-shrink-0 h-10 w-10"
-                        disabled={isSending}
+                        disabled={isSending || isInputBlocked}
                       >
                         <Send className="h-5 w-5" />
                       </Button>

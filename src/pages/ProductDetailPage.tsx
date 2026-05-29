@@ -234,7 +234,7 @@ export default function ProductDetailPage() {
     setSubmittingRfq(true);
     try {
       const fullAddress = `${checkoutForm.address}, ${checkoutForm.city}, ${checkoutForm.state}`;
-      await api.rfqs.create({
+      const newRfq = await api.rfqs.create({
         product_id: product.id,
         buyer_id: user?.id,
         quantity: quantity,
@@ -254,9 +254,14 @@ export default function ProductDetailPage() {
         title: 'Order Placed!',
         description: 'Your direct order has been received. Our team will contact you for payment/delivery.',
         action: (
-          <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
-            <Link to="/buyer/orders">Track Order</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
+              <Link to="/buyer/orders">Track Order</Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
+              <Link to={`/messages?rfqId=${newRfq.id}`}>Open Chat</Link>
+            </Button>
+          </div>
         )
       });
       setCheckoutOpen(false);
