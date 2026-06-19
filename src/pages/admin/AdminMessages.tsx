@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { 
-  Send, 
+  Send,
   Search, 
   MoreVertical, 
   Check,
@@ -23,7 +24,8 @@ import {
   CheckCircle2,
   FileCheck,
   AlertTriangle,
-  Package
+  Package,
+  Tag
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -514,6 +516,61 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
         </div>
       );
 
+    case 'negotiated_offer':
+      const discountVal = Number(metadata.discount_percentage) || 0;
+      const baseTotalVal = Number(metadata.negotiated_price) * Number(metadata.quantity);
+      const savings = baseTotalVal * (discountVal / 100);
+      const finalTotalVal = baseTotalVal - savings;
+      
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-b2b-orange/25 bg-b2b-orange/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-b2b-orange/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-b2b-orange/10 text-b2b-orange">
+              <Tag className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Negotiated Coupon Offer</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Agreed Sourcing Deal</p>
+            </div>
+          </div>
+          
+          <div className="space-y-2.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Price per Unit:</span>
+              <span className="font-bold text-foreground">₹{Number(metadata.negotiated_price).toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Quantity Agreed:</span>
+              <span className="font-bold text-foreground">{metadata.quantity} units</span>
+            </div>
+            {discountVal > 0 && (
+              <div className="flex justify-between text-emerald-600 font-semibold">
+                <span>Special Discount:</span>
+                <span>{discountVal}% Off (-₹{savings.toLocaleString('en-IN')})</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-b2b-orange/10 pt-2 text-sm font-black">
+              <span>Total Value:</span>
+              <span className="text-b2b-orange">₹{finalTotalVal.toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-b2b-orange/20 text-center">
+            {userRole === 'buyer' ? (
+              <Link to={`/buyer/checkout?rfqId=${metadata.rfq_id}`}>
+                <Button className="w-full bg-b2b-orange hover:bg-b2b-orange/90 text-white font-bold h-9 rounded-lg">
+                  ⚡ Proceed to Checkout
+                </Button>
+              </Link>
+            ) : (
+              <Badge className="bg-b2b-orange/10 text-b2b-orange border border-b2b-orange/25 py-1 text-[10px] uppercase font-bold tracking-wider">
+                {userRole === 'admin' ? 'Offer Sent to Buyer' : 'Special Offer Generated'}
+              </Badge>
+            )}
+          </div>
+        </div>
+      );
+
     case 'system_intervention':
       return (
         <div className={cn(
@@ -584,6 +641,47 @@ export default function AdminMessages() {
   const [showNewChat, setShowNewChat] = useState<'vendor' | 'buyer' | null>(null);
   const [availableParticipants, setAvailableParticipants] = useState<any[]>([]);
   const [participantSearch, setParticipantSearch] = useState('');
+  
+  // Custom Special Offer/Coupon states
+  const [showOfferDialog, setShowOfferDialog] = useState(false);
+  const [offerPrice, setOfferPrice] = useState('');
+  const [offerQty, setOfferQty] = useState('');
+  const [offerDiscount, setOfferDiscount] = useState('');
+  const [isGeneratingOffer, setIsGeneratingOffer] = useState(false);
+
+  const handleGenerateOffer = async () => {
+    if (!selectedConversation?.rfqId || !offerPrice || !offerQty) return;
+    try {
+      setIsGeneratingOffer(true);
+      const rfqId = selectedConversation.rfqId;
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId}/offer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+        },
+        body: JSON.stringify({
+          negotiatedPrice: Number(offerPrice),
+          quantity: Number(offerQty),
+          discountPercentage: Number(offerDiscount) || 0
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate coupon');
+      }
+
+      setShowOfferDialog(false);
+      setOfferPrice('');
+      setOfferQty('');
+      setOfferDiscount('');
+      fetchMessages();
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setIsGeneratingOffer(false);
+    }
+  };
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -1256,6 +1354,17 @@ export default function AdminMessages() {
               {/* Message Input */}
               <div className="p-3 border-t border-border bg-card">
                 <div className="flex items-center gap-2">
+                  {selectedConversation?.groupType === 'negotiation' && (
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => setShowOfferDialog(true)}
+                      className="border-b2b-orange text-b2b-orange hover:bg-b2b-orange/10 shrink-0"
+                      title="Create negotiated offer coupon"
+                    >
+                      <Tag className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Input
                     placeholder={selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && !selectedConversation?.canIntervene ? "Spectating conversation... Toggle Intervention to type" : "Type a message as Admin..."}
                     value={messageInput}
@@ -1272,6 +1381,54 @@ export default function AdminMessages() {
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
+                
+                {/* Special Offer Coupon Dialog */}
+                <Dialog open={showOfferDialog} onOpenChange={setShowOfferDialog}>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Generate Negotiated Coupon Offer</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4 text-sm">
+                      <p className="text-xs text-muted-foreground">
+                        This offer will be injected directly into the Buyer's chat. If the Buyer changes specifications or quantity at checkout, the coupon automatically invalidates.
+                      </p>
+                      <div className="space-y-2">
+                        <label className="font-semibold text-xs">Agreed Price Per Unit (₹) *</label>
+                        <Input 
+                          type="number" 
+                          placeholder="e.g. 950" 
+                          value={offerPrice}
+                          onChange={(e) => setOfferPrice(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="font-semibold text-xs">Agreed Quantity *</label>
+                        <Input 
+                          type="number" 
+                          placeholder="e.g. 50" 
+                          value={offerQty}
+                          onChange={(e) => setOfferQty(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="font-semibold text-xs">Coupon Discount % (Optional)</label>
+                        <Input 
+                          type="number" 
+                          placeholder="e.g. 7" 
+                          value={offerDiscount}
+                          onChange={(e) => setOfferDiscount(e.target.value)}
+                        />
+                      </div>
+                      <Button 
+                        onClick={handleGenerateOffer}
+                        disabled={isGeneratingOffer || !offerPrice || !offerQty}
+                        className="w-full bg-b2b-orange hover:bg-b2b-orange/90 text-white"
+                      >
+                        {isGeneratingOffer ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '⚡ Generate & Send Offer'}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 <p className="text-[10px] text-muted-foreground mt-2 text-center">
                   {selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && !selectedConversation?.canIntervene ? (
                     <span className="text-amber-500 font-bold uppercase tracking-widest text-[9px] animate-pulse">⚠️ Passive Spectator Mode Active</span>

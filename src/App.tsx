@@ -33,6 +33,7 @@ import CheckoutPage from "./pages/buyer/CheckoutPage";
 import OrderConfirmationPage from "./pages/buyer/OrderConfirmationPage";
 import PostRfqPage from "./pages/buyer/PostRfqPage";
 import BuyerSettings from "./pages/buyer/BuyerSettings";
+import InvoicePage from "./pages/buyer/InvoicePage";
 
 // Vendor Pages
 import VendorDashboard from "./pages/vendor/VendorDashboard";
@@ -101,6 +102,7 @@ const App = () => (
                   <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
                   <Route path="/buyer/cart" element={<BuyerCart />} />
                   <Route path="/buyer/checkout" element={<CheckoutPage />} />
+                  <Route path="/buyer/invoice/:rfqId" element={<InvoicePage />} />
                   <Route path="/buyer/order-confirmation" element={<OrderConfirmationPage />} />
                   <Route path="/buyer/wishlist" element={<BuyerWishlist />} />
                   <Route path="/buyer/orders" element={<BuyerOrders />} />

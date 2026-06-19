@@ -85,46 +85,96 @@ export default function CheckoutPage() {
 
   const [dbCartItems, setDbCartItems] = useState<any[]>([]);
   const [dbProducts, setDbProducts] = useState<any[]>([]);
+  
+  const [rfqDetails, setRfqDetails] = useState<any>(null);
+  const [activeOffer, setActiveOffer] = useState<any>(null);
+  
+  const params = new URLSearchParams(window.location.search);
+  const rfqId = params.get('rfqId');
 
   useEffect(() => {
     const fetchCheckout = async () => {
       try {
         const prodRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/products/public`);
         if (prodRes.ok) setDbProducts(await prodRes.json());
-        const saved = localStorage.getItem('jummababa_cart');
-        if (saved) setDbCartItems(JSON.parse(saved));
+        
+        if (rfqId) {
+          // Fetch RFQ Details
+          const rfqRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+            }
+          });
+          if (rfqRes.ok) {
+            const rfqData = await rfqRes.json();
+            setRfqDetails(rfqData);
+          }
+
+          // Fetch Active negotiated offer / coupon
+          const offerRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId}/offer`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+            }
+          });
+          if (offerRes.ok) {
+            const offerData = await offerRes.json();
+            setActiveOffer(offerData);
+          }
+        } else {
+          const saved = localStorage.getItem('jummababa_cart');
+          if (saved) setDbCartItems(JSON.parse(saved));
+        }
       } catch (e) {
         console.error('Checkout sync failed');
       }
     };
     fetchCheckout();
-  }, []);
+  }, [rfqId]);
 
   // Calculate order totals
-  const cartWithProducts = dbCartItems.map(item => {
-    const product = dbProducts.find(p => p.id === item.productId || p.slug === item.productId);
-    if (!product) return null;
-    
-    const slabs = product.pricing_slabs || product.pricingSlabs || [];
-    const slab = slabs.find((s: any) => 
-      item.quantity >= s.minQty && (!s.maxQty || item.quantity <= s.maxQty)
-    ) || slabs[0];
-    
-    return {
-      ...item,
-      product,
-      pricePerUnit: slab?.pricePerUnit || 0,
-      total: (slab?.pricePerUnit || 0) * item.quantity,
-    };
-  }).filter(item => item !== null);
+  const cartWithProducts = rfqId && rfqDetails && activeOffer
+    ? [{
+        productId: rfqDetails.product_id || 'rfq-item',
+        quantity: activeOffer.quantity,
+        product: {
+          name: rfqDetails.product_name || 'Agreed Sourcing Item',
+          images: rfqDetails.product_images || ['/placeholder.png']
+        },
+        pricePerUnit: Number(activeOffer.negotiated_price),
+        total: Number(activeOffer.negotiated_price) * activeOffer.quantity
+      }]
+    : dbCartItems.map(item => {
+        const product = dbProducts.find(p => p.id === item.productId || p.slug === item.productId);
+        if (!product) return null;
+        
+        const slabs = product.pricing_slabs || product.pricingSlabs || [];
+        const slab = slabs.find((s: any) => 
+          item.quantity >= s.minQty && (!s.maxQty || item.quantity <= s.maxQty)
+        ) || slabs[0];
+        
+        return {
+          ...item,
+          product,
+          pricePerUnit: slab?.pricePerUnit || 0,
+          total: (slab?.pricePerUnit || 0) * item.quantity,
+        };
+      }).filter(item => item !== null);
 
-  const subtotal = cartWithProducts.reduce((sum, item) => sum + item.total, 0);
+  const discountVal = rfqId && activeOffer ? (Number(activeOffer.discount_percentage || 0) / 100) : 0;
+  const rawSubtotal = cartWithProducts.reduce((sum, item) => sum + (item ? item.total : 0), 0);
+  const discountAmount = rawSubtotal * discountVal;
+  const subtotal = rawSubtotal - discountAmount;
+  
+  // Platform Commission: Enforce 8% to 10%
+  const platformCommissionRate = Math.min(0.10, Math.max(0.08, discountVal > 0 ? discountVal : 0.09));
+  const platformCommission = subtotal * platformCommissionRate;
+  
   const gst = subtotal * 0.18;
   const shipping = subtotal > 50000 ? 0 : 2500;
   const total = subtotal + gst + shipping;
 
-  const handlePlaceOrder = () => {
-    // Basic validation
+  const handlePlaceOrder = async () => {
+    // Basic shipping info validation
     if (!shippingForm.companyName || !shippingForm.contactName || !shippingForm.phone || 
         !shippingForm.address || !shippingForm.city || !shippingForm.state || !shippingForm.pincode) {
       toast({
@@ -137,11 +187,43 @@ export default function CheckoutPage() {
 
     setIsProcessing(true);
     
-    // Simulate order processing
-    setTimeout(() => {
+    try {
+      if (rfqId) {
+        // Accept quote endpoint converts RFQ to Order
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId}/accept`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+          }
+        });
+        
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to complete order checkout');
+        }
+        
+        toast({
+          title: 'Order Placed',
+          description: 'Your negotiated order has been placed successfully!',
+        });
+        navigate(`/buyer/orders`);
+      } else {
+        setTimeout(() => {
+          setIsProcessing(false);
+          localStorage.removeItem('jummababa_cart');
+          navigate(`/buyer/order-confirmation?payment=${paymentMethod}`);
+        }, 2000);
+      }
+    } catch (e: any) {
+      toast({
+        title: 'Checkout Failed',
+        description: e.message || 'Checkout failed. Quantity or offer mismatch.',
+        variant: 'destructive'
+      });
+    } finally {
       setIsProcessing(false);
-      navigate(`/buyer/order-confirmation?payment=${paymentMethod}`);
-    }, 2000);
+    }
   };
 
   return (
@@ -496,16 +578,26 @@ export default function CheckoutPage() {
 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span>{formatPrice(subtotal)}</span>
+                    <span className="text-muted-foreground">Product Base Cost</span>
+                    <span>{formatPrice(rawSubtotal)}</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-success font-semibold">
+                      <span>Negotiated Coupon ({activeOffer.discount_percentage}%)</span>
+                      <span>-{formatPrice(discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Platform Commission (Included)</span>
+                    <span>{formatPrice(platformCommission)} ({(platformCommissionRate * 100).toFixed(0)}%)</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">GST (18%)</span>
                     <span>{formatPrice(gst)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Shipping</span>
-                    <span className={shipping === 0 ? 'text-success' : ''}>
+                    <span className="text-muted-foreground">Shipping / Delivery</span>
+                    <span className={shipping === 0 ? 'text-success font-semibold' : ''}>
                       {shipping === 0 ? 'FREE' : formatPrice(shipping)}
                     </span>
                   </div>

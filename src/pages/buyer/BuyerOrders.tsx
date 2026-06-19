@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Eye, Download, ArrowLeft, Truck, Package, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,6 +47,7 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 };
 
 export default function BuyerOrders() {
+  const navigate = useNavigate();
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [dbOrders, setDbOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -243,9 +245,13 @@ export default function BuyerOrders() {
                 Open Sourcing Chat
               </Button>
 
-              <Button variant="outline" className="w-full">
-                <Download className="h-4 w-4 mr-2" />
-                Download Invoice
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => navigate(`/buyer/invoice/${selectedOrder.id}`)}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                View & Download Invoice
               </Button>
               
               {(selectedOrder.status === 'delivered' || selectedOrder.status === 'completed') && (

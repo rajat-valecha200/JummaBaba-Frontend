@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Send, 
   Search, 
@@ -37,7 +38,8 @@ import {
   ArrowRight,
   Lock,
   Package,
-  FileCheck
+  FileCheck,
+  Tag
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -562,6 +564,61 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
             <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">
               Platform administrator has been flagged to intervene and mediate. Settlement processes paused.
             </p>
+          </div>
+        </div>
+      );
+
+    case 'negotiated_offer':
+      const discountVal = Number(metadata.discount_percentage) || 0;
+      const baseTotalVal = Number(metadata.negotiated_price) * Number(metadata.quantity);
+      const savings = baseTotalVal * (discountVal / 100);
+      const finalTotalVal = baseTotalVal - savings;
+      
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-b2b-orange/25 bg-b2b-orange/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-b2b-orange/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-b2b-orange/10 text-b2b-orange">
+              <Tag className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Negotiated Coupon Offer</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Agreed Sourcing Deal</p>
+            </div>
+          </div>
+          
+          <div className="space-y-2.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Price per Unit:</span>
+              <span className="font-bold text-foreground">₹{Number(metadata.negotiated_price).toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Quantity Agreed:</span>
+              <span className="font-bold text-foreground">{metadata.quantity} units</span>
+            </div>
+            {discountVal > 0 && (
+              <div className="flex justify-between text-emerald-600 font-semibold">
+                <span>Special Discount:</span>
+                <span>{discountVal}% Off (-₹{savings.toLocaleString('en-IN')})</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-b2b-orange/10 pt-2 text-sm font-black">
+              <span>Total Value:</span>
+              <span className="text-b2b-orange">₹{finalTotalVal.toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-b2b-orange/20 text-center">
+            {userRole === 'buyer' ? (
+              <Link to={`/buyer/checkout?rfqId=${metadata.rfq_id}`}>
+                <Button className="w-full bg-b2b-orange hover:bg-b2b-orange/90 text-white font-bold h-9 rounded-lg">
+                  ⚡ Proceed to Checkout
+                </Button>
+              </Link>
+            ) : (
+              <Badge className="bg-b2b-orange/10 text-b2b-orange border border-b2b-orange/25 py-1 text-[10px] uppercase font-bold tracking-wider">
+                {userRole === 'admin' ? 'Offer Sent to Buyer' : 'Special Offer Generated'}
+              </Badge>
+            )}
           </div>
         </div>
       );
