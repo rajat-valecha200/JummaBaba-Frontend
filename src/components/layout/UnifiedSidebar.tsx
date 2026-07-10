@@ -59,7 +59,7 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
           api.messages.getNotifications(),
           api.messages.getSystemNotifications(),
           api.rfqs.list(),
-          api.orders.listBuyer()
+          api.orders.listVendor()
         ]);
         setUnreadMessages(msgNotify.unreadCount);
         setSystemNotifications(sysNotify);
@@ -70,7 +70,7 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
           setActiveOrders(rfqs.filter((r: any) => r.is_direct_order && r.moderation_status === 'pending_moderation').length);
         } else if (role === 'vendor') {
           setPendingRfqs(rfqs.filter((r: any) => !r.is_direct_order && (r.vendor_status === 'pending' || r.moderation_status === 'quote_rejected')).length);
-          setActiveOrders(orders.filter((o: any) => o.is_direct_order && (o.vendor_status === 'pending' || o.vendor_status === 'pending_processing' || o.vendor_status === 'confirmed' || o.vendor_status === 'shipped')).length);
+          setActiveOrders(orders.filter((o: any) => o.is_direct_order === true || ['pending', 'pending_processing', 'confirmed', 'shipped'].includes(o.vendor_status) || ['ordered', 'confirmed', 'shipped'].includes(o.status)).length);
         } else if (role === 'buyer') {
           setPendingRfqs(rfqs.filter((r: any) => !r.is_direct_order && r.moderation_status === 'quote_approved' && r.status === 'responded').length);
           setActiveOrders(orders.filter((o: any) => o.is_direct_order && (o.status === 'shipped' || o.status === 'ordered')).length);
@@ -97,6 +97,7 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
     { icon: FileText, label: 'RFQ Inquiries', path: '/admin/rfqs', badgeCount: pendingRfqs },
     { icon: ShoppingCart, label: 'Marketplace Orders', path: '/admin/orders', badgeCount: activeOrders },
     { icon: DollarSign, label: 'Commissions', path: '/admin/commissions' },
+    { icon: DollarSign, label: 'Earnings Ledger', path: '/admin/earnings' },
     { icon: Users, label: 'Users', path: '/admin/users' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
     { icon: MessageSquare, label: 'Messages', path: '/admin/messages', badgeCount: unreadMessages },
@@ -106,11 +107,12 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
   const vendorNav: SidebarItem[] = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/vendor/dashboard' },
     { icon: Package, label: 'Products', path: '/vendor/products' },
-    { icon: ShoppingCart, label: 'Orders', path: '/vendor/orders' },
-    { icon: FileText, label: 'RFQs', path: '/vendor/rfqs' },
+    { icon: ShoppingCart, label: 'Orders', path: '/vendor/orders', badgeCount: activeOrders },
+    { icon: FileText, label: 'RFQs', path: '/vendor/rfqs', badgeCount: pendingRfqs },
     { icon: MessageSquare, label: 'Messages', path: '/vendor/messages', badgeCount: unreadMessages },
     { icon: Building, label: 'Business Profile', path: '/vendor/profile' },
     { icon: DollarSign, label: 'Payouts', path: '/vendor/payouts' },
+    { icon: DollarSign, label: 'Earnings', path: '/vendor/earnings' },
     { icon: Activity, label: 'Activity Log', path: '/vendor/activity' },
     { icon: Settings, label: 'Settings', path: '/vendor/settings' },
   ];

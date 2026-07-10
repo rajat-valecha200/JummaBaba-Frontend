@@ -28,7 +28,7 @@ export default function VendorDashboard() {
         setLiveRfqs(rfqData);
         setRealOrders(
           rfqData
-            .filter((rfq: any) => ['pending', 'confirmed', 'shipped', 'delivered'].includes(rfq.vendor_status))
+            .filter((rfq: any) => ['ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(rfq.status) || rfq.is_direct_order === true)
             .slice(0, 3)
         );
       } catch (error) {
@@ -41,7 +41,7 @@ export default function VendorDashboard() {
   }, []);
 
   const displayedRfqs = Array.isArray(liveRfqs) 
-    ? liveRfqs.filter((rfq: any) => rfq.status === 'pending').slice(0, 3) 
+    ? liveRfqs.filter((rfq: any) => rfq.status === 'pending' && rfq.moderation_status === 'forwarded' && !rfq.vendor_status && rfq.is_direct_order !== true).slice(0, 3) 
     : [];
 
   if (loading) {

@@ -213,6 +213,22 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
     }
   };
 
+  const handleConfirmOrder = async () => {
+    try {
+      setIsActioning(true);
+      setErrorMsg('');
+      await api.rfqs.updateFulfillment(metadata.rfq_id, {
+        status: 'confirmed',
+        shipping_details: {}
+      });
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Order confirmation failed');
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
   // Card designs using sleek glassmorphism and tailored dark/light HSL palettes
   switch (cardType) {
     case 'rfq_specs':
@@ -261,7 +277,11 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
 
           {userRole === 'admin' && (
             <div className="mt-4 pt-4 border-t border-cyan-500/20 space-y-3">
-              {metadata.supplier_id ? (
+              {metadata.moderation_status === 'forwarded' ? (
+                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3 text-xs text-center text-cyan-600 dark:text-cyan-400 font-bold">
+                  ✓ Forwarded to Seller
+                </div>
+              ) : metadata.supplier_id ? (
                 // Direct product RFQ: Static supplier, no selector dropdown!
                 <div className="flex flex-col gap-2">
                   <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-3 text-xs">
@@ -308,10 +328,21 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
           )}
 
           {userRole !== 'admin' && (
-            <div className="mt-4 text-center">
+            <div className="mt-4 text-center space-y-2">
               <Badge variant="secondary" className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] py-1 border border-cyan-500/10">
-                Awaiting Admin Verification
+                {metadata.moderation_status === 'forwarded' ? 'Forwarded to Seller' : 'Awaiting Admin Verification'}
               </Badge>
+              {userRole === 'vendor' && (!metadata.rfq_status || metadata.rfq_status === 'pending') && (
+                <div className="pt-2 border-t border-cyan-500/10">
+                  <Button 
+                    onClick={handleConfirmOrder}
+                    className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                    disabled={isActioning}
+                  >
+                    {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "✓ Confirm & Accept Order"}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
           {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
@@ -413,6 +444,19 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
               </div>
             )}
           </div>
+
+          {userRole === 'vendor' && (
+            <div className="mt-4 pt-4 border-t border-indigo-500/20">
+              <Button
+                onClick={handleConfirmOrder}
+                className="w-full text-xs h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                disabled={isActioning}
+              >
+                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "✓ Confirm & Process Order"}
+              </Button>
+            </div>
+          )}
+          {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
         </div>
       );
 
@@ -423,9 +467,16 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
             <FileCheck className="h-5 w-5" />
           </div>
           <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-1">Order Confirmed by Seller</h4>
-          <p className="text-xs text-muted-foreground leading-relaxed">
+          <p className="text-xs text-muted-foreground leading-relaxed mb-3">
             Order confirmed. Production, loading, and transit preparation are now in progress.
           </p>
+          {userRole === 'vendor' && (
+            <Link to="/vendor/orders" className="block mt-2">
+              <Button className="w-full text-xs h-8 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-sm font-semibold transition-all">
+                🚚 Dispatch & Add Shipping Details
+              </Button>
+            </Link>
+          )}
         </div>
       );
 
@@ -472,7 +523,7 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
             The supplier has marked this shipment as delivered. Have you successfully received your cargo and verified the contents?
           </p>
 
-          {userRole === 'buyer' && !showDisputeInput && (
+          {userRole === 'buyer' && !showDisputeInput && (!metadata.rfq_status || ['shipped', 'delivered', 'ordered', 'confirmed'].includes(metadata.rfq_status)) && (
             <div className="flex gap-2">
               <Button 
                 onClick={handleConfirmDelivery}

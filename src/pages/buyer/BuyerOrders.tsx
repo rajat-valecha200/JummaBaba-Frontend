@@ -238,7 +238,7 @@ export default function BuyerOrders() {
                 variant="outline" 
                 className="w-full border-primary/30 text-primary hover:bg-primary/5 font-bold"
                 onClick={() => {
-                  window.location.href = `/messages?rfqId=${selectedOrder.id}`;
+                  window.location.href = `/buyer/messages?rfqId=${selectedOrder.id}`;
                 }}
               >
                 <span className="mr-2">💬</span>

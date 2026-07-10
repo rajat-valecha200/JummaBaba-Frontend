@@ -88,9 +88,64 @@ export default function CheckoutPage() {
   
   const [rfqDetails, setRfqDetails] = useState<any>(null);
   const [activeOffer, setActiveOffer] = useState<any>(null);
+
+  // Coupon state
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [couponError, setCouponError] = useState('');
+  const [countdownText, setCountdownText] = useState('');
   
   const params = new URLSearchParams(window.location.search);
   const rfqId = params.get('rfqId');
+
+  useEffect(() => {
+    if (appliedCoupon && appliedCoupon.expires_at) {
+      const interval = setInterval(() => {
+        const diff = new Date(appliedCoupon.expires_at).getTime() - Date.now();
+        if (diff <= 0) {
+          setAppliedCoupon(null);
+          setCouponError('Coupon expired');
+          setCountdownText('');
+          clearInterval(interval);
+        } else {
+          const minutes = Math.floor(diff / 60000);
+          const seconds = Math.floor((diff % 60000) / 1000);
+          setCountdownText(`${minutes}m ${seconds}s left`);
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [appliedCoupon]);
+
+  const handleApplyCoupon = async () => {
+    if (!couponInput) return;
+    try {
+      // Validate coupon code against server / offer endpoint
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId || 'any'}/offer`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+        }
+      });
+      if (!res.ok) {
+        setCouponError('Invalid coupon code');
+        return;
+      }
+      const data = await res.json();
+      if (data && data.code === couponInput) {
+        if (new Date(data.expires_at).getTime() < Date.now()) {
+          setCouponError('Coupon code expired');
+          return;
+        }
+        setAppliedCoupon(data);
+        setCouponError('');
+        toast({ title: 'Coupon Applied!', description: 'Discount successfully applied to checkout summary.' });
+      } else {
+        setCouponError('Coupon not applicable for this sourcing order');
+      }
+    } catch (err) {
+      setCouponError('Error validating coupon');
+    }
+  };
 
   useEffect(() => {
     const fetchCheckout = async () => {
@@ -160,7 +215,12 @@ export default function CheckoutPage() {
         };
       }).filter(item => item !== null);
 
-  const discountVal = rfqId && activeOffer ? (Number(activeOffer.discount_percentage || 0) / 100) : 0;
+  const discountVal = appliedCoupon 
+    ? (Number(appliedCoupon.discount_percentage || 0) / 100)
+    : rfqId && activeOffer 
+      ? (Number(activeOffer.discount_percentage || 0) / 100) 
+      : 0;
+
   const rawSubtotal = cartWithProducts.reduce((sum, item) => sum + (item ? item.total : 0), 0);
   const discountAmount = rawSubtotal * discountVal;
   const subtotal = rawSubtotal - discountAmount;
@@ -601,6 +661,55 @@ export default function CheckoutPage() {
                       {shipping === 0 ? 'FREE' : formatPrice(shipping)}
                     </span>
                   </div>
+                </div>
+
+                <Separator />
+
+                {/* Coupon Code Input Panel */}
+                <div className="space-y-2">
+                  <Label htmlFor="couponCode" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Promo / Sourcing Coupon</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="couponCode"
+                      placeholder="e.g. JB-A39FD2"
+                      value={couponInput}
+                      onChange={(e) => {
+                        setCouponInput(e.target.value.toUpperCase());
+                        if (couponError) setCouponError('');
+                      }}
+                      className="text-sm"
+                      disabled={!!appliedCoupon}
+                    />
+                    {appliedCoupon ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          setAppliedCoupon(null);
+                          setCouponInput('');
+                          toast({ title: 'Coupon Removed', description: 'Promo coupon code has been removed.' });
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleApplyCoupon}
+                        disabled={!couponInput}
+                      >
+                        Apply
+                      </Button>
+                    )}
+                  </div>
+                  {couponError && <p className="text-xs text-destructive">{couponError}</p>}
+                  {appliedCoupon && (
+                    <div className="p-2 bg-success/10 border border-success/20 rounded-md text-xs text-success flex items-center justify-between">
+                      <span>Applied: {appliedCoupon.discount_percentage}% OFF Sourcing Offer</span>
+                      {countdownText && <span className="font-semibold text-success">{countdownText}</span>}
+                    </div>
+                  )}
                 </div>
 
                 <Separator />

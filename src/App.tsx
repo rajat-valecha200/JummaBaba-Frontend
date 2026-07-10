@@ -45,6 +45,7 @@ import VendorMessages from "./pages/vendor/VendorMessages";
 import VendorPayouts from "./pages/vendor/VendorPayouts";
 import VendorActivity from "./pages/vendor/VendorActivity";
 import VendorSettings from "./pages/vendor/VendorSettings";
+import VendorEarnings from "./pages/vendor/VendorEarnings";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -59,6 +60,7 @@ import AdminOrders from "./pages/admin/AdminOrders";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminCategories from "./pages/admin/AdminCategories";
 import AdminOrderDetail from "./pages/admin/AdminOrderDetail";
+import AdminEarnings from "./pages/admin/AdminEarnings";
 
 import NotFound from "./pages/NotFound";
 
@@ -124,6 +126,7 @@ const App = () => (
                   <Route path="/vendor/payouts" element={<VendorPayouts />} />
                   <Route path="/vendor/activity" element={<VendorActivity />} />
                   <Route path="/vendor/settings" element={<VendorSettings />} />
+                  <Route path="/vendor/earnings" element={<VendorEarnings />} />
                 </Route>
 
                 {/* Admin dashboard routes */}
@@ -140,6 +143,7 @@ const App = () => (
                   <Route path="/admin/commissions" element={<AdminCommissions />} />
                   <Route path="/admin/settings" element={<AdminSettings />} />
                   <Route path="/admin/categories" element={<AdminCategories />} />
+                  <Route path="/admin/earnings" element={<AdminEarnings />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />

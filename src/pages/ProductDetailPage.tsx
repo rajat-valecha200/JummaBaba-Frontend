@@ -259,7 +259,7 @@ export default function ProductDetailPage() {
               <Link to="/buyer/orders">Track Order</Link>
             </Button>
             <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
-              <Link to={`/messages?rfqId=${newRfq.id}`}>Open Chat</Link>
+              <Link to={`/buyer/messages?rfqId=${newRfq.id}`}>Open Chat</Link>
             </Button>
           </div>
         )

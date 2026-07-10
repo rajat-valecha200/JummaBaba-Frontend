@@ -25,7 +25,8 @@ import {
   FileCheck,
   AlertTriangle,
   Package,
-  Tag
+  Tag,
+  Settings
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -209,7 +210,11 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
 
           {userRole === 'admin' && (
             <div className="mt-4 pt-4 border-t border-cyan-500/20 space-y-3">
-              {metadata.supplier_id ? (
+              {metadata.moderation_status === 'forwarded' ? (
+                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3 text-xs text-center text-cyan-600 dark:text-cyan-400 font-bold">
+                  ✓ Forwarded to Seller
+                </div>
+              ) : metadata.supplier_id ? (
                 // Direct product RFQ: Static supplier, no selector dropdown!
                 <div className="flex flex-col gap-2">
                   <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-3 text-xs">
@@ -256,10 +261,31 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
           )}
 
           {userRole !== 'admin' && (
-            <div className="mt-4 text-center">
+            <div className="mt-4 text-center space-y-2">
               <Badge variant="secondary" className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] py-1 border border-cyan-500/10">
-                Awaiting Admin Verification
+                {metadata.moderation_status === 'forwarded' ? 'Forwarded to Seller' : 'Awaiting Admin Verification'}
               </Badge>
+              {userRole === 'vendor' && (!metadata.rfq_status || metadata.rfq_status === 'pending') && (
+                <div className="pt-2 border-t border-cyan-500/10">
+                  <Button 
+                    onClick={async () => {
+                      try {
+                        setIsActioning(true);
+                        await api.rfqs.updateFulfillment(metadata.rfq_id, { status: 'confirmed', shipping_details: {} });
+                        onRefresh();
+                      } catch (err: any) {
+                        setErrorMsg(err.message || 'Confirm failed');
+                      } finally {
+                        setIsActioning(false);
+                      }
+                    }}
+                    className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                    disabled={isActioning}
+                  >
+                    {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "✓ Confirm & Accept Order"}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
           {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
@@ -308,7 +334,36 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
             </div>
           )}
 
-          {userRole !== 'buyer' && (
+          {userRole === 'vendor' && (
+            <div className="mt-4 pt-4 border-t border-emerald-500/20">
+              <Button 
+                onClick={() => {
+                  const cp = prompt('Propose Counter Price (₹):');
+                  const cq = prompt('Propose Counter Quantity:');
+                  if (cp && cq) {
+                    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/seller-counter`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+                      },
+                      body: JSON.stringify({ price: Number(cp), quantity: Number(cq) })
+                    }).then(res => {
+                      if (res.ok) {
+                        alert('Counter proposed! Awaiting admin verification.');
+                        window.location.reload();
+                      }
+                    });
+                  }
+                }}
+                className="w-full text-xs h-9 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+              >
+                Propose Counter Terms
+              </Button>
+            </div>
+          )}
+
+          {userRole !== 'buyer' && userRole !== 'vendor' && (
             <div className="mt-4 text-center">
               <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] py-1 border border-emerald-500/10">
                 Awaiting Buyer Decision
@@ -316,6 +371,89 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
             </div>
           )}
           {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
+        </div>
+      );
+
+    case 'rfq_terms_modified':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-amber-500/25 bg-amber-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <Settings className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Terms Negotiation Proposal</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Adjustment from {metadata.source === 'seller' ? 'Seller' : 'Mediator/Admin'}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Proposed Cost:</span>
+              <span className="font-bold text-lg text-amber-600 dark:text-amber-400">₹{Number(metadata.price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Proposed Quantity:</span>
+              <span className="font-semibold text-foreground">{metadata.quantity} units</span>
+            </div>
+          </div>
+
+          {userRole === 'buyer' && (
+            <div className="mt-4 pt-4 border-t border-amber-500/20 flex gap-2">
+              <Button 
+                onClick={() => {
+                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-confirm`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+                    },
+                    body: JSON.stringify({ source: metadata.source })
+                  }).then(res => {
+                    if (res.ok) {
+                      alert('Terms confirmed successfully!');
+                      window.location.reload();
+                    }
+                  });
+                }}
+                className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+              >
+                ✓ Confirm Sourcing Terms
+              </Button>
+            </div>
+          )}
+
+          {userRole === 'admin' && metadata.source === 'seller' && (
+            <div className="mt-4 pt-4 border-t border-amber-500/20 flex gap-2">
+              <Button 
+                onClick={() => {
+                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+                    }
+                  }).then(res => {
+                    if (res.ok) {
+                      alert('Seller counter-proposal approved!');
+                      window.location.reload();
+                    }
+                  });
+                }}
+                className="flex-1 text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+              >
+                ✓ Approve Counter Proposal
+              </Button>
+            </div>
+          )}
+
+          {userRole !== 'buyer' && !(userRole === 'admin' && metadata.source === 'seller') && (
+            <div className="mt-4 text-center">
+              <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] py-1 border border-amber-500/10">
+                Awaiting Counter Verification
+              </Badge>
+            </div>
+          )}
         </div>
       );
 
@@ -371,9 +509,16 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
             <FileCheck className="h-5 w-5" />
           </div>
           <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-1">Order Confirmed by Seller</h4>
-          <p className="text-xs text-muted-foreground leading-relaxed">
+          <p className="text-xs text-muted-foreground leading-relaxed mb-3">
             Order confirmed. Production, loading, and transit preparation are now in progress.
           </p>
+          {userRole === 'vendor' && (
+            <Link to="/vendor/orders" className="block mt-2">
+              <Button className="w-full text-xs h-8 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-sm font-semibold transition-all">
+                🚚 Dispatch & Add Shipping Details
+              </Button>
+            </Link>
+          )}
         </div>
       );
 
@@ -1246,6 +1391,71 @@ export default function AdminMessages() {
               )}
 
               {/* Spectator Intervention Banner */}
+              {/* Spectator Intervention Banner & Admin Negotiation Controls */}
+              {selectedConversation.isGroup && (
+                <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2 bg-slate-50/80">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🛠️</span>
+                    <div className="text-left">
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-800">Admin Negotiation Control Panel</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Configure quotation parameters and toggle buyer-seller direct communication.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm"
+                      variant="outline"
+                      className="text-[10px] uppercase font-bold tracking-wider"
+                      onClick={() => {
+                        const price = prompt('Enter Adjusted Base Price (₹):');
+                        const qty = prompt('Enter Adjusted Quantity:');
+                        if (price && qty) {
+                          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedConversation.rfqId}/admin-modify`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+                            },
+                            body: JSON.stringify({ price: Number(price), quantity: Number(qty) })
+                          }).then(res => {
+                            if (res.ok) {
+                              toast({ title: 'Terms Modified', description: 'Adjustment successfully dispatched to buyer & seller.' });
+                              window.location.reload();
+                            }
+                          });
+                        }
+                      }}
+                    >
+                      Modify Terms
+                    </Button>
+
+                    <Button 
+                      size="sm"
+                      variant={selectedConversation.directChatActive ? 'destructive' : 'default'}
+                      className="text-[10px] uppercase font-bold tracking-wider"
+                      onClick={() => {
+                        const nextActive = !selectedConversation.directChatActive;
+                        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedConversation.rfqId}/toggle-direct-chat`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+                          },
+                          body: JSON.stringify({ active: nextActive })
+                        }).then(res => {
+                          if (res.ok) {
+                            toast({ title: nextActive ? 'Direct Connection Enabled' : 'Direct Connection Disabled', description: nextActive ? 'Buyer & Vendor can now chat directly.' : 'Mediator mode re-engaged.' });
+                            window.location.reload();
+                          }
+                        });
+                      }}
+                    >
+                      {selectedConversation.directChatActive ? 'Disable Direct Connection' : 'Enable Direct Connection'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {selectedConversation.isGroup && selectedConversation.groupType === 'order_group' && (
                 <div className={cn(
                   "px-4 py-3 border-b flex items-center justify-between transition-all duration-300",
