@@ -493,6 +493,34 @@ export default function VendorRfqs() {
                     Revise & Resubmit Quote
                   </Button>
                 )}
+                {selectedRfq && ['quoted', 'admin_approved', 'sent_to_buyer'].includes(selectedRfq.status) && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const cp = prompt('Propose Counter Unit Price (₹):');
+                      const cq = prompt('Propose Counter Quantity:');
+                      if (cp && cq) {
+                        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/seller-counter`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+                          },
+                          body: JSON.stringify({ price: Number(cp), quantity: Number(cq) })
+                        }).then(res => {
+                          if (res.ok) {
+                            toast({ title: 'Counter Terms Proposed', description: 'Adjustment successfully submitted to Admin.' });
+                            setDetailsOpen(false);
+                            window.location.reload();
+                          }
+                        });
+                      }
+                    }}
+                    className="border-amber-500/20 hover:bg-amber-500/5 text-amber-600 font-bold"
+                  >
+                    Propose Counter Sourcing Terms
+                  </Button>
+                )}
                 <Button variant="ghost" onClick={() => setDetailsOpen(false)}>Close</Button>
               </DialogFooter>
             </div>

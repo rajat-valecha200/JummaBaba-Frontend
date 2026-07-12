@@ -11,7 +11,8 @@ import {
   Loader2,
   FileText,
   User,
-  Package
+  Package,
+  Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -457,6 +458,28 @@ export default function AdminRfqs() {
                             <p className="text-xl font-black text-slate-900">{selectedRfq.response_details?.lead_time || 'Immediate'}</p>
                           </div>
                         </div>
+
+                        {/* Direct detailed splits calculator rendering for Admin audit */}
+                        {selectedRfq.response_details?.price && (
+                          <div className="border-t border-slate-100 pt-3 space-y-2 text-xs">
+                            <div className="flex justify-between font-bold text-slate-900 border-b pb-1">
+                              <span>Admin Sourcing Audit splits</span>
+                              <span>Rate / Value</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Product Price (Gross Base):</span>
+                              <span className="font-semibold text-slate-800">{formatPrice(selectedRfq.response_details.price * selectedRfq.quantity)}</span>
+                            </div>
+                            <div className="flex justify-between text-indigo-600">
+                              <span>Platform Service Fee Commission (10%):</span>
+                              <span className="font-bold">-{formatPrice(selectedRfq.response_details.price * selectedRfq.quantity * 0.10)}</span>
+                            </div>
+                            <div className="flex justify-between text-emerald-600 font-bold">
+                              <span>Vendor Payout Settlement:</span>
+                              <span>{formatPrice(selectedRfq.response_details.price * selectedRfq.quantity * 0.90)}</span>
+                            </div>
+                          </div>
+                        )}
                           
                           {selectedRfq.response_details?.notes && (
                             <div className="pt-2">
@@ -466,6 +489,36 @@ export default function AdminRfqs() {
                               </p>
                             </div>
                           )}
+
+                          {/* Sourcing adjustment control triggers in details drawer */}
+                          <div className="pt-4 border-t border-slate-100 flex gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                const price = prompt('Adjust Unit Price (₹):');
+                                const qty = prompt('Adjust Quantity:');
+                                if (price && qty) {
+                                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/admin-modify`, {
+                                    method: 'POST',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+                                    },
+                                    body: JSON.stringify({ price: Number(price), quantity: Number(qty) })
+                                  }).then(res => {
+                                    if (res.ok) {
+                                      toast({ title: 'Terms Adjusted', description: 'Proposed spec terms sent to Buyer.' });
+                                      setDetailsOpen(false);
+                                      fetchRfqs();
+                                    }
+                                  });
+                                }
+                              }}
+                              className="text-xs w-full font-bold"
+                            >
+                              Modify Quote Terms
+                            </Button>
+                          </div>
                         </div>
                       </TabsContent>
                     </Tabs>

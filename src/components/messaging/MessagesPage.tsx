@@ -39,7 +39,8 @@ import {
   Lock,
   Package,
   FileCheck,
-  Tag
+  Tag,
+  Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -125,9 +126,10 @@ interface SourcingActionCardProps {
   message: Message;
   userRole: string | undefined;
   onRefresh: () => void;
+  triggerCounterNegotiation?: (rfqId: string, price: number, qty: number) => void;
 }
 
-function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCardProps) {
+function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegotiation }: SourcingActionCardProps) {
   const metadata = message.metadata || {};
   const cardType = metadata.type;
   
@@ -674,6 +676,143 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
         </div>
       );
 
+    case 'rfq_terms_modified':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-amber-500/25 bg-amber-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <Settings className="h-5 w-5 animate-spin-slow" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Terms Modification Proposal</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                {metadata.source === 'admin' ? 'Proposed by Admin' : metadata.source === 'buyer' ? 'Proposed by Buyer (Counter)' : 'Proposed by Vendor (Counter)'}
+              </p>
+            </div>
+          </div>
+          
+          <div className="space-y-2.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Adjusted Price per Unit:</span>
+              <span className="font-bold text-foreground">₹{Number(metadata.price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Adjusted Quantity:</span>
+              <span className="font-bold text-foreground">{metadata.quantity} units</span>
+            </div>
+            
+            {/* Financial Splits calculation breakdown inside chat card */}
+            <div className="border-t border-slate-200/50 pt-2 space-y-1.5 text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Product Base Value:</span>
+                <span className="font-bold">₹{(Number(metadata.price) * Number(metadata.quantity)).toLocaleString()}</span>
+              </div>
+              {userRole !== 'buyer' && (
+                <>
+                  <div className="flex justify-between text-indigo-600 font-semibold">
+                    <span>Platform Commission Fee (10%):</span>
+                    <span>- ₹{(Number(metadata.price) * Number(metadata.quantity) * 0.10).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-600 font-bold">
+                    <span>Vendor Settlement Payout:</span>
+                    <span>₹{(Number(metadata.price) * Number(metadata.quantity) * 0.90).toLocaleString()}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-amber-500/20">
+            {/* If the RFQ negotiation step has progressed past this card's proposal state, show a static badge */}
+            {metadata.rfq_negotiation_step && (
+              (metadata.source === 'admin' && metadata.rfq_negotiation_step !== 'admin_modified') ||
+              (metadata.source === 'buyer' && metadata.rfq_negotiation_step !== 'buyer_countered') ||
+              (metadata.source === 'seller' && metadata.rfq_negotiation_step !== 'seller_countered')
+            ) ? (
+              <Badge className="bg-slate-500/10 text-slate-500 border border-slate-500/20 py-1 text-[10px] uppercase font-bold tracking-wider w-full text-center">
+                ✓ Sourcing Proposal Superseded / Finalized
+              </Badge>
+            ) : (
+              <>
+                {userRole === 'buyer' && (
+                  metadata.source === 'buyer' ? (
+                    <Badge className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-1.5 text-[10px] uppercase font-bold tracking-wider w-full text-center">
+                      Awaiting Admin Approval of Counter Terms
+                    </Badge>
+                  ) : (
+                    <div className="flex flex-col gap-2 w-full">
+                      <Button 
+                        onClick={() => {
+                          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-confirm`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                            },
+                            body: JSON.stringify({ source: metadata.source })
+                          }).then(res => {
+                            if (res.ok) {
+                              alert('Quotation Terms Confirmed! Sourcing details updated.');
+                              onRefresh();
+                            }
+                          });
+                        }}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg"
+                      >
+                        ✓ Accept & Confirm Terms
+                      </Button>
+                      
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          if (triggerCounterNegotiation) {
+                            triggerCounterNegotiation(String(metadata.rfq_id), Number(metadata.price), Number(metadata.quantity));
+                          }
+                        }}
+                        className="w-full border-amber-500/30 text-amber-600 hover:bg-amber-500/5 font-bold h-9 rounded-lg"
+                      >
+                        Propose Counter Terms (Negotiate)
+                      </Button>
+                    </div>
+                  )
+                )}
+                {userRole === 'admin' && metadata.source === 'seller' && (
+                  <Button 
+                    onClick={() => {
+                      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                        }
+                      }).then(res => {
+                        if (res.ok) {
+                          alert('Seller counter-proposal approved and routed to Buyer.');
+                          onRefresh();
+                        }
+                      });
+                    }}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 rounded-lg"
+                  >
+                    Approve Counter Terms (Send to Buyer)
+                  </Button>
+                )}
+                {userRole === 'admin' && metadata.source === 'admin' && (
+                  <Badge className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-1 text-[10px] uppercase font-bold tracking-wider w-full text-center">
+                    Awaiting Buyer Confirmation
+                  </Badge>
+                )}
+                {userRole === 'vendor' && (
+                  <Badge className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-1 text-[10px] uppercase font-bold tracking-wider w-full text-center">
+                    Proposed Terms Awaiting Approval
+                  </Badge>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      );
+
     case 'system_intervention':
       return (
         <div className={cn(
@@ -884,6 +1023,13 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   
   // Read receipt sync state
   const [isReceiptSyncing, setIsReceiptSyncing] = useState(false);
+  
+  // Custom Counter Dialog States
+  const [counterOpen, setCounterOpen] = useState(false);
+  const [counterPrice, setCounterPrice] = useState('');
+  const [counterQty, setCounterQty] = useState('');
+  const [counterRfqId, setCounterRfqId] = useState('');
+  const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
   
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [admins, setAdmins] = useState<any[]>([]);
@@ -2062,6 +2208,12 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                           message={message} 
                           userRole={user?.role} 
                           onRefresh={() => { fetchConversations(); fetchMessages(); }} 
+                          triggerCounterNegotiation={(rfqId, price, qty) => {
+                            setCounterRfqId(rfqId);
+                            setCounterPrice(String(price));
+                            setCounterQty(String(qty));
+                            setCounterOpen(true);
+                          }}
                         />
                       </div>
                     );
@@ -2485,6 +2637,77 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
           participantAvatar={selectedConversation.participantAvatar}
         />
       )}
+
+      {/* Clean Custom Sourcing Term Adjustment Dialog Popup for Buyer Counter in Chat */}
+      <Dialog open={counterOpen} onOpenChange={setCounterOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Propose Counter Sourcing Terms</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-sm">
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Counter Unit Price (₹) *</label>
+              <Input
+                type="number"
+                placeholder="e.g. 1000"
+                value={counterPrice}
+                onChange={(e) => setCounterPrice(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Counter Sourcing Volume *</label>
+              <Input
+                type="number"
+                placeholder="e.g. 100"
+                value={counterQty}
+                onChange={(e) => setCounterQty(e.target.value)}
+              />
+            </div>
+
+            {counterPrice && counterQty && (
+              <div className="p-3 bg-muted rounded-xl text-xs space-y-1.5 border border-slate-200">
+                <p className="font-bold border-b pb-1 text-slate-800">New Estimated Valuation</p>
+                <div className="flex justify-between font-bold">
+                  <span>Gross Product Price Value:</span>
+                  <span>₹{(Number(counterPrice) * Number(counterQty)).toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={() => {
+                if (counterRfqId && counterPrice && counterQty) {
+                  setIsSubmittingCounter(true);
+                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${counterRfqId}/buyer-confirm`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                    },
+                    body: JSON.stringify({ 
+                      source: 'buyer_counter', 
+                      price: Number(counterPrice), 
+                      quantity: Number(counterQty) 
+                    })
+                  }).then(res => {
+                    if (res.ok) {
+                      alert('Counter-proposal dispatched to admin!');
+                      setCounterOpen(false);
+                      onRefresh();
+                    }
+                  }).finally(() => {
+                    setIsSubmittingCounter(false);
+                  });
+                }
+              }}
+              disabled={isSubmittingCounter || !counterPrice || !counterQty}
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold"
+            >
+              {isSubmittingCounter ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Dispatch Counter Sourcing Terms'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

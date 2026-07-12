@@ -210,9 +210,24 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
 
           {userRole === 'admin' && (
             <div className="mt-4 pt-4 border-t border-cyan-500/20 space-y-3">
-              {metadata.moderation_status === 'forwarded' ? (
+              {/* Sourcing negotiation details adjustments from Chat specifications card directly */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    // Access internal window hook or parent state handlers to trigger custom dialog popup
+                    const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.target_price, qty: metadata.quantity } });
+                    window.dispatchEvent(event);
+                  }}
+                  className="w-full text-xs h-9 border-cyan-500/30 text-cyan-600 hover:bg-cyan-500/5 font-bold"
+                >
+                  Adjust/Modify Terms
+                </Button>
+              </div>
+
+              {metadata.moderation_status && metadata.moderation_status !== 'pending_moderation' ? (
                 <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3 text-xs text-center text-cyan-600 dark:text-cyan-400 font-bold">
-                  ✓ Forwarded to Seller
+                  ✓ RFQ Moderated & Forwarded to Seller ({metadata.supplier_name || 'Selected Vendor'})
                 </div>
               ) : metadata.supplier_id ? (
                 // Direct product RFQ: Static supplier, no selector dropdown!
@@ -236,29 +251,29 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
                   {suppliers.length > 0 ? (
                     <div className="flex flex-col gap-2">
                       <select 
-                        value={selectedSupplierId}
-                        onChange={(e) => setSelectedSupplierId(e.target.value)}
-                        className="w-full text-xs bg-muted border border-border rounded-lg h-9 px-2 focus:ring-1 focus:ring-cyan-500 font-medium"
-                      >
-                        {suppliers.map(s => (
-                          <option key={s.id} value={s.id}>{s.business_name || s.full_name}</option>
-                        ))}
-                      </select>
-                      <Button 
-                        onClick={handleForward}
-                        className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
-                        disabled={isActioning}
-                      >
-                        {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "⚡ Forward RFQ to Supplier"}
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="text-[10px] text-amber-500 italic">No approved suppliers found to forward to.</p>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+                      value={selectedSupplierId}
+                      onChange={(e) => setSelectedSupplierId(e.target.value)}
+                      className="w-full text-xs bg-muted border border-border rounded-lg h-9 px-2 focus:ring-1 focus:ring-cyan-500 font-medium"
+                    >
+                      {suppliers.map(s => (
+                        <option key={s.id} value={s.id}>{s.business_name || s.full_name}</option>
+                      ))}
+                    </select>
+                    <Button 
+                      onClick={handleForward}
+                      className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                      disabled={isActioning}
+                    >
+                      {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "⚡ Forward RFQ to Supplier"}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-amber-500 italic">No approved suppliers found to forward to.</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
           {userRole !== 'admin' && (
             <div className="mt-4 text-center space-y-2">
@@ -374,88 +389,7 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
         </div>
       );
 
-    case 'rfq_terms_modified':
-      return (
-        <div className="w-full max-w-md my-2 rounded-2xl border border-amber-500/25 bg-amber-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3 mb-4">
-            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <Settings className="h-5 w-5" />
-            </div>
-            <div>
-              <h4 className="font-bold text-sm text-foreground">Terms Negotiation Proposal</h4>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Adjustment from {metadata.source === 'seller' ? 'Seller' : 'Mediator/Admin'}</p>
-            </div>
-          </div>
 
-          <div className="space-y-2.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Proposed Cost:</span>
-              <span className="font-bold text-lg text-amber-600 dark:text-amber-400">₹{Number(metadata.price).toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Proposed Quantity:</span>
-              <span className="font-semibold text-foreground">{metadata.quantity} units</span>
-            </div>
-          </div>
-
-          {userRole === 'buyer' && (
-            <div className="mt-4 pt-4 border-t border-amber-500/20 flex gap-2">
-              <Button 
-                onClick={() => {
-                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-confirm`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-                    },
-                    body: JSON.stringify({ source: metadata.source })
-                  }).then(res => {
-                    if (res.ok) {
-                      alert('Terms confirmed successfully!');
-                      window.location.reload();
-                    }
-                  });
-                }}
-                className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
-              >
-                ✓ Confirm Sourcing Terms
-              </Button>
-            </div>
-          )}
-
-          {userRole === 'admin' && metadata.source === 'seller' && (
-            <div className="mt-4 pt-4 border-t border-amber-500/20 flex gap-2">
-              <Button 
-                onClick={() => {
-                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-                    }
-                  }).then(res => {
-                    if (res.ok) {
-                      alert('Seller counter-proposal approved!');
-                      window.location.reload();
-                    }
-                  });
-                }}
-                className="flex-1 text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
-              >
-                ✓ Approve Counter Proposal
-              </Button>
-            </div>
-          )}
-
-          {userRole !== 'buyer' && !(userRole === 'admin' && metadata.source === 'seller') && (
-            <div className="mt-4 text-center">
-              <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] py-1 border border-amber-500/10">
-                Awaiting Counter Verification
-              </Badge>
-            </div>
-          )}
-        </div>
-      );
 
     case 'order_init':
       return (
@@ -716,6 +650,163 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
         </div>
       );
 
+    case 'rfq_terms_modified':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-amber-500/25 bg-amber-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <Settings className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Terms Modification Proposal</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                {metadata.source === 'admin' ? 'Proposed by Admin' : metadata.source === 'buyer' ? 'Proposed by Buyer (Counter)' : 'Proposed by Vendor (Counter)'}
+              </p>
+            </div>
+          </div>
+          
+          <div className="space-y-2.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Adjusted Price per Unit:</span>
+              <span className="font-bold text-foreground">₹{Number(metadata.price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Adjusted Quantity:</span>
+              <span className="font-bold text-foreground">{metadata.quantity} units</span>
+            </div>
+            
+            {/* Financial Splits calculation breakdown inside chat card */}
+            <div className="border-t border-slate-200/50 pt-2 space-y-1.5 text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Product Base Value:</span>
+                <span className="font-bold">₹{(Number(metadata.price) * Number(metadata.quantity)).toLocaleString()}</span>
+              </div>
+              {userRole !== 'buyer' && (
+                <>
+                  <div className="flex justify-between text-indigo-600 font-semibold">
+                    <span>Platform Commission Fee (10%):</span>
+                    <span>- ₹{(Number(metadata.price) * Number(metadata.quantity) * 0.10).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-600 font-bold">
+                    <span>Vendor Settlement Payout:</span>
+                    <span>₹{(Number(metadata.price) * Number(metadata.quantity) * 0.90).toLocaleString()}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-amber-500/20">
+            {/* If the RFQ negotiation step has progressed past this card's proposal state, show a static badge */}
+            {metadata.rfq_negotiation_step && (
+              (metadata.source === 'admin' && metadata.rfq_negotiation_step !== 'admin_modified') ||
+              (metadata.source === 'buyer' && metadata.rfq_negotiation_step !== 'buyer_countered') ||
+              (metadata.source === 'seller' && metadata.rfq_negotiation_step !== 'seller_countered')
+            ) ? (
+              <Badge className="bg-slate-500/10 text-slate-500 border border-slate-500/20 py-1 text-[10px] uppercase font-bold tracking-wider w-full text-center">
+                ✓ Sourcing Proposal Superseded / Finalized
+              </Badge>
+            ) : (
+              <>
+                {userRole === 'buyer' && (
+                  metadata.source === 'buyer' ? (
+                    <Badge className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-1.5 text-[10px] uppercase font-bold tracking-wider w-full text-center">
+                      Awaiting Admin Approval of Counter Terms
+                    </Badge>
+                  ) : (
+                    <div className="flex flex-col gap-2 w-full">
+                      <Button 
+                        onClick={() => {
+                          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-confirm`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                            },
+                            body: JSON.stringify({ source: metadata.source })
+                          }).then(res => {
+                            if (res.ok) {
+                              alert('Quotation Terms Confirmed! Sourcing details updated.');
+                              onRefresh();
+                            }
+                          });
+                        }}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg"
+                      >
+                        ✓ Accept & Confirm Terms
+                      </Button>
+                    </div>
+                  )
+                )}
+                {userRole === 'admin' && metadata.source === 'seller' && (
+                  <Button 
+                    onClick={() => {
+                      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                        }
+                      }).then(res => {
+                        if (res.ok) {
+                          alert('Seller counter-proposal approved and routed to Buyer.');
+                          onRefresh();
+                        }
+                      });
+                    }}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 rounded-lg"
+                  >
+                    Approve Counter Terms (Send to Buyer)
+                  </Button>
+                )}
+                {userRole === 'admin' && metadata.source === 'buyer' && (
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => {
+                        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                          }
+                        }).then(res => {
+                          if (res.ok) {
+                            alert('Buyer counter-proposal approved and confirmed.');
+                            onRefresh();
+                          }
+                        });
+                      }}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg"
+                    >
+                      Approve Counter Terms
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.price, qty: metadata.quantity } });
+                        window.dispatchEvent(event);
+                      }}
+                      className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 rounded-lg"
+                    >
+                      Modify Sourcing Terms
+                    </Button>
+                  </div>
+                )}
+                {userRole === 'admin' && metadata.source === 'admin' && (
+                  <Badge className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-1 text-[10px] uppercase font-bold tracking-wider w-full text-center">
+                    Awaiting Buyer Confirmation
+                  </Badge>
+                )}
+                {userRole === 'vendor' && (
+                  <Badge className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-1 text-[10px] uppercase font-bold tracking-wider w-full text-center">
+                    Proposed Terms Awaiting Approval
+                  </Badge>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      );
+
     case 'system_intervention':
       return (
         <div className={cn(
@@ -753,6 +844,9 @@ interface Conversation {
   groupType?: string;
   rfqId?: string;
   canIntervene?: boolean;
+  directChatActive?: boolean;
+  linkedProductPrice?: number;
+  linkedProductQty?: number;
 }
 
 // Unified inbox now dynamic
@@ -794,6 +888,42 @@ export default function AdminMessages() {
   const [offerDiscount, setOfferDiscount] = useState('');
   const [isGeneratingOffer, setIsGeneratingOffer] = useState(false);
 
+  // Term adjustment dialog state
+  const [showModifyDialog, setShowModifyDialog] = useState(false);
+  const [modifyPrice, setModifyPrice] = useState('');
+  const [modifyQty, setModifyQty] = useState('');
+  const [modifyRfqId, setModifyRfqId] = useState('');
+  const [isModifyingTerms, setIsModifyingTerms] = useState(false);
+
+  const handleModifyTermsSubmit = async () => {
+    if (!modifyRfqId || !modifyPrice || !modifyQty) return;
+    try {
+      setIsModifyingTerms(true);
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${modifyRfqId}/admin-modify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+        },
+        body: JSON.stringify({ price: Number(modifyPrice), quantity: Number(modifyQty) })
+      });
+      if (res.ok) {
+        alert('Terms Adjusted! Sourcing card updated in conversation thread.');
+        setShowModifyDialog(false);
+        setModifyPrice('');
+        setModifyQty('');
+        fetchConversations();
+        fetchMessages();
+      } else {
+        alert('Adjustment submission failed.');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsModifyingTerms(false);
+    }
+  };
+
   const handleGenerateOffer = async () => {
     if (!selectedConversation?.rfqId || !offerPrice || !offerQty) return;
     try {
@@ -803,7 +933,7 @@ export default function AdminMessages() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+          'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
         },
         body: JSON.stringify({
           negotiatedPrice: Number(offerPrice),
@@ -860,7 +990,10 @@ export default function AdminMessages() {
         isGroup: c.is_group,
         groupType: c.group_type,
         rfqId: c.rfq_id,
-        canIntervene: c.can_intervene
+        canIntervene: c.can_intervene,
+        directChatActive: c.direct_chat_active,
+        linkedProductPrice: Number(c.target_price || 0),
+        linkedProductQty: Number(c.quantity || 0)
       }));
       
       // Play sound if unread count increased globally
@@ -932,6 +1065,20 @@ export default function AdminMessages() {
     const interval = setInterval(fetchConversations, 10000); // 10s for sidebar
     return () => clearInterval(interval);
   }, [fetchConversations]);
+
+  useEffect(() => {
+    const handleTrigger = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        setModifyRfqId(customEvent.detail.rfqId);
+        setModifyPrice(String(customEvent.detail.price || ''));
+        setModifyQty(String(customEvent.detail.qty || ''));
+        setShowModifyDialog(true);
+      }
+    };
+    window.addEventListener('triggerModifyTerms', handleTrigger);
+    return () => window.removeEventListener('triggerModifyTerms', handleTrigger);
+  }, []);
 
   useEffect(() => {
     if (selectedConversation?.id) {
@@ -1407,23 +1554,10 @@ export default function AdminMessages() {
                       variant="outline"
                       className="text-[10px] uppercase font-bold tracking-wider"
                       onClick={() => {
-                        const price = prompt('Enter Adjusted Base Price (₹):');
-                        const qty = prompt('Enter Adjusted Quantity:');
-                        if (price && qty) {
-                          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedConversation.rfqId}/admin-modify`, {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-                            },
-                            body: JSON.stringify({ price: Number(price), quantity: Number(qty) })
-                          }).then(res => {
-                            if (res.ok) {
-                              toast({ title: 'Terms Modified', description: 'Adjustment successfully dispatched to buyer & seller.' });
-                              window.location.reload();
-                            }
-                          });
-                        }
+                        setModifyRfqId(selectedConversation.rfqId);
+                        setModifyPrice(String(selectedConversation.linkedProductPrice || ''));
+                        setModifyQty(String(selectedConversation.linkedProductQty || ''));
+                        setShowModifyDialog(true);
                       }}
                     >
                       Modify Terms
@@ -1439,7 +1573,7 @@ export default function AdminMessages() {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+                            'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
                           },
                           body: JSON.stringify({ active: nextActive })
                         }).then(res => {
@@ -1635,6 +1769,61 @@ export default function AdminMessages() {
                         className="w-full bg-b2b-orange hover:bg-b2b-orange/90 text-white"
                       >
                         {isGeneratingOffer ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '⚡ Generate & Send Offer'}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                {/* Custom Sourcing Term Adjustment Dialog Popup */}
+                <Dialog open={showModifyDialog} onOpenChange={setShowModifyDialog}>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Adjust Sourcing Proposal Terms</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4 text-sm">
+                      <div className="space-y-2">
+                        <label className="font-semibold text-xs">Adjusted Unit Sourcing Price (₹) *</label>
+                        <Input
+                          type="number"
+                          placeholder="e.g. 1000"
+                          value={modifyPrice}
+                          onChange={(e) => setModifyPrice(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="font-semibold text-xs">Adjusted Sourcing Volume *</label>
+                        <Input
+                          type="number"
+                          placeholder="e.g. 100"
+                          value={modifyQty}
+                          onChange={(e) => setModifyQty(e.target.value)}
+                        />
+                      </div>
+
+                      {modifyPrice && modifyQty && (
+                        <div className="p-3 bg-muted rounded-xl text-xs space-y-1.5 border border-slate-200">
+                          <p className="font-bold border-b pb-1 text-slate-800">Financial Splits Calculation</p>
+                          <div className="flex justify-between">
+                            <span>Product Base Value:</span>
+                            <span className="font-bold">₹{(Number(modifyPrice) * Number(modifyQty)).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-indigo-600">
+                            <span>Platform Fee Commission (10%):</span>
+                            <span className="font-bold">- ₹{(Number(modifyPrice) * Number(modifyQty) * 0.10).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-emerald-600 font-bold">
+                            <span>Expected Vendor Settlement (90%):</span>
+                            <span>₹{(Number(modifyPrice) * Number(modifyQty) * 0.90).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <Button
+                        onClick={handleModifyTermsSubmit}
+                        disabled={isModifyingTerms || !modifyPrice || !modifyQty}
+                        className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold"
+                      >
+                        {isModifyingTerms ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Confirm & Apply Terms Adjustment'}
                       </Button>
                     </div>
                   </DialogContent>

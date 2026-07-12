@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Eye, 
   MessageSquare, 
@@ -14,7 +14,8 @@ import {
   FileText,
   AlertCircle,
   Truck,
-  ArrowUpRight
+  ArrowUpRight,
+  Settings
 } from 'lucide-react';
 import { RfqTimeline, getRfqSteps } from '@/components/b2b/RfqTimeline';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,6 +44,7 @@ import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { OrderTracking } from '@/components/orders/OrderTracking';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-amber-500/10 text-amber-500 border-amber-500/20 font-bold px-2 py-0.5 rounded-full uppercase text-[9px] tracking-widest',
@@ -57,10 +59,15 @@ const statusColors: Record<string, string> = {
 
 export default function BuyerRfqs() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [rfqs, setRfqs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRfq, setSelectedRfq] = useState<any | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [counterOpen, setCounterOpen] = useState(false);
+  const [counterPrice, setCounterPrice] = useState('');
+  const [counterQty, setCounterQty] = useState('');
+  const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
 
   const fetchRfqs = async () => {
     try {
@@ -293,6 +300,106 @@ export default function BuyerRfqs() {
                       </div>
                     </div>
 
+                    {selectedRfq.negotiation_step && selectedRfq.negotiation_step !== 'rfq_submitted' && (
+                      <div className="p-6 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-4">
+                        <div className="flex items-center gap-2 text-amber-600 font-black text-lg">
+                          <Settings className="h-5 w-5" /> Negotiated Terms Proximity Card
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-xs font-semibold text-slate-700">
+                          <div>
+                            <p className="text-muted-foreground text-[10px] uppercase">Proposed Price Per Unit</p>
+                            <p className="text-xl font-bold text-amber-600">{formatPrice(selectedRfq.negotiated_price)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground text-[10px] uppercase">Proposed Volume</p>
+                            <p className="text-xl font-bold text-slate-800">{selectedRfq.negotiated_quantity} units</p>
+                          </div>
+                        </div>
+
+                        {/* Breakdown calculations disclosure */}
+                        <div className="border-t border-slate-100 pt-3 space-y-2 text-xs">
+                          <div className="flex justify-between font-bold text-slate-900 border-b pb-1">
+                            <span>Quotation Breakdown Details</span>
+                            <span>Value</span>
+                          </div>
+                          <div className="flex justify-between font-semibold">
+                            <span className="text-muted-foreground">Total Product Value:</span>
+                            <span className="text-slate-800">{formatPrice(Number(selectedRfq.negotiated_price) * Number(selectedRfq.negotiated_quantity))}</span>
+                          </div>
+                        </div>
+
+                        {selectedRfq.negotiation_step === 'admin_modified' && (
+                          <div className="pt-2 flex flex-col gap-2">
+                            <Button 
+                              onClick={() => {
+                                fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/buyer-confirm`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                                  },
+                                  body: JSON.stringify({ source: 'admin' })
+                                }).then(res => {
+                                  if (res.ok) {
+                                    toast({ title: 'Quotation Terms Confirmed!', description: 'Adjusted specs confirmed.' });
+                                    setDetailsOpen(false);
+                                    fetchRfqs();
+                                  }
+                                });
+                              }}
+                              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl"
+                            >
+                              ✓ Confirm Adjusted Sourcing Terms
+                            </Button>
+                            
+                            <Button 
+                              variant="outline"
+                              onClick={() => {
+                                setCounterPrice(String(selectedRfq.negotiated_price || selectedRfq.target_price || ''));
+                                setCounterQty(String(selectedRfq.negotiated_quantity || selectedRfq.quantity || ''));
+                                setCounterOpen(true);
+                              }}
+                              className="w-full border-amber-500/30 text-amber-600 hover:bg-amber-500/5 font-bold text-xs py-2 rounded-xl"
+                            >
+                              Propose Counter Terms (Negotiate)
+                            </Button>
+                          </div>
+                        )}
+
+                        {selectedRfq.negotiation_step === 'admin_approved_seller_counter' && (
+                          <div className="pt-2">
+                            <Button 
+                              onClick={() => {
+                                fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/buyer-confirm`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                                  },
+                                  body: JSON.stringify({ source: 'seller' })
+                                }).then(res => {
+                                  if (res.ok) {
+                                    toast({ title: 'Seller Counter Confirmed!', description: 'Final terms established.' });
+                                    setDetailsOpen(false);
+                                    fetchRfqs();
+                                  }
+                                });
+                              }}
+                              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl"
+                            >
+                              ✓ Confirm & Approve Seller's Counter terms
+                            </Button>
+                          </div>
+                        )}
+
+                        {selectedRfq.negotiation_step === 'buyer_countered' && (
+                          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-center text-xs text-amber-600 dark:text-amber-400 font-bold">
+                            ⚡ Counter terms proposed. Awaiting Admin Approval.
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {selectedRfq.moderation_status === 'quote_approved' && selectedRfq.response_details && (
                       <div className="p-6 bg-primary/5 border-2 border-primary/20 rounded-xl space-y-4">
                         <div className="flex items-center justify-between">
@@ -315,6 +422,18 @@ export default function BuyerRfqs() {
                           <div className="space-y-1">
                             <p className="text-sm text-muted-foreground">Lead Time</p>
                             <p className="text-xl font-semibold">{selectedRfq.response_details.lead_time || 'Immediate'}</p>
+                          </div>
+                        </div>
+
+                        {/* Cost breakdown details for RFQ quotes */}
+                        <div className="border-t border-slate-100 pt-3 space-y-2 text-xs">
+                          <div className="flex justify-between font-bold text-slate-900 border-b pb-1">
+                            <span>Quotation Breakdown Details</span>
+                            <span>Value</span>
+                          </div>
+                          <div className="flex justify-between font-semibold">
+                            <span className="text-muted-foreground">Total Product Value:</span>
+                            <span className="text-slate-800">{formatPrice(selectedRfq.response_details.price * selectedRfq.quantity)}</span>
                           </div>
                         </div>
                         
@@ -344,7 +463,7 @@ export default function BuyerRfqs() {
                       </div>
                     )}
 
-                    {selectedRfq.moderation_status !== 'quote_approved' && (
+                    {selectedRfq.moderation_status !== 'quote_approved' && !selectedRfq.negotiated_price && (
                       <div className="p-6 border-dashed border-2 rounded-xl flex flex-col items-center justify-center text-center py-12 bg-muted/20">
                         <Clock className="h-12 w-12 text-muted-foreground/30 mb-3" />
                         <h4 className="font-medium text-muted-foreground">Waiting for Supplier Quotation</h4>
@@ -356,11 +475,22 @@ export default function BuyerRfqs() {
                   </div>
                 )}
               </div>
-
+ 
               <DialogFooter className="p-8 border-t border-white/5">
                 <div className="flex gap-2">
                   {selectedRfq?.moderation_status === 'quote_approved' && selectedRfq.status === 'responded' && (
                     <>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setCounterPrice(String(selectedRfq.response_details?.price || selectedRfq.negotiated_price || selectedRfq.target_price || ''));
+                          setCounterQty(String(selectedRfq.quantity || ''));
+                          setCounterOpen(true);
+                        }}
+                        className="border-amber-500/20 hover:bg-amber-500/5 text-amber-600 font-bold"
+                      >
+                        Negotiate Counter Terms
+                      </Button>
                       <Button 
                         variant="outline" 
                         className="text-destructive border-destructive/20 hover:bg-destructive/5" 
@@ -371,11 +501,13 @@ export default function BuyerRfqs() {
                       </Button>
                       <Button 
                         className="bg-blue-500 hover:bg-blue-600 text-white font-black uppercase tracking-widest shadow-xl shadow-blue-500/20" 
-                        onClick={() => handleAction(selectedRfq.id, 'accept_quote')}
+                        onClick={() => {
+                          // Redirect to checkout with rfqId
+                          navigate(`/buyer/checkout?rfqId=${selectedRfq.id}`);
+                        }}
                         disabled={isLoading}
                       >
-                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-                        Accept & Place Order
+                        Proceed to Checkout
                       </Button>
                     </>
                   )}
@@ -393,6 +525,78 @@ export default function BuyerRfqs() {
                 <Button variant="ghost" onClick={() => setDetailsOpen(false)}>Close</Button>
               </DialogFooter>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clean Custom Sourcing Term Adjustment Dialog Popup for Buyer Counter */}
+      <Dialog open={counterOpen} onOpenChange={setCounterOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Propose Counter Sourcing Terms</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-sm">
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Counter Unit Price (₹) *</label>
+              <Input
+                type="number"
+                placeholder="e.g. 1000"
+                value={counterPrice}
+                onChange={(e) => setCounterPrice(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Counter Sourcing Volume *</label>
+              <Input
+                type="number"
+                placeholder="e.g. 100"
+                value={counterQty}
+                onChange={(e) => setCounterQty(e.target.value)}
+              />
+            </div>
+
+            {counterPrice && counterQty && (
+              <div className="p-3 bg-muted rounded-xl text-xs space-y-1.5 border border-slate-200">
+                <p className="font-bold border-b pb-1 text-slate-800">New Estimated Valuation</p>
+                <div className="flex justify-between font-bold">
+                  <span>Gross Product Price Value:</span>
+                  <span>₹{(Number(counterPrice) * Number(counterQty)).toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={() => {
+                if (selectedRfq && counterPrice && counterQty) {
+                  setIsSubmittingCounter(true);
+                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/buyer-confirm`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                    },
+                    body: JSON.stringify({ 
+                      source: 'buyer_counter', 
+                      price: Number(counterPrice), 
+                      quantity: Number(counterQty) 
+                    })
+                  }).then(res => {
+                    if (res.ok) {
+                      toast({ title: 'Counter Dispatched!', description: 'Sent counter terms to admin.' });
+                      setCounterOpen(false);
+                      setDetailsOpen(false);
+                      fetchRfqs();
+                    }
+                  }).finally(() => {
+                    setIsSubmittingCounter(false);
+                  });
+                }
+              }}
+              disabled={isSubmittingCounter || !counterPrice || !counterQty}
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold"
+            >
+              {isSubmittingCounter ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Dispatch Counter Sourcing Terms'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
