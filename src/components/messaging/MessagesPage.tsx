@@ -743,6 +743,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                     <div className="flex flex-col gap-2 w-full">
                       <Button 
                         onClick={() => {
+                          setIsActioning(true);
                           fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-confirm`, {
                             method: 'POST',
                             headers: {
@@ -755,11 +756,14 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                               alert('Quotation Terms Confirmed! Sourcing details updated.');
                               onRefresh();
                             }
+                          }).finally(() => {
+                            setIsActioning(false);
                           });
                         }}
+                        disabled={isActioning}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg"
                       >
-                        ✓ Accept & Confirm Terms
+                        {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✓ Accept & Confirm Terms'}
                       </Button>
                       
                       <Button 
@@ -769,6 +773,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                             triggerCounterNegotiation(String(metadata.rfq_id), Number(metadata.price), Number(metadata.quantity));
                           }
                         }}
+                        disabled={isActioning}
                         className="w-full border-amber-500/30 text-amber-600 hover:bg-amber-500/5 font-bold h-9 rounded-lg"
                       >
                         Propose Counter Terms (Negotiate)
@@ -779,6 +784,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 {userRole === 'admin' && metadata.source === 'seller' && (
                   <Button 
                     onClick={() => {
+                      setIsActioning(true);
                       fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
                         method: 'POST',
                         headers: {
@@ -790,11 +796,14 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                           alert('Seller counter-proposal approved and routed to Buyer.');
                           onRefresh();
                         }
+                      }).finally(() => {
+                        setIsActioning(false);
                       });
                     }}
+                    disabled={isActioning}
                     className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 rounded-lg"
                   >
-                    Approve Counter Terms (Send to Buyer)
+                    {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Approve Counter Terms (Send to Buyer)'}
                   </Button>
                 )}
                 {userRole === 'admin' && metadata.source === 'admin' && (
@@ -1715,8 +1724,15 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
     return lastMyMessage?.status;
   };
 
+  const isMessagesRoute = window.location.pathname.endsWith('/messages');
+
   return (
-    <div className="h-[calc(100vh-10rem)] md:h-[calc(100vh-8rem)] flex rounded-xl border bg-background overflow-hidden shadow-sm">
+    <div className={cn(
+      "flex bg-background overflow-hidden",
+      isMessagesRoute 
+        ? "h-full rounded-none border-0 shadow-none" 
+        : "h-[calc(100vh-10rem)] md:h-[calc(100vh-8rem)] rounded-xl border shadow-sm"
+    )}>
       {/* Conversations List */}
       <div 
         className={cn(
@@ -1927,7 +1943,12 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <p className="font-semibold truncate">{conv.participantName}</p>
+                      <p 
+                        className="font-semibold truncate"
+                        title={conv.participantName}
+                      >
+                        {conv.participantName}
+                      </p>
                       {conv.isGroup && (
                         <Badge variant="outline" className={cn(
                           "text-[9px] font-bold px-1.5 py-0 rounded flex-shrink-0 uppercase tracking-wider",
@@ -2640,7 +2661,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
 
       {/* Clean Custom Sourcing Term Adjustment Dialog Popup for Buyer Counter in Chat */}
       <Dialog open={counterOpen} onOpenChange={setCounterOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Propose Counter Sourcing Terms</DialogTitle>
           </DialogHeader>

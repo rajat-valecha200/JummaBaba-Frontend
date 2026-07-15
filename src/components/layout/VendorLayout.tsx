@@ -85,9 +85,12 @@ export function VendorLayout() {
 
   const handleLogout = () => { signOut(); navigate('/'); };
 
+  const location = useLocation();
+  const isMessagesPage = location.pathname === '/vendor/messages';
+
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-[#F1F5F9] flex">
+      <div className="h-screen bg-[#F1F5F9] flex overflow-hidden">
         {/* Mobile Sidebar Overlay */}
         <div className={cn('fixed inset-0 z-50 lg:hidden transition-opacity bg-black/50', sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')} onClick={() => setSidebarOpen(false)} />
         
@@ -120,8 +123,8 @@ export function VendorLayout() {
             </div>
           </header>
 
-          <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
-            <div className="max-w-7xl mx-auto">
+          <main className={cn("flex-1", isMessagesPage ? "overflow-hidden p-0 bg-background" : "overflow-y-auto p-4 lg:p-8")}>
+            <div className={cn(isMessagesPage ? "h-full" : "max-w-7xl mx-auto")}>
               <Outlet />
             </div>
           </main>

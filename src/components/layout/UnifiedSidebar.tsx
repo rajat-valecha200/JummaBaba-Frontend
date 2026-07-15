@@ -51,6 +51,10 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
   const [pendingRfqs, setPendingRfqs] = useState(0);
   const [activeOrders, setActiveOrders] = useState(0);
   const [systemNotifications, setSystemNotifications] = useState<any[]>([]);
+  
+  // Admin-specific moderation notification states
+  const [pendingVendors, setPendingVendors] = useState(0);
+  const [pendingProducts, setPendingProducts] = useState(0);
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -68,6 +72,17 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
         if (role === 'admin') {
           setPendingRfqs(rfqs.filter((r: any) => !r.is_direct_order && (r.moderation_status === 'pending_moderation' || r.moderation_status === 'quote_pending')).length);
           setActiveOrders(rfqs.filter((r: any) => r.is_direct_order && r.moderation_status === 'pending_moderation').length);
+          
+          try {
+            const [pVendors, pProducts] = await Promise.all([
+              api.profiles.list('vendor', 'pending'),
+              api.products.list('pending')
+            ]);
+            setPendingVendors(pVendors.length);
+            setPendingProducts(pProducts.length);
+          } catch (adminErr) {
+            console.error('Failed to load admin stats for sidebar:', adminErr);
+          }
         } else if (role === 'vendor') {
           setPendingRfqs(rfqs.filter((r: any) => !r.is_direct_order && (r.vendor_status === 'pending' || r.moderation_status === 'quote_rejected')).length);
           setActiveOrders(orders.filter((o: any) => o.is_direct_order === true || ['pending', 'pending_processing', 'confirmed', 'shipped'].includes(o.vendor_status) || ['ordered', 'confirmed', 'shipped'].includes(o.status)).length);
@@ -92,8 +107,8 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
   const adminNav: SidebarItem[] = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
     { icon: ListTodo, label: 'Categories', path: '/admin/categories' },
-    { icon: Users, label: 'Vendors', path: '/admin/vendors' },
-    { icon: Package, label: 'Products', path: '/admin/products' },
+    { icon: Users, label: 'Vendors', path: '/admin/vendors', badgeCount: pendingVendors },
+    { icon: Package, label: 'Products', path: '/admin/products', badgeCount: pendingProducts },
     { icon: FileText, label: 'RFQ Inquiries', path: '/admin/rfqs', badgeCount: pendingRfqs },
     { icon: ShoppingCart, label: 'Marketplace Orders', path: '/admin/orders', badgeCount: activeOrders },
     { icon: DollarSign, label: 'Commissions', path: '/admin/commissions' },

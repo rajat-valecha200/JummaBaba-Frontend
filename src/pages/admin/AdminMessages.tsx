@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -210,20 +211,21 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
 
           {userRole === 'admin' && (
             <div className="mt-4 pt-4 border-t border-cyan-500/20 space-y-3">
-              {/* Sourcing negotiation details adjustments from Chat specifications card directly */}
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    // Access internal window hook or parent state handlers to trigger custom dialog popup
-                    const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.target_price, qty: metadata.quantity } });
-                    window.dispatchEvent(event);
-                  }}
-                  className="w-full text-xs h-9 border-cyan-500/30 text-cyan-600 hover:bg-cyan-500/5 font-bold"
-                >
-                  Adjust/Modify Terms
-                </Button>
-              </div>
+              {(!metadata.moderation_status || metadata.moderation_status === 'pending_moderation') && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      // Access internal window hook or parent state handlers to trigger custom dialog popup
+                      const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.target_price, qty: metadata.quantity } });
+                      window.dispatchEvent(event);
+                    }}
+                    className="w-full text-xs h-9 border-cyan-500/30 text-cyan-600 hover:bg-cyan-500/5 font-bold"
+                  >
+                    Adjust/Modify Terms
+                  </Button>
+                </div>
+              )}
 
               {metadata.moderation_status && metadata.moderation_status !== 'pending_moderation' ? (
                 <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3 text-xs text-center text-cyan-600 dark:text-cyan-400 font-bold">
@@ -741,6 +743,7 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
                 {userRole === 'admin' && metadata.source === 'seller' && (
                   <Button 
                     onClick={() => {
+                      setIsActioning(true);
                       fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
                         method: 'POST',
                         headers: {
@@ -752,17 +755,21 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
                           alert('Seller counter-proposal approved and routed to Buyer.');
                           onRefresh();
                         }
+                      }).finally(() => {
+                        setIsActioning(false);
                       });
                     }}
+                    disabled={isActioning}
                     className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 rounded-lg"
                   >
-                    Approve Counter Terms (Send to Buyer)
+                    {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Approve Counter Terms (Send to Buyer)'}
                   </Button>
                 )}
                 {userRole === 'admin' && metadata.source === 'buyer' && (
                   <div className="flex gap-2">
                     <Button 
                       onClick={() => {
+                        setIsActioning(true);
                         fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
                           method: 'POST',
                           headers: {
@@ -774,17 +781,21 @@ function SourcingActionCard({ message, userRole, onRefresh }: SourcingActionCard
                             alert('Buyer counter-proposal approved and confirmed.');
                             onRefresh();
                           }
+                        }).finally(() => {
+                          setIsActioning(false);
                         });
                       }}
+                      disabled={isActioning}
                       className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg"
                     >
-                      Approve Counter Terms
+                      {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Approve Counter Terms'}
                     </Button>
                     <Button 
                       onClick={() => {
                         const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.price, qty: metadata.quantity } });
                         window.dispatchEvent(event);
                       }}
+                      disabled={isActioning}
                       className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 rounded-lg"
                     >
                       Modify Sourcing Terms
@@ -869,6 +880,7 @@ function MessageStatus({ status }: { status: Message['status'] }) {
 
 export default function AdminMessages() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'all' | 'buyers' | 'vendors'>('all');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1188,14 +1200,8 @@ export default function AdminMessages() {
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)]">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-foreground">Unified Inbox</h1>
-        <p className="text-muted-foreground">Mediate all buyer and vendor conversations</p>
-      </div>
-
-      <Card className="h-full flex overflow-hidden bg-card border-border">
-        {/* Conversation List */}
+    <div className="h-full flex bg-background overflow-hidden">
+      {/* Conversation List */}
         <div className={cn(
           "w-full md:w-80 lg:w-96 border-r border-border flex flex-col bg-card",
           selectedConversation && "hidden md:flex"
@@ -1320,7 +1326,7 @@ export default function AdminMessages() {
           </Dialog>
 
           {/* Conversations */}
-          <ScrollArea className="flex-1">
+          <div className="flex-1 overflow-y-auto">
             {loading ? (
                <div className="p-8 text-center animate-pulse">
                 <div className="h-12 w-12 bg-muted rounded-full mx-auto mb-3" />
@@ -1339,11 +1345,11 @@ export default function AdminMessages() {
             ) : (
               <div className="divide-y divide-border">
                 {filteredConversations.map(conv => (
-                  <button
+                  <div
                     key={conv.id}
                     onClick={() => openConversation(conv)}
                     className={cn(
-                      "w-full p-3 text-left hover:bg-muted/50 transition-colors",
+                      "w-full p-3 text-left hover:bg-muted/50 transition-colors cursor-pointer",
                       selectedConversation?.id === conv.id && "bg-muted"
                     )}
                   >
@@ -1371,26 +1377,34 @@ export default function AdminMessages() {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-medium truncate text-foreground">
+                          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                            <p 
+                              className="font-semibold text-sm truncate text-foreground flex-shrink min-w-0"
+                              title={conv.participantName}
+                            >
                               {conv.participantName}
-                            </span>
+                            </p>
                             {conv.isOnline && (
-                              <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse shrink-0" title="Online" />
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" title="Online" />
                             )}
                             {conv.isVerified && (
-                              <Shield className="h-3.5 w-3.5 text-b2b-orange flex-shrink-0" />
+                              <Shield className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
                             )}
-                            <Badge variant="outline" className={cn(
-                              "text-[10px] px-1.5 py-0 h-4 flex-shrink-0",
-                              conv.isGroup 
-                                ? (conv.groupType === 'order_group' ? "border-purple-500 text-purple-500 bg-purple-50/50" : "border-teal-500 text-teal-500 bg-teal-50/50")
-                                : (conv.participantType === 'buyer' ? "border-blue-500 text-blue-400" : "border-b2b-orange text-b2b-orange")
-                            )}>
-                              {conv.isGroup ? (conv.groupType === 'order_group' ? 'Order Group' : 'Negotiation') : (conv.participantType === 'buyer' ? 'Buyer' : 'Vendor')}
-                            </Badge>
+                            {conv.isGroup && (
+                              <Badge variant="outline" className={cn(
+                                "text-[9px] font-bold px-1.5 py-0 rounded flex-shrink-0 uppercase tracking-wider",
+                                conv.groupType === 'negotiation'
+                                  ? "border-cyan-500/30 bg-cyan-500/5 text-cyan-600 dark:text-cyan-400"
+                                  : "border-indigo-500/30 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400"
+                              )}>
+                                {conv.groupType === 'negotiation' ? 'Negotiation' : 'Order Chat'}
+                              </Badge>
+                            )}
                           </div>
-                          <span className="text-xs text-muted-foreground flex-shrink-0">
+                          <span className={cn(
+                            "text-xs flex-shrink-0",
+                            conv.unreadCount > 0 ? "text-emerald-600 font-medium" : "text-muted-foreground"
+                          )}>
                             {conv.lastMessageTime}
                           </span>
                         </div>
@@ -1400,11 +1414,11 @@ export default function AdminMessages() {
                         </p>
 
                         <div className="flex items-center justify-between gap-2 mt-1">
-                          <p className="text-sm text-muted-foreground truncate">
+                          <p className="text-xs text-muted-foreground truncate">
                             {conv.lastMessage}
                           </p>
                           {conv.unreadCount > 0 && selectedConversation?.id !== conv.id && (
-                            <Badge className="bg-b2b-orange text-white h-5 px-1.5 text-xs flex-shrink-0">
+                            <Badge className="bg-emerald-600 text-white h-5 px-1.5 text-xs flex-shrink-0">
                               {conv.unreadCount}
                             </Badge>
                           )}
@@ -1421,11 +1435,11 @@ export default function AdminMessages() {
                         )}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </div>
 
         {/* Chat Area */}
@@ -1776,7 +1790,7 @@ export default function AdminMessages() {
 
                 {/* Custom Sourcing Term Adjustment Dialog Popup */}
                 <Dialog open={showModifyDialog} onOpenChange={setShowModifyDialog}>
-                  <DialogContent className="max-w-md">
+                  <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Adjust Sourcing Proposal Terms</DialogTitle>
                     </DialogHeader>
@@ -1855,7 +1869,6 @@ export default function AdminMessages() {
             </div>
           )}
         </div>
-      </Card>
-    </div>
+      </div>
   );
 }

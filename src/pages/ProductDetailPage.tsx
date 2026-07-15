@@ -59,6 +59,7 @@ export default function ProductDetailPage() {
   const { toast } = useToast();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const [selectedImage, setSelectedImage] = useState(0);
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [quantity, setQuantity] = useState<number>(0);
   // Removed UnderConstructionModal logic for F-006
   const [rfqOpen, setRfqOpen] = useState(false);
@@ -343,11 +344,23 @@ export default function ProductDetailPage() {
               <Button
                 variant="secondary"
                 size="icon"
+                onClick={() => setIsZoomOpen(true)}
                 className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <ZoomIn className="h-4 w-4" />
               </Button>
             </div>
+
+            {/* Premium Zoom/Lightbox Dialog Modal */}
+            <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
+              <DialogContent className="max-w-4xl p-0 bg-black/90 border-none flex items-center justify-center h-[80vh] overflow-hidden rounded-3xl">
+                <img
+                  src={product.images[selectedImage]}
+                  alt={product.name}
+                  className="max-w-full max-h-[75vh] object-contain rounded-2xl animate-in zoom-in-95 duration-200"
+                />
+              </DialogContent>
+            </Dialog>
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
               {product.images.map((image, index) => (
                 <button
@@ -652,10 +665,19 @@ export default function ProductDetailPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setRfqOpen(false)}>Cancel</Button>
-                  <Button onClick={handleSubmitRfq}>
-                    <Send className="h-4 w-4 mr-2" />
-                    Submit RFQ
+                  <Button variant="outline" onClick={() => setRfqOpen(false)} disabled={submittingRfq}>Cancel</Button>
+                  <Button onClick={handleSubmitRfq} disabled={submittingRfq} className="bg-b2b-orange hover:bg-b2b-orange/90 text-white font-bold">
+                    {submittingRfq ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Submit RFQ
+                      </>
+                    )}
                   </Button>
                 </DialogFooter>
               </DialogContent>

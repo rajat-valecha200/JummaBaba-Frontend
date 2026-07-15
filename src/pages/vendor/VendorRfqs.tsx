@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Eye, Search, Filter, MessageSquare, Clock, CheckCircle, Send, Info, HelpCircle, Package, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,6 +80,12 @@ export default function VendorRfqs() {
   const [selectedRfq, setSelectedRfq] = useState<Rfq | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [responseOpen, setResponseOpen] = useState(false);
+
+  // Vendor Counter Dialog States
+  const [vendorCounterOpen, setVendorCounterOpen] = useState(false);
+  const [vendorCounterPrice, setVendorCounterPrice] = useState('');
+  const [vendorCounterQty, setVendorCounterQty] = useState('');
+  const [isSubmittingVendorCounter, setIsSubmittingVendorCounter] = useState(false);
 
   useEffect(() => {
     const fetchRfqs = async () => {
@@ -497,31 +504,25 @@ export default function VendorRfqs() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      const cp = prompt('Propose Counter Unit Price (₹):');
-                      const cq = prompt('Propose Counter Quantity:');
-                      if (cp && cq) {
-                        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/seller-counter`, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-                          },
-                          body: JSON.stringify({ price: Number(cp), quantity: Number(cq) })
-                        }).then(res => {
-                          if (res.ok) {
-                            toast({ title: 'Counter Terms Proposed', description: 'Adjustment successfully submitted to Admin.' });
-                            setDetailsOpen(false);
-                            window.location.reload();
-                          }
-                        });
-                      }
+                      setVendorCounterPrice(String(selectedRfq.response?.price || selectedRfq.targetPrice || ''));
+                      setVendorCounterQty(String(selectedRfq.quantity || ''));
+                      setVendorCounterOpen(true);
                     }}
                     className="border-amber-500/20 hover:bg-amber-500/5 text-amber-600 font-bold"
                   >
                     Propose Counter Sourcing Terms
                   </Button>
                 )}
-                <Button variant="ghost" onClick={() => setDetailsOpen(false)}>Close</Button>
+                <div className="flex gap-2">
+                  {selectedRfq && (
+                    <Link to={`/vendor/messages?rfqId=${selectedRfq.id}`}>
+                      <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2 text-xs py-2 rounded-xl">
+                        <MessageSquare className="h-4 w-4" /> Go to Chat Room
+                      </Button>
+                    </Link>
+                  )}
+                  <Button variant="ghost" onClick={() => setDetailsOpen(false)}>Close</Button>
+                </div>
               </DialogFooter>
             </div>
           </div>
@@ -540,6 +541,82 @@ export default function VendorRfqs() {
             initialPrice={selectedRfq?.targetPrice}
             initialQuantity={selectedRfq?.quantity}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Clean Custom Sourcing Term Adjustment Dialog Popup for Vendor Counter */}
+      <Dialog open={vendorCounterOpen} onOpenChange={setVendorCounterOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Propose Counter Sourcing Terms</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-sm">
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Counter Unit Price (₹) *</label>
+              <Input
+                type="number"
+                placeholder="e.g. 1000"
+                value={vendorCounterPrice}
+                onChange={(e) => setVendorCounterPrice(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Counter Sourcing Volume *</label>
+              <Input
+                type="number"
+                placeholder="e.g. 100"
+                value={vendorCounterQty}
+                onChange={(e) => setVendorCounterQty(e.target.value)}
+              />
+            </div>
+
+            {vendorCounterPrice && vendorCounterQty && (
+              <div className="p-3 bg-muted rounded-xl text-xs space-y-1.5 border border-slate-200">
+                <p className="font-bold border-b pb-1 text-slate-800">Financial Splits Calculation</p>
+                <div className="flex justify-between">
+                  <span>Product Base Value:</span>
+                  <span className="font-bold">₹{(Number(vendorCounterPrice) * Number(vendorCounterQty)).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-indigo-600 font-semibold">
+                  <span>Platform Commission Fee (10%):</span>
+                  <span>- ₹{(Number(vendorCounterPrice) * Number(vendorCounterQty) * 0.10).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600 font-bold">
+                  <span>Expected Vendor Settlement:</span>
+                  <span>₹{(Number(vendorCounterPrice) * Number(vendorCounterQty) * 0.90).toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={() => {
+                if (selectedRfq && vendorCounterPrice && vendorCounterQty) {
+                  setIsSubmittingVendorCounter(true);
+                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/seller-counter`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('jb_token') || localStorage.getItem('jummababa_token')}`
+                    },
+                    body: JSON.stringify({ price: Number(vendorCounterPrice), quantity: Number(vendorCounterQty) })
+                  }).then(res => {
+                    if (res.ok) {
+                      toast({ title: 'Counter Terms Proposed', description: 'Adjustment successfully submitted to Admin.' });
+                      setVendorCounterOpen(false);
+                      setDetailsOpen(false);
+                      window.location.reload();
+                    }
+                  }).finally(() => {
+                    setIsSubmittingVendorCounter(false);
+                  });
+                }
+              }}
+              disabled={isSubmittingVendorCounter || !vendorCounterPrice || !vendorCounterQty}
+              className="w-full bg-b2b-orange hover:bg-b2b-orange/90 text-white font-bold h-11 rounded-xl"
+            >
+              {isSubmittingVendorCounter ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '⚡ Send Counter proposal to Admin'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

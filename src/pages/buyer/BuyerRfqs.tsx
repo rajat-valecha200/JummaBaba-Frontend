@@ -332,6 +332,7 @@ export default function BuyerRfqs() {
                           <div className="pt-2 flex flex-col gap-2">
                             <Button 
                               onClick={() => {
+                                setIsSubmittingCounter(true);
                                 fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/buyer-confirm`, {
                                   method: 'POST',
                                   headers: {
@@ -345,11 +346,14 @@ export default function BuyerRfqs() {
                                     setDetailsOpen(false);
                                     fetchRfqs();
                                   }
+                                }).finally(() => {
+                                  setIsSubmittingCounter(false);
                                 });
                               }}
+                              disabled={isSubmittingCounter}
                               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl"
                             >
-                              ✓ Confirm Adjusted Sourcing Terms
+                              {isSubmittingCounter ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✓ Confirm Adjusted Sourcing Terms'}
                             </Button>
                             
                             <Button 
@@ -359,6 +363,7 @@ export default function BuyerRfqs() {
                                 setCounterQty(String(selectedRfq.negotiated_quantity || selectedRfq.quantity || ''));
                                 setCounterOpen(true);
                               }}
+                              disabled={isSubmittingCounter}
                               className="w-full border-amber-500/30 text-amber-600 hover:bg-amber-500/5 font-bold text-xs py-2 rounded-xl"
                             >
                               Propose Counter Terms (Negotiate)
@@ -370,6 +375,7 @@ export default function BuyerRfqs() {
                           <div className="pt-2">
                             <Button 
                               onClick={() => {
+                                setIsSubmittingCounter(true);
                                 fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/buyer-confirm`, {
                                   method: 'POST',
                                   headers: {
@@ -379,15 +385,18 @@ export default function BuyerRfqs() {
                                   body: JSON.stringify({ source: 'seller' })
                                 }).then(res => {
                                   if (res.ok) {
-                                    toast({ title: 'Seller Counter Confirmed!', description: 'Final terms established.' });
+                                    toast({ title: 'Quotation Terms Confirmed!', description: 'Adjusted specs confirmed.' });
                                     setDetailsOpen(false);
                                     fetchRfqs();
                                   }
+                                }).finally(() => {
+                                  setIsSubmittingCounter(false);
                                 });
                               }}
+                              disabled={isSubmittingCounter}
                               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl"
                             >
-                              ✓ Confirm & Approve Seller's Counter terms
+                              {isSubmittingCounter ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✓ Confirm Seller Counter Sourcing Terms'}
                             </Button>
                           </div>
                         )}
@@ -522,7 +531,16 @@ export default function BuyerRfqs() {
                     </div>
                   )}
                 </div>
-                <Button variant="ghost" onClick={() => setDetailsOpen(false)}>Close</Button>
+                <div className="flex gap-2">
+                  {selectedRfq && (
+                    <Link to={`/buyer/messages?rfqId=${selectedRfq.id}`}>
+                      <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2 text-xs py-2 rounded-xl">
+                        <MessageSquare className="h-4 w-4" /> Go to Chat Room
+                      </Button>
+                    </Link>
+                  )}
+                  <Button variant="ghost" onClick={() => setDetailsOpen(false)}>Close</Button>
+                </div>
               </DialogFooter>
             </div>
           </div>
@@ -531,7 +549,7 @@ export default function BuyerRfqs() {
 
       {/* Clean Custom Sourcing Term Adjustment Dialog Popup for Buyer Counter */}
       <Dialog open={counterOpen} onOpenChange={setCounterOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Propose Counter Sourcing Terms</DialogTitle>
           </DialogHeader>

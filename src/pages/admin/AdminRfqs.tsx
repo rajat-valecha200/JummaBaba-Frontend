@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Search, 
@@ -12,7 +13,8 @@ import {
   FileText,
   User,
   Package,
-  Settings
+  Settings,
+  MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,6 +67,12 @@ export default function AdminRfqs() {
   const [isModerating, setIsModerating] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  
+  // Custom Quote Modification Dialog States
+  const [showModifyDialog, setShowModifyDialog] = useState(false);
+  const [modifyPrice, setModifyPrice] = useState('');
+  const [modifyQty, setModifyQty] = useState('');
+  const [isModifyingTerms, setIsModifyingTerms] = useState(false);
 
   const fetchRfqs = async () => {
     try {
@@ -495,24 +503,9 @@ export default function AdminRfqs() {
                             <Button
                               variant="outline"
                               onClick={() => {
-                                const price = prompt('Adjust Unit Price (₹):');
-                                const qty = prompt('Adjust Quantity:');
-                                if (price && qty) {
-                                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/admin-modify`, {
-                                    method: 'POST',
-                                    headers: {
-                                      'Content-Type': 'application/json',
-                                      'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-                                    },
-                                    body: JSON.stringify({ price: Number(price), quantity: Number(qty) })
-                                  }).then(res => {
-                                    if (res.ok) {
-                                      toast({ title: 'Terms Adjusted', description: 'Proposed spec terms sent to Buyer.' });
-                                      setDetailsOpen(false);
-                                      fetchRfqs();
-                                    }
-                                  });
-                                }
+                                setModifyPrice(String(selectedRfq.response_details?.price || selectedRfq.target_price || ''));
+                                setModifyQty(String(selectedRfq.quantity || ''));
+                                setShowModifyDialog(true);
                               }}
                               className="text-xs w-full font-bold"
                             >
@@ -546,7 +539,16 @@ export default function AdminRfqs() {
                     </>
                   )}
                 </div>
-                <Button variant="ghost" onClick={() => setDetailsOpen(false)}>Close</Button>
+                <div className="flex gap-2">
+                  {selectedRfq && (
+                    <Link to={`/admin/messages?rfqId=${selectedRfq.id}`}>
+                      <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2 text-xs py-2 rounded-xl">
+                        <MessageSquare className="h-4 w-4" /> Go to Chat Room
+                      </Button>
+                    </Link>
+                  )}
+                  <Button variant="ghost" onClick={() => setDetailsOpen(false)}>Close</Button>
+                </div>
               </DialogFooter>
             </div>
           </div>
@@ -611,6 +613,82 @@ export default function AdminRfqs() {
               Confirm & Forward
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom Sourcing Term Adjustment Dialog Popup */}
+      <Dialog open={showModifyDialog} onOpenChange={setShowModifyDialog}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Adjust Sourcing Proposal Terms</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-sm">
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Adjusted Unit Sourcing Price (₹) *</label>
+              <Input
+                type="number"
+                placeholder="e.g. 1000"
+                value={modifyPrice}
+                onChange={(e) => setModifyPrice(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Adjusted Sourcing Volume *</label>
+              <Input
+                type="number"
+                placeholder="e.g. 100"
+                value={modifyQty}
+                onChange={(e) => setModifyQty(e.target.value)}
+              />
+            </div>
+
+            {modifyPrice && modifyQty && (
+              <div className="p-3 bg-muted rounded-xl text-xs space-y-1.5 border border-slate-200">
+                <p className="font-bold border-b pb-1 text-slate-800">Financial Splits Calculation</p>
+                <div className="flex justify-between">
+                  <span>Product Base Value:</span>
+                  <span className="font-bold">₹{(Number(modifyPrice) * Number(modifyQty)).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-indigo-600">
+                  <span>Platform Fee Commission (10%):</span>
+                  <span className="font-bold">- ₹{(Number(modifyPrice) * Number(modifyQty) * 0.10).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600 font-bold">
+                  <span>Expected Vendor Settlement (90%):</span>
+                  <span>₹{(Number(modifyPrice) * Number(modifyQty) * 0.90).toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={() => {
+                if (selectedRfq && modifyPrice && modifyQty) {
+                  setIsModifyingTerms(true);
+                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/admin-modify`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+                    },
+                    body: JSON.stringify({ price: Number(modifyPrice), quantity: Number(modifyQty) })
+                  }).then(res => {
+                    if (res.ok) {
+                      toast({ title: 'Terms Adjusted', description: 'Proposed spec terms sent to Buyer.' });
+                      setShowModifyDialog(false);
+                      setDetailsOpen(false);
+                      fetchRfqs();
+                    }
+                  }).finally(() => {
+                    setIsModifyingTerms(false);
+                  });
+                }
+              }}
+              disabled={isModifyingTerms || !modifyPrice || !modifyQty}
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold"
+            >
+              {isModifyingTerms ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Confirm & Apply Terms Adjustment'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

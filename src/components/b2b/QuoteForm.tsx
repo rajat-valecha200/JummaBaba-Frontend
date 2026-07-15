@@ -47,11 +47,11 @@ export function QuoteForm({ onSubmit, isLoading, initialPrice, initialQuantity }
   };
 
   return (
-    <Card className="border-border bg-white shadow-2xl rounded-3xl overflow-hidden border-none">
-      <CardHeader className="border-b bg-slate-50/50 p-6">
+    <Card className="border-border bg-white shadow-2xl rounded-3xl overflow-hidden border-none max-h-[90vh] flex flex-col">
+      <CardHeader className="border-b bg-slate-50/50 p-6 flex-shrink-0">
         <CardTitle className="text-xl font-black uppercase tracking-tighter text-slate-900">Submit Formal Quote</CardTitle>
       </CardHeader>
-      <CardContent className="p-6">
+      <CardContent className="p-6 overflow-y-auto min-h-0 flex-1 scrollbar-thin">
         {initialPrice && (
           <div className="mb-6 p-4 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-between">
             <div className="space-y-1">
@@ -141,7 +141,7 @@ export function QuoteForm({ onSubmit, isLoading, initialPrice, initialQuantity }
             />
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 sticky bottom-0 bg-white">
             <Button 
               type="submit" 
               className="w-full h-14 font-black uppercase tracking-[0.2em] shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 text-white border-none text-xs group rounded-2xl transition-all"
