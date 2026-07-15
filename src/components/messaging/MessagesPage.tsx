@@ -120,6 +120,7 @@ interface Conversation {
   groupType?: string;
   rfqId?: string;
   canIntervene?: boolean;
+  negotiationStep?: string;
 }
 
 interface SourcingActionCardProps {
@@ -127,9 +128,10 @@ interface SourcingActionCardProps {
   userRole: string | undefined;
   onRefresh: () => void;
   triggerCounterNegotiation?: (rfqId: string, price: number, qty: number) => void;
+  negotiationStep?: string;
 }
 
-function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegotiation }: SourcingActionCardProps) {
+function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegotiation, negotiationStep }: SourcingActionCardProps) {
   const metadata = message.metadata || {};
   const cardType = metadata.type;
   
@@ -723,12 +725,26 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </div>
 
           <div className="mt-4 pt-4 border-t border-amber-500/20">
-            {/* If the RFQ negotiation step has progressed past this card's proposal state, show a static badge */}
-            {metadata.rfq_negotiation_step && (
-              (metadata.source === 'admin' && metadata.rfq_negotiation_step !== 'admin_modified') ||
-              (metadata.source === 'buyer' && metadata.rfq_negotiation_step !== 'buyer_countered') ||
-              (metadata.source === 'seller' && metadata.rfq_negotiation_step !== 'seller_countered')
-            ) ? (
+            {/* Check if this card has been superseded by a later negotiation step */}
+            {(() => {
+              // Define the ordered negotiation progression
+              const STEP_ORDER = [
+                'rfq_submitted', 'admin_modified', 'buyer_countered',
+                'seller_countered', 'buyer_confirmed_admin', 'forwarded_to_seller',
+                'seller_accepted_terms', 'payment_requested', 'payment_received'
+              ];
+              const currentIdx = STEP_ORDER.indexOf(negotiationStep || '');
+              // Each source maps to the step it creates
+              const sourceStep: Record<string, string> = {
+                admin: 'admin_modified',
+                buyer: 'buyer_countered',
+                seller: 'seller_countered',
+              };
+              const cardStepIdx = STEP_ORDER.indexOf(sourceStep[metadata.source] || '');
+              // Superseded = current step has moved strictly past this card's step
+              const isSuperseded = metadata.rfq_id && currentIdx > cardStepIdx && cardStepIdx >= 0;
+              return isSuperseded;
+            })() ? (
               <Badge className="bg-slate-500/10 text-slate-500 border border-slate-500/20 py-1 text-[10px] uppercase font-bold tracking-wider w-full text-center">
                 ✓ Sourcing Proposal Superseded / Finalized
               </Badge>
@@ -831,6 +847,220 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             : "border-border bg-muted/30 text-muted-foreground"
         )}>
           {message.text}
+        </div>
+      );
+
+    case 'rfq_forwarded_to_seller':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-indigo-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+              <Plus className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Sourcing Terms Forwarded to Seller</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Finalized Bid Review</p>
+            </div>
+          </div>
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span>Negotiated Price:</span>
+              <span className="font-bold">₹{Number(metadata.price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Volume Requested:</span>
+              <span className="font-bold">{metadata.quantity} units</span>
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-indigo-500/20 flex gap-2">
+            {userRole === 'vendor' ? (
+              <>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                  onClick={async () => {
+                    setIsActioning(true);
+                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/seller-accept`, {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
+                    });
+                    if (res.ok) {
+                      alert('Terms Accepted successfully!');
+                      onRefresh();
+                    }
+                    setIsActioning(false);
+                  }}
+                  disabled={isActioning}
+                >
+                  Accept Terms
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 border-amber-500/30 text-amber-600 font-bold text-xs"
+                  onClick={() => {
+                    if (triggerCounterNegotiation) {
+                      triggerCounterNegotiation(metadata.rfq_id, Number(metadata.price), Number(metadata.quantity));
+                    }
+                  }}
+                  disabled={isActioning}
+                >
+                  Propose Counter
+                </Button>
+              </>
+            ) : (
+              <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+                Awaiting Seller Action
+              </Badge>
+            )}
+          </div>
+        </div>
+      );
+
+    case 'rfq_seller_accepted':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-emerald-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Sourcing Terms Accepted</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Seller Acknowledged</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Seller accepted finalized terms of ₹{Number(metadata.price).toLocaleString()} for {metadata.quantity} units. Awaiting payment invoice generation from Admin.
+          </p>
+        </div>
+      );
+
+    case 'rfq_payment_request':
+      const breakdown = metadata.breakdown || {};
+      const [paymentRef, setPaymentRef] = useState('');
+      
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-indigo-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Sourcing Statement & Payment Request</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">JummaBaba Billing Invoice</p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5 text-xs text-slate-700 bg-white/50 p-3 rounded-lg border border-indigo-500/10 mb-4">
+            <div className="flex justify-between">
+              <span>Agreed Price:</span>
+              <span className="font-bold text-foreground">₹{Number(breakdown.price).toLocaleString()} / Unit</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Agreed Quantity:</span>
+              <span className="font-bold text-foreground">{breakdown.quantity} units</span>
+            </div>
+            <div className="flex justify-between font-bold border-t pt-1 mt-1 text-foreground">
+              <span>Subtotal Sourcing Cost:</span>
+              <span>₹{Number(breakdown.baseAmount).toLocaleString()}</span>
+            </div>
+            {Number(breakdown.discountAmount) > 0 && (
+              <div className="flex justify-between text-emerald-600 font-semibold">
+                <span>Discount ({breakdown.discountPercentage}% off):</span>
+                <span>-₹{Number(breakdown.discountAmount).toLocaleString()}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-[11px] text-muted-foreground">
+              <span>Platform Service Commission (10%):</span>
+              <span>₹{Number(breakdown.platformFee).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-[11px] text-muted-foreground">
+              <span>GST Tax (18%):</span>
+              <span>₹{Number(breakdown.gst).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between font-black border-t border-double pt-1.5 mt-1.5 text-indigo-600 text-sm">
+              <span>Total Buyer Payable:</span>
+              <span>₹{Math.round(Number(breakdown.finalAmount)).toLocaleString()}</span>
+            </div>
+          </div>
+
+          {userRole === 'buyer' ? (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-bold text-indigo-600 block">Bank Transfer Transaction Reference / UTR *</label>
+                <Input
+                  placeholder="e.g. UTR128763524 / IMPS Ref"
+                  value={paymentRef}
+                  onChange={(e) => setPaymentRef(e.target.value)}
+                  className="bg-white border-indigo-500/20 text-xs h-9 rounded-lg"
+                />
+              </div>
+              <Button
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 rounded-lg text-xs"
+                onClick={async () => {
+                  if (!paymentRef.trim()) {
+                    alert('Please input a valid transfer reference UTR to confirm.');
+                    return;
+                  }
+                  setIsActioning(true);
+                  const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-submit-payment`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                    },
+                    body: JSON.stringify({ paymentReference: paymentRef.trim() })
+                  });
+                  if (res.ok) {
+                    alert('Payment details successfully recorded! Support will verify shortly.');
+                    onRefresh();
+                  }
+                  setIsActioning(false);
+                }}
+                disabled={isActioning || !paymentRef.trim()}
+              >
+                ✓ Submit Bank Payment Confirmation
+              </Button>
+            </div>
+          ) : (
+            <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+              Awaiting Buyer Escrow Deposit
+            </Badge>
+          )}
+        </div>
+      );
+
+    case 'rfq_payment_submitted':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-yellow-500/25 bg-yellow-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-yellow-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
+              <Clock className="h-5 w-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Escrow Payment Under Verification</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Verification Phase</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mb-2">
+            Buyer submitted UTR payment proof reference: <span className="font-bold text-foreground">"{metadata.reference}"</span>.
+          </p>
+          <p className="text-[10px] text-amber-600 font-bold bg-amber-500/5 p-2 rounded border border-amber-500/10">
+            ⏳ Support is reviewing payment receipts. Once confirmed manually, Sourcing order elevates to Vendor.
+          </p>
+        </div>
+      );
+
+    case 'rfq_payment_verified':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 backdrop-blur-md p-5 shadow-lg text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-2 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+          <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-1">Escrow Payment Verified Successfully</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Funds verified in secure Escrow hold. Sourcing order officially elevated. PO & Invoices released under JummaBaba GST.
+          </p>
         </div>
       );
 
@@ -1316,7 +1546,11 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         isGroup: c.is_group,
         groupType: c.group_type,
         rfqId: c.rfq_id,
-        canIntervene: c.can_intervene
+        canIntervene: c.can_intervene,
+        directChatActive: c.direct_chat_active,
+        linkedProductPrice: Number(c.target_price || 0),
+        linkedProductQty: Number(c.quantity || 0),
+        negotiationStep: c.negotiation_step
       }));
 
       // Play sound if unread count increased globally
@@ -2235,6 +2469,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                             setCounterQty(String(qty));
                             setCounterOpen(true);
                           }}
+                          negotiationStep={selectedConversation.negotiationStep}
                         />
                       </div>
                     );
@@ -2714,7 +2949,8 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                     if (res.ok) {
                       alert('Counter-proposal dispatched to admin!');
                       setCounterOpen(false);
-                      onRefresh();
+                      fetchConversations();
+                      fetchMessages();
                     }
                   }).finally(() => {
                     setIsSubmittingCounter(false);

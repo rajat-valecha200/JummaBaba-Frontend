@@ -538,6 +538,85 @@ export default function AdminRfqs() {
                       </Button>
                     </>
                   )}
+                  {selectedRfq && (selectedRfq.negotiation_step === 'buyer_confirmed_admin' || selectedRfq.negotiation_step === 'buyer_confirmed_seller_counter') && (
+                    <Button
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                      onClick={async () => {
+                        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/forward-to-seller`, {
+                          method: 'POST',
+                          headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
+                        });
+                        if (res.ok) {
+                          toast({ title: 'Success', description: 'RFQ finalized terms forwarded to seller.' });
+                          setDetailsOpen(false);
+                          fetchRfqs();
+                        }
+                      }}
+                    >
+                      Forward Finalized Terms to Seller
+                    </Button>
+                  )}
+                  {selectedRfq && selectedRfq.negotiation_step === 'seller_countered' && (
+                    <Button
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                      onClick={async () => {
+                        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/admin-approve-counter`, {
+                          method: 'POST',
+                          headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
+                        });
+                        if (res.ok) {
+                          toast({ title: 'Approved', description: 'Seller counter approved.' });
+                          setDetailsOpen(false);
+                          fetchRfqs();
+                        }
+                      }}
+                    >
+                      Approve Seller Counter
+                    </Button>
+                  )}
+                  {selectedRfq && selectedRfq.negotiation_step === 'seller_accepted_terms' && (
+                    <Button
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                      onClick={async () => {
+                        // Prompt for coupon percentage
+                        const pct = prompt('Enter Discount Coupon Percentage (Optional, e.g. 10):', '0');
+                        if (pct === null) return;
+                        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/payment-request`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                          },
+                          body: JSON.stringify({ discountPercentage: Number(pct) || 0 })
+                        });
+                        if (res.ok) {
+                          toast({ title: 'Payment Request Sent', description: 'Statement successfully generated and buyer notified.' });
+                          setDetailsOpen(false);
+                          fetchRfqs();
+                        }
+                      }}
+                    >
+                      Send Payment Request & Coupon
+                    </Button>
+                  )}
+                  {selectedRfq && selectedRfq.negotiation_step === 'payment_submitted' && (
+                    <Button
+                      className="bg-success hover:bg-success/90 text-white font-bold"
+                      onClick={async () => {
+                        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/admin-confirm-payment`, {
+                          method: 'POST',
+                          headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
+                        });
+                        if (res.ok) {
+                          toast({ title: 'Escrow Payment Confirmed', description: 'Escrow released and PO generated.' });
+                          setDetailsOpen(false);
+                          fetchRfqs();
+                        }
+                      }}
+                    >
+                      Confirm Escrow Payment Received
+                    </Button>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   {selectedRfq && (

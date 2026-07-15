@@ -487,7 +487,90 @@ export default function BuyerRfqs() {
  
               <DialogFooter className="p-8 border-t border-white/5">
                 <div className="flex gap-2">
-                  {selectedRfq?.moderation_status === 'quote_approved' && selectedRfq.status === 'responded' && (
+                  {selectedRfq?.negotiation_step === 'payment_pending' && (
+                    <div className="flex flex-col gap-3 w-full bg-slate-50 p-4 rounded-xl border border-indigo-100 text-xs">
+                      <p className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">Escrow Sourcing Invoice & Payment Request</p>
+                      
+                      <div className="space-y-1 text-slate-600">
+                        <div className="flex justify-between">
+                          <span>Base Cost:</span>
+                          <span>₹{(Number(selectedRfq.target_price) * Number(selectedRfq.quantity)).toLocaleString()}</span>
+                        </div>
+                        {selectedRfq.response_details?.payment_breakdown && (
+                          <>
+                            {Number(selectedRfq.response_details.payment_breakdown.discountAmount) > 0 && (
+                              <div className="flex justify-between text-emerald-600 font-semibold">
+                                <span>Discount ({selectedRfq.response_details.payment_breakdown.discountPercentage}% off):</span>
+                                <span>-₹{Number(selectedRfq.response_details.payment_breakdown.discountAmount).toLocaleString()}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between text-[10px]">
+                              <span>Platform Fee:</span>
+                              <span>₹{Number(selectedRfq.response_details.payment_breakdown.platformFee).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-[10px]">
+                              <span>GST Tax (18%):</span>
+                              <span>₹{Number(selectedRfq.response_details.payment_breakdown.gst).toLocaleString()}</span>
+                            </div>
+                          </>
+                        )}
+                        <div className="flex justify-between font-bold border-t pt-1.5 mt-1 text-indigo-600 text-sm">
+                          <span>Total Amount Payable:</span>
+                          <span>
+                            ₹{selectedRfq.response_details?.payment_breakdown 
+                              ? Math.round(Number(selectedRfq.response_details.payment_breakdown.finalAmount)).toLocaleString()
+                              : Math.round((Number(selectedRfq.target_price) * Number(selectedRfq.quantity)) * 1.28).toLocaleString()
+                            }
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pt-2 border-t">
+                        <label className="text-[10px] uppercase font-bold text-indigo-600 block">Bank Transfer Transaction UTR *</label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="e.g. UTR128763524 / IMPS Ref"
+                            id={`utr-input-${selectedRfq.id}`}
+                            className="bg-white text-xs h-9 rounded-lg"
+                          />
+                          <Button
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 text-xs"
+                            onClick={async () => {
+                              const inputEl = document.getElementById(`utr-input-${selectedRfq.id}`) as HTMLInputElement;
+                              const val = inputEl?.value?.trim();
+                              if (!val) {
+                                alert('Please input transaction reference to confirm.');
+                                return;
+                              }
+                              setIsLoading(true);
+                              const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/buyer-submit-payment`, {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                                },
+                                body: JSON.stringify({ paymentReference: val })
+                              });
+                              if (res.ok) {
+                                alert('Payment confirmation submitted!');
+                                setDetailsOpen(false);
+                                fetchRfqs();
+                              }
+                              setIsLoading(false);
+                            }}
+                          >
+                            Submit Confirm
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {selectedRfq?.negotiation_step === 'payment_submitted' && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/25 rounded-xl p-3 text-xs w-full text-center text-yellow-700 font-bold">
+                      ⏳ Escrow payment submitted. Support is verifying transaction receipts.
+                    </div>
+                  )}
+                  {selectedRfq?.moderation_status === 'quote_approved' && selectedRfq.status === 'responded' && selectedRfq.negotiation_step !== 'payment_pending' && selectedRfq.negotiation_step !== 'payment_submitted' && (
                     <>
                       <Button 
                         variant="outline" 

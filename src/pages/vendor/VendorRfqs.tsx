@@ -500,19 +500,52 @@ export default function VendorRfqs() {
                     Revise & Resubmit Quote
                   </Button>
                 )}
-                {selectedRfq && ['quoted', 'admin_approved', 'sent_to_buyer'].includes(selectedRfq.status) && (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setVendorCounterPrice(String(selectedRfq.response?.price || selectedRfq.targetPrice || ''));
-                      setVendorCounterQty(String(selectedRfq.quantity || ''));
-                      setVendorCounterOpen(true);
-                    }}
-                    className="border-amber-500/20 hover:bg-amber-500/5 text-amber-600 font-bold"
-                  >
-                    Propose Counter Sourcing Terms
-                  </Button>
-                )}
+                 {selectedRfq && selectedRfq.negotiation_step === 'forwarded_to_seller' && (
+                   <div className="flex gap-2 w-full justify-start">
+                     <Button
+                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                       onClick={async () => {
+                         setIsLoading(true);
+                         const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/seller-accept`, {
+                           method: 'POST',
+                           headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
+                         });
+                         if (res.ok) {
+                           toast({ title: 'Success', description: 'RFQ terms accepted!' });
+                           setDetailsOpen(false);
+                           fetchRfqs();
+                         }
+                         setIsLoading(false);
+                       }}
+                     >
+                       Accept Sourcing Terms
+                     </Button>
+                     <Button
+                       variant="outline"
+                       onClick={() => {
+                         setVendorCounterPrice(String(selectedRfq.negotiated_price || selectedRfq.target_price || ''));
+                         setVendorCounterQty(String(selectedRfq.quantity || ''));
+                         setVendorCounterOpen(true);
+                       }}
+                       className="border-amber-500/20 hover:bg-amber-500/5 text-amber-600 font-bold"
+                     >
+                       Propose Counter Terms
+                     </Button>
+                   </div>
+                 )}
+                 {selectedRfq && ['quoted', 'admin_approved', 'sent_to_buyer'].includes(selectedRfq.status) && selectedRfq.negotiation_step !== 'forwarded_to_seller' && (
+                   <Button
+                     variant="outline"
+                     onClick={() => {
+                       setVendorCounterPrice(String(selectedRfq.response?.price || selectedRfq.targetPrice || ''));
+                       setVendorCounterQty(String(selectedRfq.quantity || ''));
+                       setVendorCounterOpen(true);
+                     }}
+                     className="border-amber-500/20 hover:bg-amber-500/5 text-amber-600 font-bold"
+                   >
+                     Propose Counter Sourcing Terms
+                   </Button>
+                 )}
                 <div className="flex gap-2">
                   {selectedRfq && (
                     <Link to={`/vendor/messages?rfqId=${selectedRfq.id}`}>
