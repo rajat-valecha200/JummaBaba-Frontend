@@ -42,6 +42,7 @@ import {
   Tag,
   Settings
 } from 'lucide-react';
+import { playNotificationChime } from '@/lib/sound';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -129,6 +130,69 @@ interface SourcingActionCardProps {
   onRefresh: () => void;
   triggerCounterNegotiation?: (rfqId: string, price: number, qty: number) => void;
   negotiationStep?: string;
+}
+
+function CatalogSlabBadge({ metadata }: { metadata: any }) {
+  const [slabInfo, setSlabInfo] = useState<{ price: number; range?: string } | null>(() => {
+    if (metadata.catalog_slab_price) {
+      return { price: Number(metadata.catalog_slab_price), range: metadata.catalog_slab_range };
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (metadata.catalog_slab_price) {
+      setSlabInfo({ price: Number(metadata.catalog_slab_price), range: metadata.catalog_slab_range });
+      return;
+    }
+
+    let isMounted = true;
+    const fetchSlab = async () => {
+      try {
+        const products = await api.products.list();
+        const found = products.find((p: any) => 
+          (metadata.product_id && String(p.id) === String(metadata.product_id)) ||
+          (metadata.product_name && p.name && p.name.toLowerCase().trim() === metadata.product_name.toLowerCase().trim())
+        );
+
+        if (found && isMounted) {
+          const slabs = typeof found.pricing_slabs === 'string' 
+            ? JSON.parse(found.pricing_slabs) 
+            : (found.pricing_slabs || found.pricingSlabs || []);
+          
+          if (Array.isArray(slabs) && slabs.length > 0) {
+            const qNum = Number(metadata.quantity) || 0;
+            const match = slabs.find((s: any) => {
+              const min = s.minQty;
+              const max = s.maxQty;
+              if (max === null || max === undefined) return qNum >= min;
+              return qNum >= min && qNum <= max;
+            }) || slabs[0];
+
+            if (match && isMounted) {
+              setSlabInfo({
+                price: Number(match.pricePerUnit),
+                range: `${match.minQty}${match.maxQty ? `-${match.maxQty}` : '+'} units`
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to lookup catalog slab for RFQ message:', err);
+      }
+    };
+
+    fetchSlab();
+    return () => { isMounted = false; };
+  }, [metadata.product_id, metadata.product_name, metadata.quantity, metadata.catalog_slab_price]);
+
+  if (!slabInfo) return null;
+
+  return (
+    <span className="block text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md mt-1 border border-amber-500/20 shadow-sm">
+      Catalog Slab: ₹{slabInfo.price.toLocaleString()} {slabInfo.range ? `(${slabInfo.range})` : ''}
+    </span>
+  );
 }
 
 function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegotiation, negotiationStep }: SourcingActionCardProps) {
@@ -257,9 +321,12 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <span className="text-muted-foreground">Volume Required:</span>
               <span className="font-semibold text-foreground">{metadata.quantity} {metadata.unit}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-start">
               <span className="text-muted-foreground">Target Price:</span>
-              <span className="font-bold text-cyan-600 dark:text-cyan-400">₹{Number(metadata.target_price).toLocaleString()}</span>
+              <div className="text-right">
+                <span className="font-bold text-cyan-600 dark:text-cyan-400">₹{Number(metadata.target_price).toLocaleString()}</span>
+                <CatalogSlabBadge metadata={metadata} />
+              </div>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Delivery Site:</span>
@@ -722,16 +789,25 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 </>
               )}
             </div>
+
+            {(metadata.notes || metadata.reason) && (
+              <div className="mt-2.5 pt-2 border-t border-amber-500/15">
+                <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300 tracking-wider block mb-1">Reason / Remark</span>
+                <p className="text-slate-700 dark:text-slate-200 text-xs italic bg-white/70 dark:bg-slate-900/60 p-2.5 rounded-lg border border-amber-500/10 leading-relaxed">
+                  "{metadata.notes || metadata.reason}"
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 pt-4 border-t border-amber-500/20">
             {/* Check if this card has been superseded by a later negotiation step */}
             {(() => {
-              // Define the ordered negotiation progression
               const STEP_ORDER = [
                 'rfq_submitted', 'admin_modified', 'buyer_countered',
-                'seller_countered', 'buyer_confirmed_admin', 'forwarded_to_seller',
-                'seller_accepted_terms', 'payment_requested', 'payment_received'
+                'buyer_confirmed_admin', 'seller_countered', 'admin_approved_seller_counter',
+                'buyer_confirmed_seller_counter', 'forwarded_to_seller', 'seller_accepted_terms',
+                'payment_pending', 'payment_submitted', 'payment_confirmed_escrow'
               ];
               const currentIdx = STEP_ORDER.indexOf(negotiationStep || '');
               // Each source maps to the step it creates
@@ -750,52 +826,44 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               </Badge>
             ) : (
               <>
-                {userRole === 'buyer' && (
-                  metadata.source === 'buyer' ? (
-                    <Badge className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-1.5 text-[10px] uppercase font-bold tracking-wider w-full text-center">
-                      Awaiting Admin Approval of Counter Terms
-                    </Badge>
-                  ) : (
-                    <div className="flex flex-col gap-2 w-full">
-                      <Button 
-                        onClick={() => {
-                          setIsActioning(true);
-                          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-confirm`, {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-                            },
-                            body: JSON.stringify({ source: metadata.source })
-                          }).then(res => {
-                            if (res.ok) {
-                              alert('Quotation Terms Confirmed! Sourcing details updated.');
-                              onRefresh();
-                            }
-                          }).finally(() => {
-                            setIsActioning(false);
-                          });
-                        }}
-                        disabled={isActioning}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg"
-                      >
-                        {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✓ Accept & Confirm Terms'}
-                      </Button>
-                      
-                      <Button 
-                        variant="outline"
-                        onClick={() => {
-                          if (triggerCounterNegotiation) {
-                            triggerCounterNegotiation(String(metadata.rfq_id), Number(metadata.price), Number(metadata.quantity));
+                {userRole === 'buyer' && metadata.source === 'admin' && (
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => {
+                        setIsActioning(true);
+                        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-confirm`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                          },
+                          body: JSON.stringify({ source: 'admin' })
+                        }).then(res => {
+                          if (res.ok) {
+                            alert('Quotation terms confirmed successfully!');
+                            onRefresh();
                           }
-                        }}
-                        disabled={isActioning}
-                        className="w-full border-amber-500/30 text-amber-600 hover:bg-amber-500/5 font-bold h-9 rounded-lg"
-                      >
-                        Propose Counter Terms (Negotiate)
-                      </Button>
-                    </div>
-                  )
+                        }).finally(() => {
+                          setIsActioning(false);
+                        });
+                      }}
+                      disabled={isActioning}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg"
+                    >
+                      {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Confirm Terms'}
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        if (triggerCounterNegotiation) {
+                          triggerCounterNegotiation(metadata.rfq_id, Number(metadata.price), Number(metadata.quantity));
+                        }
+                      }}
+                      disabled={isActioning}
+                      className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 rounded-lg"
+                    >
+                      Propose Counter
+                    </Button>
+                  </div>
                 )}
                 {userRole === 'admin' && metadata.source === 'seller' && (
                   <Button 
@@ -986,8 +1054,15 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
 
           {userRole === 'buyer' ? (
             <div className="space-y-3">
+              <Link to={`/buyer/rfq-payment/${metadata.rfq_id}`}>
+                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 rounded-xl text-xs shadow-md shadow-indigo-600/20">
+                  View & Confirm Payment Terms →
+                </Button>
+              </Link>
+              <div className="relative border-t border-indigo-500/10 pt-2 text-center">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold">Or quick submit UTR in chat:</span>
+              </div>
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-indigo-600 block">Bank Transfer Transaction Reference / UTR *</label>
                 <Input
                   placeholder="e.g. UTR128763524 / IMPS Ref"
                   value={paymentRef}
@@ -996,7 +1071,8 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 />
               </div>
               <Button
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 rounded-lg text-xs"
+                variant="outline"
+                className="w-full border-indigo-500/30 text-indigo-600 font-bold h-9 rounded-lg text-xs"
                 onClick={async () => {
                   if (!paymentRef.trim()) {
                     alert('Please input a valid transfer reference UTR to confirm.');
@@ -1019,7 +1095,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 }}
                 disabled={isActioning || !paymentRef.trim()}
               >
-                ✓ Submit Bank Payment Confirmation
+                Submit UTR Reference
               </Button>
             </div>
           ) : (
@@ -1516,15 +1592,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   }, []);
   
   const playNotificationSound = useCallback(() => {
-    /* 
-    try {
-      const audio = new Audio('/notification_sound.wav');
-      audio.volume = 0.5;
-      audio.play().catch(e => console.log('Audio play blocked by browser:', e));
-    } catch (e) {
-      console.log('Audio play failed:', e);
-    }
-    */
+    playNotificationChime();
   }, []);
 
   // Real Messaging Integration
@@ -1558,7 +1626,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
       setConversations(prev => {
         const totalUnreadPrev = prev.reduce((sum, c) => sum + c.unreadCount, 0);
         if (totalUnreadNow > totalUnreadPrev) {
-          // playNotificationSound(); // Commented out for now
+          playNotificationSound();
         }
         return mapped;
       });

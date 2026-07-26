@@ -20,6 +20,8 @@ import {
 import { RfqTimeline, getRfqSteps } from '@/components/b2b/RfqTimeline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -44,7 +46,6 @@ import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { OrderTracking } from '@/components/orders/OrderTracking';
 import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-amber-500/10 text-amber-500 border-amber-500/20 font-bold px-2 py-0.5 rounded-full uppercase text-[9px] tracking-widest',
@@ -57,6 +58,74 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-destructive/10 text-destructive border-destructive/20 font-bold px-2 py-0.5 rounded-full uppercase text-[9px] tracking-widest',
 };
 
+function CatalogSlabDialogBanner({ rfq }: { rfq?: any }) {
+  const [slabInfo, setSlabInfo] = useState<{ price: number; range?: string } | null>(null);
+
+  useEffect(() => {
+    if (!rfq) return;
+    let isMounted = true;
+    const fetchSlab = async () => {
+      try {
+        const products = await api.products.list();
+        const found = products.find((p: any) => 
+          (rfq.product_id && String(p.id) === String(rfq.product_id)) ||
+          (rfq.product_name && p.name && p.name.toLowerCase().trim() === rfq.product_name.toLowerCase().trim())
+        );
+
+        if (found && isMounted) {
+          const slabs = typeof found.pricing_slabs === 'string' 
+            ? JSON.parse(found.pricing_slabs) 
+            : (found.pricing_slabs || found.pricingSlabs || []);
+          
+          if (Array.isArray(slabs) && slabs.length > 0) {
+            const qNum = Number(rfq.quantity) || 0;
+            const match = slabs.find((s: any) => {
+              const min = s.minQty;
+              const max = s.maxQty;
+              if (max === null || max === undefined) return qNum >= min;
+              return qNum >= min && qNum <= max;
+            }) || slabs[0];
+
+            if (match && isMounted) {
+              setSlabInfo({
+                price: Number(match.pricePerUnit),
+                range: `${match.minQty}${match.maxQty ? `-${match.maxQty}` : '+'} units`
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to lookup catalog slab for dialog:', err);
+      }
+    };
+
+    fetchSlab();
+    return () => { isMounted = false; };
+  }, [rfq]);
+
+  if (!rfq) return null;
+
+  return (
+    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs space-y-1.5 shadow-sm">
+      <div className="flex items-center justify-between font-bold text-amber-900 dark:text-amber-200">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          Catalog Slab Rate {slabInfo?.range ? `(${slabInfo.range})` : ''}:
+        </span>
+        <span className="font-mono text-sm text-amber-700 dark:text-amber-300 font-extrabold">
+          {slabInfo ? `₹${slabInfo.price.toLocaleString()}` : 'Loading slab rate...'}
+        </span>
+      </div>
+      {rfq.target_price && (
+        <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-amber-500/15 text-muted-foreground">
+          <span>Your Original Target Price:</span>
+          <span className="font-semibold text-slate-800 dark:text-slate-200">₹{Number(rfq.target_price).toLocaleString()}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BuyerRfqs() {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -67,6 +136,7 @@ export default function BuyerRfqs() {
   const [counterOpen, setCounterOpen] = useState(false);
   const [counterPrice, setCounterPrice] = useState('');
   const [counterQty, setCounterQty] = useState('');
+  const [counterNotes, setCounterNotes] = useState('');
   const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
 
   const fetchRfqs = async () => {
@@ -570,38 +640,16 @@ export default function BuyerRfqs() {
                       ⏳ Escrow payment submitted. Support is verifying transaction receipts.
                     </div>
                   )}
-                  {selectedRfq?.moderation_status === 'quote_approved' && selectedRfq.status === 'responded' && selectedRfq.negotiation_step !== 'payment_pending' && selectedRfq.negotiation_step !== 'payment_submitted' && (
-                    <>
-                      <Button 
-                        variant="outline" 
-                        onClick={() => {
-                          setCounterPrice(String(selectedRfq.response_details?.price || selectedRfq.negotiated_price || selectedRfq.target_price || ''));
-                          setCounterQty(String(selectedRfq.quantity || ''));
-                          setCounterOpen(true);
-                        }}
-                        className="border-amber-500/20 hover:bg-amber-500/5 text-amber-600 font-bold"
-                      >
-                        Negotiate Counter Terms
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="text-destructive border-destructive/20 hover:bg-destructive/5" 
-                        onClick={() => handleAction(selectedRfq.id, 'reject_quote')}
-                        disabled={isLoading}
-                      >
-                        <XCircle className="h-4 w-4 mr-2" /> Decline Offer
-                      </Button>
-                      <Button 
-                        className="bg-blue-500 hover:bg-blue-600 text-white font-black uppercase tracking-widest shadow-xl shadow-blue-500/20" 
-                        onClick={() => {
-                          // Redirect to checkout with rfqId
-                          navigate(`/buyer/checkout?rfqId=${selectedRfq.id}`);
-                        }}
-                        disabled={isLoading}
-                      >
-                        Proceed to Checkout
-                      </Button>
-                    </>
+                  {selectedRfq?.negotiation_step === 'payment_pending' && (
+                    <Button 
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest shadow-xl shadow-blue-500/20" 
+                      onClick={() => {
+                        navigate(`/buyer/rfq-payment/${selectedRfq.id}`);
+                      }}
+                      disabled={isLoading}
+                    >
+                      Proceed to Payment Confirmation →
+                    </Button>
                   )}
                   {selectedRfq?.status === 'ordered' && selectedRfq.cancellation_request?.status !== 'pending' && (
                     <Button variant="outline" className="text-destructive" onClick={() => handleAction(selectedRfq.id, 'request_cancellation')}>
@@ -637,6 +685,8 @@ export default function BuyerRfqs() {
             <DialogTitle>Propose Counter Sourcing Terms</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4 text-sm">
+            <CatalogSlabDialogBanner rfq={selectedRfq} />
+
             <div className="space-y-2">
               <label className="font-semibold text-xs">Counter Unit Price (₹) *</label>
               <Input
@@ -653,6 +703,19 @@ export default function BuyerRfqs() {
                 placeholder="e.g. 100"
                 value={counterQty}
                 onChange={(e) => setCounterQty(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="font-semibold text-xs text-slate-700 dark:text-slate-200">
+                Counter Proposal Reason / Remark <span className="text-muted-foreground font-normal">(Recommended)</span>
+              </label>
+              <Textarea
+                placeholder="Explain why terms were counter-proposed (e.g. Target budget constraints, custom volume adjustment)..."
+                value={counterNotes}
+                onChange={(e) => setCounterNotes(e.target.value)}
+                rows={3}
+                className="text-xs"
               />
             </div>
 
@@ -679,13 +742,15 @@ export default function BuyerRfqs() {
                     body: JSON.stringify({ 
                       source: 'buyer_counter', 
                       price: Number(counterPrice), 
-                      quantity: Number(counterQty) 
+                      quantity: Number(counterQty),
+                      notes: counterNotes
                     })
                   }).then(res => {
                     if (res.ok) {
-                      toast({ title: 'Counter Dispatched!', description: 'Sent counter terms to admin.' });
+                      toast({ title: 'Counter-Proposal Sent', description: 'Modified quotation terms submitted for admin approval.' });
                       setCounterOpen(false);
                       setDetailsOpen(false);
+                      setCounterNotes('');
                       fetchRfqs();
                     }
                   }).finally(() => {

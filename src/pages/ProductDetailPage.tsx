@@ -53,6 +53,9 @@ import { supabase } from '@/lib/supabaseClient';
 import { api } from '@/lib/api';
 import { formatPrice, formatNumber, cn } from '@/lib/utils';
 
+// Set to false for RFQ-Only sourcing mode (Hides direct Buy Now button)
+const SHOW_BUY_NOW_BUTTON = false;
+
 export default function ProductDetailPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -87,6 +90,7 @@ export default function ProductDetailPage() {
   });
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     const fetchProductDetails = async () => {
       setLoading(true);
       try {
@@ -187,10 +191,12 @@ export default function ProductDetailPage() {
       navigate('/login');
       return;
     }
+    const initialQty = quantity || product.moq;
+    const initialTier = getActiveTier(initialQty);
     setRfqForm({
-      quantity: String(quantity) || String(product.moq),
+      quantity: String(initialQty),
       unit: product.unit,
-      targetPrice: '',
+      targetPrice: initialTier ? String(initialTier.pricePerUnit) : String(product.minPrice || ''),
       deliveryLocation: '',
       description: '',
     });
@@ -526,11 +532,11 @@ export default function ProductDetailPage() {
 
             {/* Actions */}
             <div className="space-y-4">
-              <div className="flex flex-col gap-3 p-4 bg-primary/5 rounded-xl border border-primary/10">
+              <div className="flex flex-col gap-3.5 p-5 bg-gradient-to-br from-orange-500/5 via-slate-50 to-orange-500/10 rounded-2xl border border-orange-500/20 shadow-lg shadow-orange-500/5">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="qty" className="font-bold text-lg">Select Quantity</Label>
+                  <Label htmlFor="qty" className="font-black text-slate-900 text-lg">Select Quantity</Label>
                   <div className="text-right">
-                    <p className="text-sm text-muted-foreground uppercase font-bold tracking-wider">Total Price</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Est. Total Price</p>
                     <p className="text-2xl font-black text-primary">{formatPrice(totalPrice)}</p>
                   </div>
                 </div>
@@ -543,40 +549,58 @@ export default function ProductDetailPage() {
                       value={quantity || ''}
                       onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
                       min={product.moq}
-                      className="text-lg py-6 font-bold"
+                      className="text-lg h-14 font-black bg-white border-slate-200 shadow-inner rounded-xl"
                     />
                   </div>
-                  <Button
-                    onClick={handleBuyNow}
-                    disabled={submittingRfq}
-                    className="px-8 py-6 text-lg font-bold uppercase tracking-widest shadow-lg hover:shadow-primary/20 transition-all"
-                  >
-                    {submittingRfq ? (
-                      <>
-                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                        Ordering...
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingCart className="h-5 w-5 mr-2" />
-                        Buy Now
-                      </>
-                    )}
-                  </Button>
+
+                  {SHOW_BUY_NOW_BUTTON ? (
+                    <Button
+                      onClick={handleBuyNow}
+                      disabled={submittingRfq}
+                      className="px-8 h-14 text-base font-black uppercase tracking-widest shadow-lg hover:shadow-primary/20 transition-all rounded-xl"
+                    >
+                      {submittingRfq ? (
+                        <>
+                          <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                          Ordering...
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingCart className="h-5 w-5 mr-2" />
+                          Buy Now
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleOpenRfq}
+                      className="flex-1 px-6 h-14 text-sm font-black uppercase tracking-wider bg-orange-600 hover:bg-orange-700 text-white shadow-xl shadow-orange-600/25 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                    >
+                      <FileText className="h-5 w-5" />
+                      Get Instant Quote
+                    </Button>
+                  )}
                 </div>
+
                 {activeTier && (
-                  <p className="text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-full inline-block mt-2">
-                    ACTIVE TIER: {activeTier.minQty}{activeTier.maxQty ? ` - ${activeTier.maxQty}` : '+'} {product.unit} @ {formatPrice(activeTier.pricePerUnit)}/unit
-                  </p>
+                  <div className="flex items-center justify-between bg-white px-3.5 py-2 rounded-xl border border-slate-200/80 shadow-sm mt-1">
+                    <span className="text-xs font-bold text-slate-600">Active Slab ({activeTier.minQty}{activeTier.maxQty ? ` - ${activeTier.maxQty}` : '+'} {product.unit})</span>
+                    <span className="text-xs font-black text-primary font-mono">{formatPrice(activeTier.pricePerUnit)} / {product.unit}</span>
+                  </div>
                 )}
               </div>
 
-              <div className="flex gap-3">
-                <Button variant="outline" className="flex-1 h-12 font-bold uppercase tracking-wider text-xs" onClick={handleOpenRfq}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Request Bulk Quote
-                </Button>
-              </div>
+              {SHOW_BUY_NOW_BUTTON && (
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={handleOpenRfq}
+                    className="w-full h-12 text-xs font-black uppercase tracking-widest bg-slate-900 hover:bg-slate-800 text-white shadow-xl shadow-slate-900/10 rounded-2xl flex items-center justify-center gap-2 border border-slate-800 transition-all hover:scale-[1.01]"
+                  >
+                    <FileText className="h-4 w-4 text-orange-400" />
+                    Request Bulk Quote
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* RFQ Dialog */}
@@ -603,29 +627,36 @@ export default function ProductDetailPage() {
                         id="rfqQty"
                         type="number"
                         value={rfqForm.quantity}
-                        onChange={(e) => setRfqForm({ ...rfqForm, quantity: e.target.value })}
+                        onChange={(e) => {
+                          const newQty = e.target.value;
+                          const qNum = parseInt(newQty) || 0;
+                          
+                          // Find matching slab
+                          const slabs = product?.pricingSlabs || [];
+                          const matchedSlab = slabs.find((s: any) => {
+                            const min = s.minQty;
+                            const max = s.maxQty;
+                            if (max === null || max === undefined) return qNum >= min;
+                            return qNum >= min && qNum <= max;
+                          }) || slabs[0];
+
+                          const autoPrice = matchedSlab ? String(matchedSlab.pricePerUnit) : rfqForm.targetPrice;
+
+                          setRfqForm({ 
+                            ...rfqForm, 
+                            quantity: newQty,
+                            targetPrice: autoPrice
+                          });
+                        }}
                         min={product.moq}
                         className="mt-1"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="rfqUnit">Unit</Label>
-                      <Select
-                        value={rfqForm.unit}
-                        onValueChange={(value) => setRfqForm({ ...rfqForm, unit: value })}
-                      >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pieces">Pieces</SelectItem>
-                          <SelectItem value="kg">Kilograms</SelectItem>
-                          <SelectItem value="meters">Meters</SelectItem>
-                          <SelectItem value="liters">Liters</SelectItem>
-                          <SelectItem value="boxes">Boxes</SelectItem>
-                          <SelectItem value="sets">Sets</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-slate-500 font-bold text-xs uppercase tracking-wider">Unit</Label>
+                      <div className="mt-1 h-10 px-3.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md flex items-center font-black text-slate-700 dark:text-slate-200 text-sm uppercase tracking-wide">
+                        {product.unit || 'pieces'}
+                      </div>
                     </div>
                   </div>
 
@@ -637,8 +668,26 @@ export default function ProductDetailPage() {
                       value={rfqForm.targetPrice}
                       onChange={(e) => setRfqForm({ ...rfqForm, targetPrice: e.target.value })}
                       placeholder="Your expected price"
-                      className="mt-1"
+                      className="mt-1 font-bold text-slate-900"
                     />
+                    {(() => {
+                      const qNum = parseInt(rfqForm.quantity) || 0;
+                      const slabs = product?.pricingSlabs || [];
+                      const matchedSlab = slabs.find((s: any) => {
+                        const min = s.minQty;
+                        const max = s.maxQty;
+                        if (max === null || max === undefined) return qNum >= min;
+                        return qNum >= min && qNum <= max;
+                      }) || slabs[0];
+
+                      if (!matchedSlab) return null;
+                      return (
+                        <div className="mt-1.5 p-2 bg-orange-500/10 border border-orange-500/20 rounded-lg text-xs flex items-center justify-between text-orange-700 dark:text-orange-300 font-medium">
+                          <span>Auto-filled from Slab ({matchedSlab.minQty}{matchedSlab.maxQty ? `-${matchedSlab.maxQty}` : '+'} units)</span>
+                          <span className="font-black font-mono">₹{matchedSlab.pricePerUnit}/{product.unit || 'unit'}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div>
@@ -702,9 +751,19 @@ export default function ProductDetailPage() {
                   {/* Description Section */}
                   <div className="p-6">
                     <h3 className="font-bold text-sm uppercase tracking-widest text-primary mb-3">Description</h3>
-                    <p className="text-muted-foreground leading-relaxed text-sm">
-                      {product.description}
-                    </p>
+                    <div 
+                      className="prose prose-slate max-w-none text-sm text-slate-700 leading-relaxed description-html-content"
+                      dangerouslySetInnerHTML={{ __html: product.description || product.shortDescription || 'No detailed description provided.' }} 
+                    />
+                    <style dangerouslySetInnerHTML={{ __html: `
+                      .description-html-content table { width: 100% !important; border-collapse: collapse !important; margin: 1rem 0 !important; font-size: 0.875rem !important; background-color: #ffffff !important; border-radius: 0.75rem !important; overflow: hidden !important; border: 1px solid #e2e8f0 !important; }
+                      .description-html-content th, .description-html-content td { border: 1px solid #e2e8f0 !important; padding: 0.75rem 1rem !important; text-align: left !important; }
+                      .description-html-content th { background-color: #f8fafc !important; font-weight: 800 !important; color: #0f172a !important; text-transform: uppercase !important; font-size: 0.75rem !important; letter-spacing: 0.05em !important; }
+                      .description-html-content tr:nth-child(even) { background-color: #f8fafc/50 !important; }
+                      .description-html-content ul { list-style-type: disc !important; padding-left: 1.5rem !important; margin: 0.75rem 0 !important; }
+                      .description-html-content ol { list-style-type: decimal !important; padding-left: 1.5rem !important; margin: 0.75rem 0 !important; }
+                      .description-html-content li { margin-bottom: 0.375rem !important; }
+                    `}} />
                   </div>
 
                   {/* Specifications Section */}

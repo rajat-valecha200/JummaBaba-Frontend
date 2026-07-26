@@ -103,15 +103,21 @@ export default function AdminDashboard() {
     setDetailsOpen(false);
   };
 
+  const [actioningProductId, setActioningProductId] = useState<string | null>(null);
+
   const handleProductStatus = async (id: string, status: 'approved' | 'rejected', reason?: string) => {
+    if (actioningProductId) return;
     try {
+      setActioningProductId(id);
       await api.products.updateStatus(id, status, reason);
       toast({ title: `Product ${status === 'approved' ? 'Approved' : 'Rejected'}` });
       setProductPreviewOpen(false);
       setRejectProductDialogOpen(false);
-      fetchData(); // Refresh all data
+      await fetchData(); // Refresh all data
     } catch (error: any) {
       toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setActioningProductId(null);
     }
   };
 
@@ -241,8 +247,10 @@ export default function AdminDashboard() {
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleOpenRejectProduct(p.id)}><XCircle className="h-4 w-4" /></Button>
-                      <Button size="sm" onClick={() => handleProductStatus(p.id, 'approved')}><CheckCircle className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="outline" disabled={actioningProductId === p.id} onClick={() => handleOpenRejectProduct(p.id)}><XCircle className="h-4 w-4" /></Button>
+                      <Button size="sm" disabled={actioningProductId === p.id} onClick={() => handleProductStatus(p.id, 'approved')}>
+                        {actioningProductId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                      </Button>
                     </div>
                   </div>
                 ))

@@ -88,7 +88,7 @@ export function BuyerLayout() {
 
   return (
     <TooltipProvider>
-      <div className="h-screen bg-[#F1F5F9] flex overflow-hidden">
+      <div className="h-screen bg-background flex overflow-hidden">
         {/* Mobile Sidebar Overlay */}
         <div className={cn('fixed inset-0 z-50 lg:hidden transition-opacity bg-black/50', sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')} onClick={() => setSidebarOpen(false)} />
         
@@ -100,7 +100,7 @@ export function BuyerLayout() {
         />
 
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-sidebar-border px-4 py-3 flex items-center justify-between">
+          <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-sidebar-border px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
                 <Menu className="h-5 w-5" />

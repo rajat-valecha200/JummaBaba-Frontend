@@ -33,6 +33,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -76,9 +77,152 @@ interface SourcingActionCardProps {
   userRole: string | undefined;
   onRefresh: () => void;
   negotiationStep?: string;
+  triggerCounterNegotiation?: (rfqId: string, currentPrice: number, qty: number) => void;
 }
 
-function SourcingActionCard({ message, userRole, onRefresh, negotiationStep }: SourcingActionCardProps) {
+function CatalogSlabBadge({ metadata }: { metadata: any }) {
+  const [slabInfo, setSlabInfo] = useState<{ price: number; range?: string } | null>(() => {
+    if (metadata.catalog_slab_price) {
+      return { price: Number(metadata.catalog_slab_price), range: metadata.catalog_slab_range };
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (metadata.catalog_slab_price) {
+      setSlabInfo({ price: Number(metadata.catalog_slab_price), range: metadata.catalog_slab_range });
+      return;
+    }
+
+    let isMounted = true;
+    const fetchSlab = async () => {
+      try {
+        const products = await api.products.list();
+        const found = products.find((p: any) => 
+          (metadata.product_id && String(p.id) === String(metadata.product_id)) ||
+          (metadata.product_name && p.name && p.name.toLowerCase().trim() === metadata.product_name.toLowerCase().trim())
+        );
+
+        if (found && isMounted) {
+          const slabs = typeof found.pricing_slabs === 'string' 
+            ? JSON.parse(found.pricing_slabs) 
+            : (found.pricing_slabs || found.pricingSlabs || []);
+          
+          if (Array.isArray(slabs) && slabs.length > 0) {
+            const qNum = Number(metadata.quantity) || 0;
+            const match = slabs.find((s: any) => {
+              const min = s.minQty;
+              const max = s.maxQty;
+              if (max === null || max === undefined) return qNum >= min;
+              return qNum >= min && qNum <= max;
+            }) || slabs[0];
+
+            if (match && isMounted) {
+              setSlabInfo({
+                price: Number(match.pricePerUnit),
+                range: `${match.minQty}${match.maxQty ? `-${match.maxQty}` : '+'} units`
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to lookup catalog slab for RFQ message:', err);
+      }
+    };
+
+    fetchSlab();
+    return () => { isMounted = false; };
+  }, [metadata.product_id, metadata.product_name, metadata.quantity, metadata.catalog_slab_price]);
+
+  if (!slabInfo) return null;
+
+  return (
+    <span className="block text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md mt-1 border border-amber-500/20 shadow-sm">
+      Catalog Slab: ₹{slabInfo.price.toLocaleString()} {slabInfo.range ? `(${slabInfo.range})` : ''}
+    </span>
+  );
+}
+
+function CatalogSlabDialogBanner({ metadata }: { metadata?: any }) {
+  const meta = metadata || {};
+  const [slabInfo, setSlabInfo] = useState<{ price: number; range?: string } | null>(() => {
+    if (meta.catalog_slab_price) {
+      return { price: Number(meta.catalog_slab_price), range: meta.catalog_slab_range };
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (meta.catalog_slab_price) {
+      setSlabInfo({ price: Number(meta.catalog_slab_price), range: meta.catalog_slab_range });
+      return;
+    }
+
+    let isMounted = true;
+    const fetchSlab = async () => {
+      try {
+        const products = await api.products.list();
+        const found = products.find((p: any) => 
+          (meta.product_id && String(p.id) === String(meta.product_id)) ||
+          (meta.product_name && p.name && p.name.toLowerCase().trim() === meta.product_name.toLowerCase().trim()) ||
+          (meta.productName && p.name && p.name.toLowerCase().trim() === meta.productName.toLowerCase().trim())
+        );
+
+        if (found && isMounted) {
+          const slabs = typeof found.pricing_slabs === 'string' 
+            ? JSON.parse(found.pricing_slabs) 
+            : (found.pricing_slabs || found.pricingSlabs || []);
+          
+          if (Array.isArray(slabs) && slabs.length > 0) {
+            const qNum = Number(meta.quantity || meta.requested_quantity || meta.qty) || 0;
+            const match = slabs.find((s: any) => {
+              const min = s.minQty;
+              const max = s.maxQty;
+              if (max === null || max === undefined) return qNum >= min;
+              return qNum >= min && qNum <= max;
+            }) || slabs[0];
+
+            if (match && isMounted) {
+              setSlabInfo({
+                price: Number(match.pricePerUnit),
+                range: `${match.minQty}${match.maxQty ? `-${match.maxQty}` : '+'} units`
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to lookup catalog slab for dialog:', err);
+      }
+    };
+
+    fetchSlab();
+    return () => { isMounted = false; };
+  }, [meta.product_id, meta.product_name, meta.productName, meta.quantity, meta.requested_quantity, meta.catalog_slab_price]);
+
+  const targetPrice = meta.target_price || meta.targetPrice || meta.linkedProductPrice;
+
+  return (
+    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs space-y-1.5 shadow-sm">
+      <div className="flex items-center justify-between font-bold text-amber-900 dark:text-amber-200">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          Catalog Slab Rate {slabInfo?.range ? `(${slabInfo.range})` : ''}:
+        </span>
+        <span className="font-mono text-sm text-amber-700 dark:text-amber-300 font-extrabold">
+          {slabInfo ? `₹${slabInfo.price.toLocaleString()}` : 'Loading slab rate...'}
+        </span>
+      </div>
+      {targetPrice ? (
+        <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-amber-500/15 text-muted-foreground">
+          <span>Buyer's Target Price:</span>
+          <span className="font-semibold text-slate-800 dark:text-slate-200">₹{Number(targetPrice).toLocaleString()}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegotiation, negotiationStep }: SourcingActionCardProps) {
   const metadata = message.metadata || {};
   const cardType = metadata.type;
   
@@ -188,9 +332,12 @@ function SourcingActionCard({ message, userRole, onRefresh, negotiationStep }: S
               <span className="text-muted-foreground">Volume Required:</span>
               <span className="font-semibold text-foreground">{metadata.quantity} {metadata.unit}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-start">
               <span className="text-muted-foreground">Target Price:</span>
-              <span className="font-bold text-cyan-600 dark:text-cyan-400">₹{Number(metadata.target_price).toLocaleString()}</span>
+              <div className="text-right">
+                <span className="font-bold text-cyan-600 dark:text-cyan-400">₹{Number(metadata.target_price).toLocaleString()}</span>
+                <CatalogSlabBadge metadata={metadata} />
+              </div>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Delivery Site:</span>
@@ -218,7 +365,7 @@ function SourcingActionCard({ message, userRole, onRefresh, negotiationStep }: S
                     variant="outline"
                     onClick={() => {
                       // Access internal window hook or parent state handlers to trigger custom dialog popup
-                      const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.target_price, qty: metadata.quantity } });
+                      const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.target_price, qty: metadata.quantity, product_id: metadata.product_id, product_name: metadata.product_name } });
                       window.dispatchEvent(event);
                     }}
                     className="w-full text-xs h-9 border-cyan-500/30 text-cyan-600 hover:bg-cyan-500/5 font-bold"
@@ -704,8 +851,9 @@ function SourcingActionCard({ message, userRole, onRefresh, negotiationStep }: S
             {(() => {
               const STEP_ORDER = [
                 'rfq_submitted', 'admin_modified', 'buyer_countered',
-                'seller_countered', 'buyer_confirmed_admin', 'forwarded_to_seller',
-                'seller_accepted_terms', 'payment_requested', 'payment_received'
+                'buyer_confirmed_admin', 'seller_countered', 'admin_approved_seller_counter',
+                'buyer_confirmed_seller_counter', 'forwarded_to_seller', 'seller_accepted_terms',
+                'payment_pending', 'payment_submitted', 'payment_confirmed_escrow'
               ];
               const currentIdx = STEP_ORDER.indexOf(negotiationStep || '');
               const sourceStep: Record<string, string> = {
@@ -809,7 +957,7 @@ function SourcingActionCard({ message, userRole, onRefresh, negotiationStep }: S
                     </Button>
                     <Button 
                       onClick={() => {
-                        const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.price, qty: metadata.quantity } });
+                        const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.price, qty: metadata.quantity, product_id: metadata.product_id, product_name: metadata.product_name } });
                         window.dispatchEvent(event);
                       }}
                       disabled={isActioning}
@@ -1101,6 +1249,7 @@ export default function AdminMessages() {
   const [showModifyDialog, setShowModifyDialog] = useState(false);
   const [modifyPrice, setModifyPrice] = useState('');
   const [modifyQty, setModifyQty] = useState('');
+  const [modifyNotes, setModifyNotes] = useState('');
   const [modifyRfqId, setModifyRfqId] = useState('');
   const [isModifyingTerms, setIsModifyingTerms] = useState(false);
 
@@ -1114,17 +1263,18 @@ export default function AdminMessages() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
         },
-        body: JSON.stringify({ price: Number(modifyPrice), quantity: Number(modifyQty) })
+        body: JSON.stringify({ price: Number(modifyPrice), quantity: Number(modifyQty), notes: modifyNotes })
       });
       if (res.ok) {
-        alert('Terms Adjusted! Sourcing card updated in conversation thread.');
+        toast({ title: 'Terms Adjusted', description: 'Sourcing card updated in conversation thread.' });
         setShowModifyDialog(false);
         setModifyPrice('');
         setModifyQty('');
+        setModifyNotes('');
         fetchConversations();
         fetchMessages();
       } else {
-        alert('Adjustment submission failed.');
+        toast({ title: 'Error', description: 'Adjustment submission failed.', variant: 'destructive' });
       }
     } catch (err) {
       console.error(err);
@@ -1275,6 +1425,8 @@ export default function AdminMessages() {
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
+  const [modifyMetadata, setModifyMetadata] = useState<any>(null);
+
   useEffect(() => {
     const handleTrigger = (e: Event) => {
       const customEvent = e as CustomEvent;
@@ -1282,6 +1434,7 @@ export default function AdminMessages() {
         setModifyRfqId(customEvent.detail.rfqId);
         setModifyPrice(String(customEvent.detail.price || ''));
         setModifyQty(String(customEvent.detail.qty || ''));
+        setModifyMetadata(customEvent.detail);
         setShowModifyDialog(true);
       }
     };
@@ -2094,6 +2247,8 @@ export default function AdminMessages() {
                       <DialogTitle>Adjust Sourcing Proposal Terms</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4 text-sm">
+                      <CatalogSlabDialogBanner metadata={modifyMetadata || selectedConversation} />
+
                       <div className="space-y-2">
                         <label className="font-semibold text-xs">Adjusted Unit Sourcing Price (₹) *</label>
                         <Input
@@ -2110,6 +2265,19 @@ export default function AdminMessages() {
                           placeholder="e.g. 100"
                           value={modifyQty}
                           onChange={(e) => setModifyQty(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="font-semibold text-xs text-slate-700 dark:text-slate-200">
+                          Modification Reason / Remark <span className="text-muted-foreground font-normal">(Recommended)</span>
+                        </label>
+                        <Textarea
+                          placeholder="Explain why terms were adjusted (e.g. Volume discount applied, special delivery surcharge, tier pricing adjustment)..."
+                          value={modifyNotes}
+                          onChange={(e) => setModifyNotes(e.target.value)}
+                          rows={3}
+                          className="text-xs"
                         />
                       </div>
 

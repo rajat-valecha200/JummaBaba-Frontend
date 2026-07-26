@@ -4,3 +4,4 @@ export { BuyerLayout } from './BuyerLayout';
 export { AdminLayout } from './AdminLayout';
 export { Header } from './Header';
 export { Footer } from './Footer';
+export { ScrollToTop } from './ScrollToTop';

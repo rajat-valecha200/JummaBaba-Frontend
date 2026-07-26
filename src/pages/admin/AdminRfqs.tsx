@@ -14,11 +14,13 @@ import {
   User,
   Package,
   Settings,
-  MessageSquare
+  MessageSquare,
+  Edit3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { 
   Table, 
@@ -50,6 +52,74 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 
+function CatalogSlabDialogBanner({ rfq }: { rfq?: any }) {
+  const [slabInfo, setSlabInfo] = useState<{ price: number; range?: string } | null>(null);
+
+  useEffect(() => {
+    if (!rfq) return;
+    let isMounted = true;
+    const fetchSlab = async () => {
+      try {
+        const products = await api.products.list();
+        const found = products.find((p: any) => 
+          (rfq.product_id && String(p.id) === String(rfq.product_id)) ||
+          (rfq.product_name && p.name && p.name.toLowerCase().trim() === rfq.product_name.toLowerCase().trim())
+        );
+
+        if (found && isMounted) {
+          const slabs = typeof found.pricing_slabs === 'string' 
+            ? JSON.parse(found.pricing_slabs) 
+            : (found.pricing_slabs || found.pricingSlabs || []);
+          
+          if (Array.isArray(slabs) && slabs.length > 0) {
+            const qNum = Number(rfq.quantity) || 0;
+            const match = slabs.find((s: any) => {
+              const min = s.minQty;
+              const max = s.maxQty;
+              if (max === null || max === undefined) return qNum >= min;
+              return qNum >= min && qNum <= max;
+            }) || slabs[0];
+
+            if (match && isMounted) {
+              setSlabInfo({
+                price: Number(match.pricePerUnit),
+                range: `${match.minQty}${match.maxQty ? `-${match.maxQty}` : '+'} units`
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to lookup catalog slab for dialog:', err);
+      }
+    };
+
+    fetchSlab();
+    return () => { isMounted = false; };
+  }, [rfq]);
+
+  if (!rfq) return null;
+
+  return (
+    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs space-y-1.5 shadow-sm">
+      <div className="flex items-center justify-between font-bold text-amber-900 dark:text-amber-200">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          Catalog Slab Rate {slabInfo?.range ? `(${slabInfo.range})` : ''}:
+        </span>
+        <span className="font-mono text-sm text-amber-700 dark:text-amber-300 font-extrabold">
+          {slabInfo ? `₹${slabInfo.price.toLocaleString()}` : 'Loading slab rate...'}
+        </span>
+      </div>
+      {rfq.target_price && (
+        <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-amber-500/15 text-muted-foreground">
+          <span>Buyer's Original Target Price:</span>
+          <span className="font-semibold text-slate-800 dark:text-slate-200">₹{Number(rfq.target_price).toLocaleString()}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminRfqs() {
   const { toast } = useToast();
   const [rfqs, setRfqs] = useState<any[]>([]);
@@ -72,6 +142,7 @@ export default function AdminRfqs() {
   const [showModifyDialog, setShowModifyDialog] = useState(false);
   const [modifyPrice, setModifyPrice] = useState('');
   const [modifyQty, setModifyQty] = useState('');
+  const [modifyNotes, setModifyNotes] = useState('');
   const [isModifyingTerms, setIsModifyingTerms] = useState(false);
 
   const fetchRfqs = async () => {
@@ -105,6 +176,37 @@ export default function AdminRfqs() {
     }
   };
 
+  const [products, setProducts] = useState<any[]>([]);
+
+  const getCatalogSlabForRfq = (rfq: any) => {
+    if (!rfq) return null;
+    const product = products.find((p: any) => 
+      (rfq.product_id && String(p.id) === String(rfq.product_id)) || 
+      (rfq.product_name && p.name && p.name.toLowerCase().trim() === rfq.product_name.toLowerCase().trim())
+    );
+    if (!product) return null;
+
+    const slabs = typeof product.pricing_slabs === 'string' 
+      ? JSON.parse(product.pricing_slabs) 
+      : (product.pricing_slabs || product.pricingSlabs || []);
+      
+    if (!Array.isArray(slabs) || slabs.length === 0) return null;
+
+    const qNum = Number(rfq.quantity) || 0;
+    const match = slabs.find((s: any) => {
+      const min = s.minQty;
+      const max = s.maxQty;
+      if (max === null || max === undefined) return qNum >= min;
+      return qNum >= min && qNum <= max;
+    }) || slabs[0];
+
+    if (!match) return null;
+    return {
+      price: Number(match.pricePerUnit),
+      range: `${match.minQty}${match.maxQty ? `-${match.maxQty}` : '+'} units`
+    };
+  };
+
   useEffect(() => {
     fetchRfqs();
     const interval = setInterval(() => fetchRfqs(true), 15000); // 15s live refresh
@@ -118,6 +220,9 @@ export default function AdminRfqs() {
       }
     };
     fetchVendors();
+
+    api.products.list().then(setProducts).catch(err => console.error('Failed to fetch products:', err));
+
     return () => clearInterval(interval);
   }, []);
 
@@ -340,19 +445,19 @@ export default function AdminRfqs() {
       </Card>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-4xl border-border/50 bg-card/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-0 overflow-hidden">
-          <div className="flex h-[80vh]">
-            <div className="w-80 border-r border-border/50 bg-slate-50/50 p-8 hidden md:block">
+        <DialogContent className="w-[95vw] max-w-4xl max-h-[92vh] border-border/50 bg-card/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-0 overflow-hidden">
+          <div className="flex flex-col md:flex-row h-[85vh] max-h-[750px]">
+            <div className="w-72 border-r border-border/50 bg-slate-50/50 p-6 hidden lg:block overflow-y-auto shrink-0">
               <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-8">Moderation Lifecycle</h3>
               {selectedRfq && (
                 <RfqTimeline steps={getRfqSteps(selectedRfq.status, selectedRfq.moderation_status)} />
               )}
             </div>
 
-            <div className="flex-1 flex flex-col">
-              <DialogHeader className="p-8 pb-4 border-b border-white/5">
+            <div className="flex-1 flex flex-col min-w-0">
+              <DialogHeader className="p-6 pb-4 border-b border-white/5">
                 <div className="flex items-center justify-between mb-2">
-                  <DialogTitle className="text-2xl font-black tracking-tighter">Inquiry Moderation</DialogTitle>
+                  <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">Inquiry Moderation</DialogTitle>
                   {selectedRfq && getModerationBadge(selectedRfq.moderation_status)}
                 </div>
                 <DialogDescription className="font-bold text-muted-foreground uppercase text-[10px] tracking-widest">
@@ -360,7 +465,7 @@ export default function AdminRfqs() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
                 {selectedRfq && (
                   <div className="space-y-6">
                     {selectedRfq.cancellation_request?.status === 'pending' && (
@@ -403,7 +508,7 @@ export default function AdminRfqs() {
                         </TabsTrigger>
                       </TabsList>
                       <TabsContent value="rfq" className="space-y-4 pt-4">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="p-4 bg-muted/50 rounded-lg space-y-3">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2 text-sm font-semibold">
@@ -419,26 +524,66 @@ export default function AdminRfqs() {
                                 <Label htmlFor="share_buyer_details" className="text-[10px] font-bold uppercase cursor-pointer">Share Details</Label>
                               </div>
                             </div>
-                            <div className="text-sm">
-                              <p className="font-medium">{selectedRfq.buyer_name}</p>
+                            <div className="text-sm space-y-1">
+                              <p className="font-bold text-slate-900">{selectedRfq.buyer_name || 'Buyer User'}</p>
                               <p className="text-muted-foreground">{selectedRfq.buyer_email}</p>
-                              <p className="text-muted-foreground">{selectedRfq.buyer_phone}</p>
+                              <p className="text-muted-foreground font-mono">{selectedRfq.buyer_phone || 'N/A'}</p>
                             </div>
                           </div>
                           <div className="p-4 bg-muted/50 rounded-lg space-y-3">
                             <div className="flex items-center gap-2 text-sm font-semibold">
                               <Package className="h-4 w-4 text-primary" /> Request Details
                             </div>
-                            <div className="text-sm">
-                               <p><span className="text-muted-foreground">Qty:</span> {selectedRfq.quantity} {selectedRfq.unit}</p>
-                               <p><span className="text-muted-foreground">Target:</span> {selectedRfq.target_price ? formatPrice(selectedRfq.target_price) : 'N/A'}</p>
-                               <p><span className="text-muted-foreground">Loc:</span> {selectedRfq.delivery_location || 'N/A'}</p>
+                            <div className="text-sm space-y-1.5">
+                              <p className="font-bold text-slate-900 text-base">{selectedRfq.product_name || 'Industrial Product'}</p>
+                              <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60">
+                                <span className="text-muted-foreground font-bold">Qty Required:</span>
+                                <span className="font-black text-slate-900">{selectedRfq.quantity} {selectedRfq.unit}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground font-bold">Target Price:</span>
+                                <span className="font-black text-primary">{selectedRfq.target_price ? formatPrice(selectedRfq.target_price) : 'N/A'}</span>
+                              </div>
+                              {(() => {
+                                const slab = getCatalogSlabForRfq(selectedRfq);
+                                if (!slab) return null;
+                                return (
+                                  <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-md text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                                    <span>Catalog Slab Rate ({slab.range}):</span>
+                                    <span className="font-mono font-black">{formatPrice(slab.price)} / {selectedRfq.unit}</span>
+                                  </div>
+                                );
+                              })()}
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground font-bold">Delivery Site:</span>
+                                <span className="font-bold text-slate-700">{selectedRfq.delivery_location || 'N/A'}</span>
+                              </div>
+                              {selectedRfq.supplier_name && (
+                                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60">
+                                  <span className="text-muted-foreground font-bold">Requested Supplier:</span>
+                                  <span className="font-bold text-indigo-600 underline">{selectedRfq.supplier_name}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
-                        <div className="p-4 border rounded-lg">
-                          <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Description</p>
-                          <p className="text-sm">{selectedRfq.description || 'No description provided'}</p>
+                        <div className="p-4 border rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50/50">
+                          <div>
+                            <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Description</p>
+                            <p className="text-sm">{selectedRfq.description || 'No description provided'}</p>
+                          </div>
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setModifyPrice(String(selectedRfq.target_price || ''));
+                              setModifyQty(String(selectedRfq.quantity || ''));
+                              setShowModifyDialog(true);
+                            }}
+                            className="text-xs font-bold border-cyan-500/30 text-cyan-700 hover:bg-cyan-500/10 shrink-0"
+                          >
+                            <Edit3 className="h-3.5 w-3.5 mr-1.5" /> Adjust / Modify Terms
+                          </Button>
                         </div>
                       </TabsContent>
                       
@@ -702,6 +847,7 @@ export default function AdminRfqs() {
             <DialogTitle>Adjust Sourcing Proposal Terms</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4 text-sm">
+            <CatalogSlabDialogBanner rfq={selectedRfq} />
             <div className="space-y-2">
               <label className="font-semibold text-xs">Adjusted Unit Sourcing Price (₹) *</label>
               <Input
@@ -718,6 +864,19 @@ export default function AdminRfqs() {
                 placeholder="e.g. 100"
                 value={modifyQty}
                 onChange={(e) => setModifyQty(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="font-semibold text-xs text-slate-700 dark:text-slate-200">
+                Modification Reason / Remark <span className="text-muted-foreground font-normal">(Recommended)</span>
+              </label>
+              <Textarea
+                placeholder="Explain why terms were adjusted (e.g. Volume discount applied, special delivery surcharge, tier pricing adjustment)..."
+                value={modifyNotes}
+                onChange={(e) => setModifyNotes(e.target.value)}
+                rows={3}
+                className="text-xs"
               />
             </div>
 
@@ -749,12 +908,13 @@ export default function AdminRfqs() {
                       'Content-Type': 'application/json',
                       'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
                     },
-                    body: JSON.stringify({ price: Number(modifyPrice), quantity: Number(modifyQty) })
+                    body: JSON.stringify({ price: Number(modifyPrice), quantity: Number(modifyQty), notes: modifyNotes })
                   }).then(res => {
                     if (res.ok) {
                       toast({ title: 'Terms Adjusted', description: 'Proposed spec terms sent to Buyer.' });
                       setShowModifyDialog(false);
                       setDetailsOpen(false);
+                      setModifyNotes('');
                       fetchRfqs();
                     }
                   }).finally(() => {

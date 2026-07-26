@@ -71,6 +71,74 @@ interface Rfq {
   response?: RfqResponse;
 }
 
+function CatalogSlabDialogBanner({ rfq }: { rfq?: any }) {
+  const [slabInfo, setSlabInfo] = useState<{ price: number; range?: string } | null>(null);
+
+  useEffect(() => {
+    if (!rfq) return;
+    let isMounted = true;
+    const fetchSlab = async () => {
+      try {
+        const products = await api.products.list();
+        const found = products.find((p: any) => 
+          (rfq.product_id && String(p.id) === String(rfq.product_id)) ||
+          (rfq.productName && p.name && p.name.toLowerCase().trim() === rfq.productName.toLowerCase().trim())
+        );
+
+        if (found && isMounted) {
+          const slabs = typeof found.pricing_slabs === 'string' 
+            ? JSON.parse(found.pricing_slabs) 
+            : (found.pricing_slabs || found.pricingSlabs || []);
+          
+          if (Array.isArray(slabs) && slabs.length > 0) {
+            const qNum = Number(rfq.quantity) || 0;
+            const match = slabs.find((s: any) => {
+              const min = s.minQty;
+              const max = s.maxQty;
+              if (max === null || max === undefined) return qNum >= min;
+              return qNum >= min && qNum <= max;
+            }) || slabs[0];
+
+            if (match && isMounted) {
+              setSlabInfo({
+                price: Number(match.pricePerUnit),
+                range: `${match.minQty}${match.maxQty ? `-${match.maxQty}` : '+'} units`
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to lookup catalog slab for dialog:', err);
+      }
+    };
+
+    fetchSlab();
+    return () => { isMounted = false; };
+  }, [rfq]);
+
+  if (!rfq) return null;
+
+  return (
+    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs space-y-1.5 shadow-sm">
+      <div className="flex items-center justify-between font-bold text-amber-900 dark:text-amber-200">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          Catalog Slab Rate {slabInfo?.range ? `(${slabInfo.range})` : ''}:
+        </span>
+        <span className="font-mono text-sm text-amber-700 dark:text-amber-300 font-extrabold">
+          {slabInfo ? `₹${slabInfo.price.toLocaleString()}` : 'Loading slab rate...'}
+        </span>
+      </div>
+      {rfq.targetPrice && (
+        <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-amber-500/15 text-muted-foreground">
+          <span>Buyer's Original Target Price:</span>
+          <span className="font-semibold text-slate-800 dark:text-slate-200">₹{Number(rfq.targetPrice).toLocaleString()}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function VendorRfqs() {
   const { toast } = useToast();
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
@@ -85,6 +153,7 @@ export default function VendorRfqs() {
   const [vendorCounterOpen, setVendorCounterOpen] = useState(false);
   const [vendorCounterPrice, setVendorCounterPrice] = useState('');
   const [vendorCounterQty, setVendorCounterQty] = useState('');
+  const [vendorCounterNotes, setVendorCounterNotes] = useState('');
   const [isSubmittingVendorCounter, setIsSubmittingVendorCounter] = useState(false);
 
   useEffect(() => {
@@ -533,7 +602,7 @@ export default function VendorRfqs() {
                      </Button>
                    </div>
                  )}
-                 {selectedRfq && ['quoted', 'admin_approved', 'sent_to_buyer'].includes(selectedRfq.status) && selectedRfq.negotiation_step !== 'forwarded_to_seller' && (
+                 {false && (
                    <Button
                      variant="outline"
                      onClick={() => {
@@ -545,6 +614,16 @@ export default function VendorRfqs() {
                    >
                      Propose Counter Sourcing Terms
                    </Button>
+                 )}
+                 {selectedRfq?.negotiation_step === 'seller_accepted_terms' && (
+                   <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-3 text-xs w-full text-center text-emerald-700 font-bold">
+                     ✓ Terms Accepted. Awaiting Admin Sourcing Payment Request.
+                   </div>
+                 )}
+                 {selectedRfq?.negotiation_step === 'seller_countered' && (
+                   <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 text-xs w-full text-center text-amber-700 font-bold">
+                     ⚡ Counter proposal submitted. Awaiting Admin Review.
+                   </div>
                  )}
                 <div className="flex gap-2">
                   {selectedRfq && (
@@ -584,6 +663,8 @@ export default function VendorRfqs() {
             <DialogTitle>Propose Counter Sourcing Terms</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4 text-sm">
+            <CatalogSlabDialogBanner rfq={selectedRfq} />
+
             <div className="space-y-2">
               <label className="font-semibold text-xs">Counter Unit Price (₹) *</label>
               <Input
@@ -600,6 +681,19 @@ export default function VendorRfqs() {
                 placeholder="e.g. 100"
                 value={vendorCounterQty}
                 onChange={(e) => setVendorCounterQty(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="font-semibold text-xs text-slate-700 dark:text-slate-200">
+                Counter Proposal Reason / Remark <span className="text-muted-foreground font-normal">(Recommended)</span>
+              </label>
+              <Textarea
+                placeholder="Explain why terms were adjusted (e.g. Bulk volume discount, expedited lead time, custom packaging)..."
+                value={vendorCounterNotes}
+                onChange={(e) => setVendorCounterNotes(e.target.value)}
+                rows={3}
+                className="text-xs"
               />
             </div>
 
@@ -631,12 +725,13 @@ export default function VendorRfqs() {
                       'Content-Type': 'application/json',
                       'Authorization': `Bearer ${localStorage.getItem('jb_token') || localStorage.getItem('jummababa_token')}`
                     },
-                    body: JSON.stringify({ price: Number(vendorCounterPrice), quantity: Number(vendorCounterQty) })
+                    body: JSON.stringify({ price: Number(vendorCounterPrice), quantity: Number(vendorCounterQty), notes: vendorCounterNotes })
                   }).then(res => {
                     if (res.ok) {
                       toast({ title: 'Counter Terms Proposed', description: 'Adjustment successfully submitted to Admin.' });
                       setVendorCounterOpen(false);
                       setDetailsOpen(false);
+                      setVendorCounterNotes('');
                       window.location.reload();
                     }
                   }).finally(() => {

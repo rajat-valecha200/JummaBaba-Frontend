@@ -65,6 +65,7 @@ export default function AdminProducts() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
@@ -115,14 +116,18 @@ export default function AdminProducts() {
   });
 
   const handleApprove = async (productId: string) => {
+    if (approvingId) return;
     try {
+      setApprovingId(productId);
       await api.products.updateStatus(productId, 'approved');
       setProductList(productList.map(p => p.id === productId ? { ...p, status: 'approved' as ProductStatus } : p));
-      toast({ title: 'Product Approved' });
+      toast({ title: 'Product Approved', description: 'Product is now live on the marketplace.' });
     } catch (error: any) {
       toast({ title: 'Approval Failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setApprovingId(null);
+      setDetailsOpen(false);
     }
-    setDetailsOpen(false);
   };
 
   const handleOpenReject = (productId: string) => {
@@ -257,26 +262,26 @@ export default function AdminProducts() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Vendor</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>MOQ</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-[280px]">Product</TableHead>
+                <TableHead className="w-[150px]">Category</TableHead>
+                <TableHead className="w-[160px]">Vendor</TableHead>
+                <TableHead className="w-[110px]">Price</TableHead>
+                <TableHead className="w-[100px]">MOQ</TableHead>
+                <TableHead className="w-[120px]">Status</TableHead>
+                <TableHead className="w-[110px]">Submitted</TableHead>
+                <TableHead className="w-[110px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredProducts.map((product) => (
                 <TableRow key={product.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <img src={product.image} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
-                      <span className="font-medium truncate max-w-[200px]">{product.name}</span>
+                  <TableCell className="w-[280px] max-w-[280px]">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img src={product.image} alt={product.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                      <span className="font-medium truncate block max-w-[200px]" title={product.name}>{product.name}</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -302,11 +307,11 @@ export default function AdminProducts() {
                       </Button>
                       {product.status === 'pending' && (
                         <>
-                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleOpenReject(product.id)}>
+                          <Button size="sm" variant="ghost" disabled={approvingId === product.id} className="text-destructive hover:text-destructive" onClick={() => handleOpenReject(product.id)}>
                             <XCircle className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="text-success hover:text-success" onClick={() => handleApprove(product.id)}>
-                            <CheckCircle className="h-4 w-4" />
+                          <Button size="sm" variant="ghost" disabled={approvingId === product.id} className="text-success hover:text-success" onClick={() => handleApprove(product.id)}>
+                            {approvingId === product.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                           </Button>
                         </>
                       )}

@@ -20,7 +20,9 @@ import {
   MessageSquare,
   ArrowRight,
   MoreVertical,
-  Truck
+  Truck,
+  CheckCircle,
+  Clock
 } from 'lucide-react';
 import { ProductPreviewDialog } from '@/components/admin/ProductPreviewDialog';
 import { Button } from '@/components/ui/button';
@@ -527,18 +529,26 @@ export default function VendorProducts() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
         {[
-          { label: 'Total Products', value: productList.length, color: 'text-slate-900', bg: 'bg-white' },
-          { label: 'Active', value: productList.filter(p => p.status === 'active').length, color: 'text-success', bg: 'bg-success/5' },
-          { label: 'Pending', value: productList.filter(p => p.status === 'pending').length, color: 'text-warning', bg: 'bg-warning/5' },
-          { label: 'Rejected', value: productList.filter(p => p.status === 'rejected').length, color: 'text-destructive', bg: 'bg-destructive/5' }
-        ].map((stat, i) => (
-          <Card key={i} className={cn("border-slate-200/60 shadow-sm rounded-2xl overflow-hidden transition-all hover:shadow-md", stat.bg)}>
-            <CardContent className="p-4 sm:p-6 space-y-1">
-              <div className={cn("text-xl sm:text-2xl font-black", stat.color)}>{stat.value}</div>
-              <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-500/80">{stat.label}</p>
-            </CardContent>
-          </Card>
-        ))}
+          { label: 'Total Products', value: productList.length, color: 'text-slate-900', bg: 'bg-white', icon: Package },
+          { label: 'Active', value: productList.filter(p => p.status === 'active' || p.status === 'approved').length, color: 'text-emerald-600', bg: 'bg-emerald-500/5', icon: CheckCircle },
+          { label: 'Pending', value: productList.filter(p => p.status === 'pending').length, color: 'text-amber-600', bg: 'bg-amber-500/5', icon: Clock },
+          { label: 'Rejected', value: productList.filter(p => p.status === 'rejected').length, color: 'text-rose-600', bg: 'bg-rose-500/5', icon: AlertCircle }
+        ].map((stat, i) => {
+          const IconComp = stat.icon;
+          return (
+            <Card key={i} className={cn("border-slate-200/60 shadow-sm rounded-2xl overflow-hidden transition-all hover:shadow-md", stat.bg)}>
+              <CardContent className="p-4 sm:p-5 flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className={cn("text-xl sm:text-2xl font-black", stat.color)}>{stat.value}</div>
+                  <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-500/80">{stat.label}</p>
+                </div>
+                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-100 shrink-0", stat.color)}>
+                  <IconComp className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Card className="border-slate-200 shadow-xl shadow-slate-200/20 rounded-[2.5rem] overflow-hidden">
@@ -563,15 +573,15 @@ export default function VendorProducts() {
           {/* Desktop Table View */}
           <div className="hidden md:block w-full overflow-x-auto">
             <div className="inline-block min-w-full align-middle">
-              <Table>
+              <Table className="table-fixed w-full">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-slate-100">
-                    <TableHead className="w-[320px] font-black uppercase text-[10px] tracking-widest text-slate-500 py-6 pl-10">Product Details</TableHead>
-                    <TableHead className="font-black uppercase text-[10px] tracking-widest text-slate-500 py-6">Category</TableHead>
-                    <TableHead className="font-black uppercase text-[10px] tracking-widest text-slate-500 py-6">Bulk MOQ</TableHead>
-                    <TableHead className="font-black uppercase text-[10px] tracking-widest text-slate-500 py-6">Pricing Slab</TableHead>
-                    <TableHead className="font-black uppercase text-[10px] tracking-widest text-slate-500 py-6">Status</TableHead>
-                    <TableHead className="text-right font-black uppercase text-[10px] tracking-widest text-slate-500 py-6 pr-10">Control</TableHead>
+                    <TableHead className="w-[320px] font-black uppercase text-[10px] tracking-widest text-slate-500 py-5 pl-6">Product Details</TableHead>
+                    <TableHead className="w-[180px] font-black uppercase text-[10px] tracking-widest text-slate-500 py-5 px-4">Category</TableHead>
+                    <TableHead className="w-[120px] font-black uppercase text-[10px] tracking-widest text-slate-500 py-5 px-4">Bulk MOQ</TableHead>
+                    <TableHead className="w-[140px] font-black uppercase text-[10px] tracking-widest text-slate-500 py-5 px-4">Pricing Slab</TableHead>
+                    <TableHead className="w-[120px] font-black uppercase text-[10px] tracking-widest text-slate-500 py-5 px-4">Status</TableHead>
+                    <TableHead className="w-[120px] text-right font-black uppercase text-[10px] tracking-widest text-slate-500 py-5 pr-6">Control</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -581,63 +591,63 @@ export default function VendorProducts() {
                     const maxPrice = Math.max(...product.pricingSlabs.map(s => s.pricePerUnit));
                     return (
                       <TableRow key={product.id} className="group hover:bg-slate-50/50 transition-colors border-slate-50">
-                        <TableCell className="pl-10 py-6">
-                          <div className="flex items-center gap-5">
-                            <div className="relative w-14 h-14 shrink-0">
+                        <TableCell className="w-[320px] max-w-[320px] pl-6 py-5">
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="relative w-12 h-12 shrink-0">
                               <img src={product.images[0]} alt={product.name} className="w-full h-full rounded-2xl object-cover shadow-md border-2 border-white" />
                               {product.images.length > 1 && (
                                 <div className="absolute -bottom-1 -right-1 bg-primary text-white shadow-lg rounded-lg px-1.5 py-0.5 border-2 border-white text-[9px] font-black">+{product.images.length - 1}</div>
                               )}
                             </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="font-black text-slate-900 truncate text-base leading-none mb-1.5">{product.name}</p>
-                              <p className="text-[11px] font-bold text-slate-400 truncate tracking-tight">{product.shortDescription}</p>
+                            <div className="min-w-0 flex-1 overflow-hidden">
+                              <p className="font-black text-slate-900 truncate text-sm leading-tight mb-1" title={product.name}>{product.name}</p>
+                              <p className="text-[11px] font-bold text-slate-400 truncate tracking-tight block max-w-[220px]" title={product.shortDescription}>{product.shortDescription}</p>
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="px-4 py-5">
                           <Badge variant="outline" className="rounded-lg font-black text-[10px] uppercase tracking-wider border-slate-200 text-slate-600 bg-slate-50/80 px-3 py-1">
                             {category?.name || 'Uncategorized'}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-black text-slate-700 text-sm">
+                        <TableCell className="font-black text-slate-700 text-sm px-4 py-5">
                           <span className="bg-slate-100 px-3 py-1 rounded-full border border-slate-200/50">{product.moq} {product.unit}</span>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="px-4 py-5">
                           <div className="flex flex-col">
-                            <span className="font-black text-slate-900 text-base">{formatPrice(minPrice)}</span>
+                            <span className="font-black text-slate-900 text-sm">{formatPrice(minPrice)}</span>
                             {minPrice !== maxPrice && <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">up to {formatPrice(maxPrice)}</span>}
                           </div>
                         </TableCell>
-                        <TableCell>{getStatusBadge(product.status, product.rejectionReason)}</TableCell>
-                        <TableCell className="text-right pr-10">
-                          <div className="flex justify-end gap-2">
+                        <TableCell className="px-4 py-5">{getStatusBadge(product.status, product.rejectionReason)}</TableCell>
+                        <TableCell className="text-right pr-6 py-5 w-[140px]">
+                          <div className="flex justify-end items-center gap-1">
                             <Button 
                               size="icon" 
                               variant="ghost" 
                               onClick={() => setPreviewProduct(product)} 
-                              className="h-10 w-10 rounded-xl hover:bg-primary/10 hover:text-primary transition-all"
+                              className="h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary transition-all shrink-0"
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
                             {product.status === 'rejected' ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button size="icon" variant="ghost" disabled className="h-10 w-10 opacity-30">
+                                  <Button size="icon" variant="ghost" disabled className="h-9 w-9 opacity-30 shrink-0">
                                     <Pencil className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>Admin Review Required</TooltipContent>
                               </Tooltip>
                             ) : (
-                              <Button size="icon" variant="ghost" onClick={() => handleOpenEdit(product)} className="h-10 w-10 rounded-xl hover:bg-primary/10 hover:text-primary transition-all">
+                              <Button size="icon" variant="ghost" onClick={() => handleOpenEdit(product)} className="h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary transition-all shrink-0">
                                 <Pencil className="h-4 w-4" />
                               </Button>
                             )}
                             <Button 
                               size="icon" 
                               variant="ghost" 
-                              className="h-10 w-10 rounded-xl text-destructive hover:bg-destructive/10 transition-all"
+                              className="h-9 w-9 rounded-xl text-destructive hover:bg-destructive/10 transition-all shrink-0"
                               onClick={() => { setDeleteId(product.id); setDeleteOpen(true); }}
                             >
                               <Trash2 className="h-4 w-4" />

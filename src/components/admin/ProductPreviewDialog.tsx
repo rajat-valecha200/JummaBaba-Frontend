@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, LayoutGrid, FileText, MessageSquare, Info, CheckCircle, XCircle, ChevronLeft, ChevronRight, Package, Truck, ShieldCheck, Star } from 'lucide-react';
+import { Eye, LayoutGrid, FileText, MessageSquare, Info, CheckCircle, XCircle, ChevronLeft, ChevronRight, Package, Truck, ShieldCheck, Star, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,8 +15,8 @@ interface ProductPreviewDialogProps {
   categories?: any[];
   supplier?: any;
   mode?: 'admin' | 'vendor';
-  onApprove?: (id: string) => void;
-  onReject?: (id: string) => void;
+  onApprove?: (id: string) => Promise<void> | void;
+  onReject?: (id: string) => Promise<void> | void;
 }
 
 export function ProductPreviewDialog({ 
@@ -31,8 +31,21 @@ export function ProductPreviewDialog({
 }: ProductPreviewDialogProps) {
   const [previewMode, setPreviewMode] = useState<'card' | 'page'>('card');
   const [selectedImage, setSelectedImage] = useState(0);
+  const [isActioning, setIsActioning] = useState(false);
 
   if (!product) return null;
+
+  const handleApproveClick = async () => {
+    if (isActioning || !product) return;
+    try {
+      setIsActioning(true);
+      await onApprove?.(product.id);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsActioning(false);
+    }
+  };
 
   const images = Array.isArray(product.images) && product.images.length > 0 ? product.images : [product.image || 'https://images.unsplash.com/photo-1582234057117-9c9ae625b035?w=600'];
   const categoriesList = Array.isArray(categories) ? categories : [];
@@ -330,6 +343,7 @@ export function ProductPreviewDialog({
                 <>
                   <Button 
                     variant="outline" 
+                    disabled={isActioning}
                     onClick={() => onReject?.(product.id)}
                     className="flex-1 sm:flex-none rounded-xl px-6 h-12 font-black text-xs uppercase tracking-widest text-destructive border-destructive/20 hover:bg-destructive/5"
                   >
@@ -337,11 +351,21 @@ export function ProductPreviewDialog({
                     Reject
                   </Button>
                   <Button 
-                    onClick={() => onApprove?.(product.id)}
+                    disabled={isActioning}
+                    onClick={handleApproveClick}
                     className="flex-1 sm:flex-none rounded-xl px-6 h-12 font-black text-xs uppercase tracking-widest bg-success hover:bg-success/90 text-white shadow-lg shadow-success/20"
                   >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Approve
+                    {isActioning ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Approving...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Approve
+                      </>
+                    )}
                   </Button>
                 </>
               )}

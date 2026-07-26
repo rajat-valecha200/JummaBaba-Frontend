@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { MainLayout, VendorLayout, BuyerLayout, AdminLayout } from "@/components/layout";
+import { MainLayout, VendorLayout, BuyerLayout, AdminLayout, ScrollToTop } from "@/components/layout";
 import { WishlistProvider } from "@/contexts/WishlistContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { MaintenanceGuard } from "@/components/auth/MaintenanceGuard";
@@ -34,6 +34,7 @@ import OrderConfirmationPage from "./pages/buyer/OrderConfirmationPage";
 import PostRfqPage from "./pages/buyer/PostRfqPage";
 import BuyerSettings from "./pages/buyer/BuyerSettings";
 import InvoicePage from "./pages/buyer/InvoicePage";
+import RfqPaymentPage from "./pages/buyer/RfqPaymentPage";
 
 // Vendor Pages
 import VendorDashboard from "./pages/vendor/VendorDashboard";
@@ -72,6 +73,7 @@ const App = () => (
       <AuthProvider>
         <WishlistProvider>
           <BrowserRouter>
+            <ScrollToTop />
             <MaintenanceGuard>
               <Toaster />
               <Sonner />
@@ -104,6 +106,7 @@ const App = () => (
                   <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
                   <Route path="/buyer/cart" element={<BuyerCart />} />
                   <Route path="/buyer/checkout" element={<CheckoutPage />} />
+                  <Route path="/buyer/rfq-payment/:rfqId" element={<RfqPaymentPage />} />
                   <Route path="/buyer/invoice/:rfqId" element={<InvoicePage />} />
                   <Route path="/buyer/order-confirmation" element={<OrderConfirmationPage />} />
                   <Route path="/buyer/wishlist" element={<BuyerWishlist />} />
