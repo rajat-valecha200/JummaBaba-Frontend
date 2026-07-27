@@ -4,6 +4,7 @@ import { Printer, Download, ArrowLeft, ShieldCheck, Mail, Phone, MapPin } from '
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatPrice } from '@/lib/utils';
+import { api } from '@/lib/api';
 
 export default function InvoicePage() {
   const { rfqId } = useParams();
@@ -13,32 +14,21 @@ export default function InvoicePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!rfqId) return;
     const fetchInvoiceData = async () => {
       try {
-        const rfqRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-          }
-        });
-        if (rfqRes.ok) {
-          const rfqData = await rfqRes.json();
-          setRfq(rfqData);
-        }
-
-        const offerRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId}/offer`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-          }
-        });
-        if (offerRes.ok) {
-          const offerData = await offerRes.json();
-          setOffer(offerData);
-        }
+        setRfq(await api.rfqs.get(rfqId));
       } catch (e) {
         console.error('Failed to load invoice details', e);
-      } finally {
-        setLoading(false);
       }
+
+      try {
+        setOffer(await api.rfqs.getActiveOffer(rfqId));
+      } catch (e) {
+        // No active offer is a normal, expected case (404) — not an error to surface.
+      }
+
+      setLoading(false);
     };
     fetchInvoiceData();
   }, [rfqId]);
@@ -176,7 +166,7 @@ export default function InvoicePage() {
               <ShieldCheck className="h-10 w-10 text-emerald-600 shrink-0" />
               <div className="text-xs text-emerald-800">
                 <p className="font-bold uppercase tracking-wider mb-0.5">Verified & Secured</p>
-                <p className="opacity-90">This transaction has been routed through JummaBaba Escrow services.</p>
+                <p className="opacity-90">This transaction's payment was verified by JummaBaba before order confirmation.</p>
               </div>
             </div>
 

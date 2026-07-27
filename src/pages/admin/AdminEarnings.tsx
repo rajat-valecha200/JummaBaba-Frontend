@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { formatPrice } from '@/lib/utils';
 import { Landmark, TrendingUp, ShieldAlert, Award } from 'lucide-react';
+import { api } from '@/lib/api';
 
 export default function AdminEarnings() {
   const [ledgers, setLedgers] = useState<any[]>([]);
@@ -17,13 +18,8 @@ export default function AdminEarnings() {
     // Fetch escrow ledgers and payouts information
     const fetchEarnings = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-          }
-        });
-        if (res.ok) {
-          const rfqs = await res.json();
+        const rfqs = await api.rfqs.list().catch(() => null);
+        if (rfqs) {
           // Filter ordered/completed sourcing items to build platform billing ledger
           const ledgerItems = rfqs.filter((r: any) => ['ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(r.status));
           

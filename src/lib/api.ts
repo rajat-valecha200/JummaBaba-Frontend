@@ -189,8 +189,10 @@ export const api = {
       const rfqs = await apiFetch('/rfqs');
       return Array.isArray(rfqs) ? rfqs.map(normalizeRfq) : [];
     },
+    get: async (id: string) => normalizeRfq(await apiFetch(`/rfqs/${id}`)),
+    getTimeline: (id: string) => apiFetch(`/rfqs/${id}/timeline`),
     create: (data: any) => apiFetch('/rfqs', { method: 'POST', body: JSON.stringify(data) }),
-    forward: (id: string, supplier_id: string) => 
+    forward: (id: string, supplier_id: string) =>
       apiFetch(`/rfqs/${id}/forward`, { method: 'POST', body: JSON.stringify({ supplier_id }) }),
     submitQuote: (id: string, quoteDetails: any) =>
       apiFetch(`/rfqs/${id}/quote`, { method: 'POST', body: JSON.stringify(quoteDetails) }),
@@ -200,15 +202,43 @@ export const api = {
       apiFetch(`/rfqs/${id}/accept`, { method: 'POST' }),
     updateFulfillment: (id: string, data: any) =>
       apiFetch(`/rfqs/${id}/fulfillment`, { method: 'PATCH', body: JSON.stringify(data) }),
+    uploadShippingProof: (id: string, file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return apiFetch(`/rfqs/${id}/shipping-proof`, { method: 'POST', body: formData, headers: {} });
+    },
     togglePrivacy: (id: string, share_buyer_details: boolean) =>
       apiFetch(`/rfqs/${id}/privacy`, { method: 'PATCH', body: JSON.stringify({ share_buyer_details }) }),
+    adminModify: (id: string, price: number, quantity: number, notes?: string) =>
+      apiFetch(`/rfqs/${id}/admin-modify`, { method: 'POST', body: JSON.stringify({ price, quantity, notes }) }),
+    buyerConfirm: (id: string, source: string, price?: number, quantity?: number, notes?: string) =>
+      apiFetch(`/rfqs/${id}/buyer-confirm`, { method: 'POST', body: JSON.stringify({ source, price, quantity, notes }) }),
+    sellerCounter: (id: string, price: number, quantity: number, notes?: string) =>
+      apiFetch(`/rfqs/${id}/seller-counter`, { method: 'POST', body: JSON.stringify({ price, quantity, notes }) }),
+    adminApproveCounter: (id: string) =>
+      apiFetch(`/rfqs/${id}/admin-approve-counter`, { method: 'POST' }),
+    forwardToSeller: (id: string) =>
+      apiFetch(`/rfqs/${id}/forward-to-seller`, { method: 'POST' }),
+    sellerAccept: (id: string) =>
+      apiFetch(`/rfqs/${id}/seller-accept`, { method: 'POST' }),
+    sendPaymentRequest: (id: string, discountPercentage?: number) =>
+      apiFetch(`/rfqs/${id}/payment-request`, { method: 'POST', body: JSON.stringify({ discountPercentage }) }),
+    buyerSubmitPayment: (id: string, paymentReference: string) =>
+      apiFetch(`/rfqs/${id}/buyer-submit-payment`, { method: 'POST', body: JSON.stringify({ paymentReference }) }),
+    adminConfirmPayment: (id: string) =>
+      apiFetch(`/rfqs/${id}/admin-confirm-payment`, { method: 'POST' }),
+    toggleDirectChat: (id: string, active: boolean) =>
+      apiFetch(`/rfqs/${id}/toggle-direct-chat`, { method: 'POST', body: JSON.stringify({ active }) }),
+    createNegotiatedOffer: (id: string, negotiatedPrice: number, quantity: number, discountPercentage?: number) =>
+      apiFetch(`/rfqs/${id}/offer`, { method: 'POST', body: JSON.stringify({ negotiatedPrice, quantity, discountPercentage }) }),
+    getActiveOffer: (id: string) => apiFetch(`/rfqs/${id}/offer`),
     // Legacy/Generic actions
     buyerAction: (id: string, action: string, notes?: string) =>
       apiFetch(`/rfqs/${id}/buyer-action`, { method: 'PATCH', body: JSON.stringify({ action, notes }) }),
     vendorAction: (id: string, action: string, notes?: string) =>
       apiFetch(`/rfqs/${id}/vendor-action`, { method: 'PATCH', body: JSON.stringify({ action, notes }) }),
-    updateCancellation: (id: string, status: 'approved' | 'rejected', admin_notes?: string) =>
-      apiFetch(`/rfqs/${id}/cancellation`, { method: 'PATCH', body: JSON.stringify({ status, admin_notes }) }),
+    updateCancellation: (id: string, status: 'approved' | 'rejected', opts?: { fee?: number, liable_party?: 'buyer' | 'seller' | 'none', admin_notes?: string }) =>
+      apiFetch(`/rfqs/${id}/cancellation`, { method: 'PATCH', body: JSON.stringify({ status, ...opts }) }),
   },
   messages: {
     send: (receiver_id: string | null, content: string, chat_group_id?: string | null, metadata?: any) => 

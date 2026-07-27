@@ -270,7 +270,7 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Users className="h-3.5 w-3.5 text-green-600" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest">Secure Escrow</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-widest">Verified Payments</span>
                 </div>
               </div>
             </motion.div>

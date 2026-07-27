@@ -136,6 +136,10 @@ export default function AdminRfqs() {
   const [isForwarding, setIsForwarding] = useState(false);
   const [isModerating, setIsModerating] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelFee, setCancelFee] = useState('');
+  const [cancelLiableParty, setCancelLiableParty] = useState<'buyer' | 'seller' | 'none'>('none');
+  const [cancelAdminNotes, setCancelAdminNotes] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   
   // Custom Quote Modification Dialog States
@@ -297,6 +301,33 @@ export default function AdminRfqs() {
     }
   };
 
+  const openCancelDialog = () => {
+    setCancelFee('');
+    setCancelLiableParty('none');
+    setCancelAdminNotes('');
+    setShowCancelDialog(true);
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    if (!selectedRfq) return;
+    try {
+      setIsCancelling(true);
+      await api.rfqs.updateCancellation(selectedRfq.id, 'approved', {
+        fee: Number(cancelFee) || 0,
+        liable_party: cancelLiableParty,
+        admin_notes: cancelAdminNotes.trim()
+      });
+      toast({ title: 'Order Cancelled', description: 'The order has been cancelled and the relevant party notified.' });
+      setShowCancelDialog(false);
+      setDetailsOpen(false);
+      fetchRfqs();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   const getModerationBadge = (status: string) => {
     switch (status) {
       case 'pending_moderation':
@@ -445,7 +476,7 @@ export default function AdminRfqs() {
       </Card>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="w-[95vw] max-w-4xl max-h-[92vh] border-border/50 bg-card/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="w-[95vw] max-w-5xl max-h-[92vh] border-border/50 bg-card/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-0 overflow-hidden">
           <div className="flex flex-col md:flex-row h-[85vh] max-h-[750px]">
             <div className="w-72 border-r border-border/50 bg-slate-50/50 p-6 hidden lg:block overflow-y-auto shrink-0">
               <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-8">Moderation Lifecycle</h3>
@@ -465,7 +496,7 @@ export default function AdminRfqs() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+              <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-6">
                 {selectedRfq && (
                   <div className="space-y-6">
                     {selectedRfq.cancellation_request?.status === 'pending' && (
@@ -488,10 +519,10 @@ export default function AdminRfqs() {
                             {isCancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <XCircle className="h-4 w-4 mr-2" />}
                             Reject Cancellation
                           </Button>
-                          <Button 
-                            size="sm" 
-                            className="bg-destructive text-white hover:bg-destructive/90" 
-                            onClick={() => handleCancellationAction(selectedRfq.id, 'approved')}
+                          <Button
+                            size="sm"
+                            className="bg-destructive text-white hover:bg-destructive/90"
+                            onClick={openCancelDialog}
                             disabled={isCancelling}
                           >
                             {isCancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
@@ -500,6 +531,20 @@ export default function AdminRfqs() {
                         </div>
                       </div>
                     )}
+                    {!selectedRfq.cancellation_request?.status || selectedRfq.cancellation_request?.status === 'rejected' ? (
+                      !['completed', 'cancelled', 'closed'].includes(selectedRfq.status) && (
+                        <div className="flex justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-destructive text-destructive hover:bg-destructive/10"
+                            onClick={openCancelDialog}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" /> Cancel Order
+                          </Button>
+                        </div>
+                      )
+                    ) : null}
                     <Tabs defaultValue="rfq" className="w-full">
                       <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="rfq">Buyer Request</TabsTrigger>
@@ -664,8 +709,8 @@ export default function AdminRfqs() {
                 )}
               </div>
 
-              <DialogFooter className="p-8 border-t border-white/5">
-                <div className="flex gap-2">
+              <DialogFooter className="p-8 border-t border-white/5 flex-col sm:flex-col items-stretch sm:justify-start sm:space-x-0 gap-3">
+                <div className="flex flex-wrap gap-2 w-full">
                   {selectedRfq?.moderation_status === 'pending_moderation' && (
                     <Button onClick={() => handleForward(selectedRfq)} disabled={isForwarding}>
                       {isForwarding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -753,19 +798,26 @@ export default function AdminRfqs() {
                           headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
                         });
                         if (res.ok) {
-                          toast({ title: 'Escrow Payment Confirmed', description: 'Escrow released and PO generated.' });
+                          toast({ title: 'Payment Confirmed', description: 'Payment verified and PO generated.' });
                           setDetailsOpen(false);
                           fetchRfqs();
                         }
                       }}
                     >
-                      Confirm Escrow Payment Received
+                      Confirm Payment Received
                     </Button>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 w-full">
                   {selectedRfq && (
-                    <Link to={`/admin/messages?rfqId=${selectedRfq.id}`}>
+                    <Link to={`/admin/rfqs/${selectedRfq.id}`}>
+                      <Button variant="outline" className="font-bold gap-2 text-xs py-2 rounded-xl">
+                        <FileText className="h-4 w-4" /> Full Audit Trail
+                      </Button>
+                    </Link>
+                  )}
+                  {selectedRfq && (
+                    <Link to={`/admin/messages?chatGroupId=${selectedRfq.order_group_id || selectedRfq.negotiation_group_id || ''}&rfqId=${selectedRfq.id}`}>
                       <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2 text-xs py-2 rounded-xl">
                         <MessageSquare className="h-4 w-4" /> Go to Chat Room
                       </Button>
@@ -869,7 +921,7 @@ export default function AdminRfqs() {
 
             <div className="space-y-2">
               <label className="font-semibold text-xs text-slate-700 dark:text-slate-200">
-                Modification Reason / Remark <span className="text-muted-foreground font-normal">(Recommended)</span>
+                Modification Reason / Remark *
               </label>
               <Textarea
                 placeholder="Explain why terms were adjusted (e.g. Volume discount applied, special delivery surcharge, tier pricing adjustment)..."
@@ -899,35 +951,89 @@ export default function AdminRfqs() {
             )}
 
             <Button
-              onClick={() => {
-                if (selectedRfq && modifyPrice && modifyQty) {
+              onClick={async () => {
+                if (selectedRfq && modifyPrice && modifyQty && modifyNotes.trim()) {
                   setIsModifyingTerms(true);
-                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/admin-modify`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-                    },
-                    body: JSON.stringify({ price: Number(modifyPrice), quantity: Number(modifyQty), notes: modifyNotes })
-                  }).then(res => {
-                    if (res.ok) {
-                      toast({ title: 'Terms Adjusted', description: 'Proposed spec terms sent to Buyer.' });
-                      setShowModifyDialog(false);
-                      setDetailsOpen(false);
-                      setModifyNotes('');
-                      fetchRfqs();
-                    }
-                  }).finally(() => {
+                  try {
+                    await api.rfqs.adminModify(selectedRfq.id, Number(modifyPrice), Number(modifyQty), modifyNotes.trim());
+                    toast({ title: 'Terms Adjusted', description: 'Proposed spec terms sent to Buyer.' });
+                    setShowModifyDialog(false);
+                    setDetailsOpen(false);
+                    setModifyNotes('');
+                    fetchRfqs();
+                  } catch (err: any) {
+                    toast({ title: 'Failed to adjust terms', description: err.message, variant: 'destructive' });
+                  } finally {
                     setIsModifyingTerms(false);
-                  });
+                  }
                 }
               }}
-              disabled={isModifyingTerms || !modifyPrice || !modifyQty}
+              disabled={isModifyingTerms || !modifyPrice || !modifyQty || !modifyNotes.trim()}
               className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold"
             >
               {isModifyingTerms ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Confirm & Apply Terms Adjustment'}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Cancellation Dialog: manual fee + liable-party selection */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Order</DialogTitle>
+            <DialogDescription>
+              Set a cancellation fee (if any) and choose which party is charged. The buyer's or seller's settlement will reflect this deduction.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2 text-sm">
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Cancellation Fee (₹)</label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0"
+                value={cancelFee}
+                onChange={(e) => setCancelFee(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Charged To</label>
+              <Select value={cancelLiableParty} onValueChange={(v) => setCancelLiableParty(v as 'buyer' | 'seller' | 'none')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Charge</SelectItem>
+                  <SelectItem value="buyer">Buyer (deducted from refund)</SelectItem>
+                  <SelectItem value="seller">Seller (debited from ledger balance)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Notes</label>
+              <Textarea
+                placeholder="Reason for cancellation / fee basis..."
+                value={cancelAdminNotes}
+                onChange={(e) => setCancelAdminNotes(e.target.value)}
+                rows={3}
+                className="text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelDialog(false)} disabled={isCancelling}>
+              Back
+            </Button>
+            <Button
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={handleConfirmCancelOrder}
+              disabled={isCancelling}
+            >
+              {isCancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <XCircle className="h-4 w-4 mr-2" />}
+              Confirm Cancellation
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

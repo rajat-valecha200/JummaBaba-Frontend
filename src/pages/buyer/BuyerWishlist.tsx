@@ -16,7 +16,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useWishlist } from '@/contexts/WishlistContext';
-import { api } from '@/lib/api';
+import { api, normalizeProduct } from '@/lib/api';
 import { formatPrice } from '@/lib/utils';
 
 export default function BuyerWishlist() {
@@ -28,7 +28,10 @@ export default function BuyerWishlist() {
     const fetchProds = async () => {
       try {
         const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/products/public`);
-        if (res.ok) setDbProducts(await res.json());
+        if (res.ok) {
+          const rawProds = await res.json();
+          setDbProducts(Array.isArray(rawProds) ? rawProds.map(normalizeProduct) : []);
+        }
       } catch (e) {
         console.error('Wishlist prod fetch failed');
       } finally {

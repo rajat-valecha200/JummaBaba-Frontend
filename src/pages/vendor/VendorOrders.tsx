@@ -85,7 +85,10 @@ export default function VendorOrders() {
             // Normalize status for UI
             let uiStatus: OrderStatus = 'pending';
             const vStatus = r.vendor_status;
-            if (['confirmed', 'shipped', 'delivered', 'cancelled', 'cancel_requested'].includes(vStatus)) {
+            const cancellationRequest = typeof r.cancellation_request === 'string' ? JSON.parse(r.cancellation_request) : r.cancellation_request;
+            if (cancellationRequest?.status === 'pending') {
+              uiStatus = 'cancel_requested';
+            } else if (['confirmed', 'shipped', 'delivered', 'cancelled'].includes(vStatus)) {
               uiStatus = vStatus as OrderStatus;
             } else if (r.status === 'ordered' || vStatus === 'pending_processing') {
               uiStatus = 'pending';
@@ -158,6 +161,14 @@ export default function VendorOrders() {
           dispatchLocation,
         }
       });
+
+      if (newStatus === 'shipped' && shippingProof) {
+        try {
+          await api.rfqs.uploadShippingProof(orderId, shippingProof);
+        } catch (uploadErr: any) {
+          toast({ title: 'Shipping proof upload failed', description: uploadErr.message, variant: 'destructive' });
+        }
+      }
 
       setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
       toast({ title: `Order status updated to ${statusConfig[newStatus].label}` });

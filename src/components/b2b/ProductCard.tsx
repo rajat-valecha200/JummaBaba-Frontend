@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { MessageSquare, Heart, Building, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,7 +15,8 @@ interface ProductCardProps {
 
 export function ProductCard({ product, supplier, className }: ProductCardProps) {
   const { isInWishlist, toggleWishlist } = useWishlist();
-  
+  const navigate = useNavigate();
+
   if (!product || !supplier) return null;
 
   // Handle both mock and backend pricing structures
@@ -114,10 +115,14 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
         </div>
 
         {/* CTA */}
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            navigate(`/product/${product.slug}?quote=1`);
+          }}
           className="w-full relative overflow-hidden group/btn font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-white border-primary/20 hover:border-primary transition-all duration-300"
         >
           <span className="flex items-center gap-2 z-10 relative">

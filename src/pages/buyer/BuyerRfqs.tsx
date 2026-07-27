@@ -170,7 +170,7 @@ export default function BuyerRfqs() {
     fetchRfqs();
   }, []);
 
-  const handleAction = async (id: string, action: 'accept_quote' | 'reject_quote' | 'request_cancellation') => {
+  const handleAction = async (id: string, action: 'accept_quote' | 'reject_quote' | 'request_cancellation' | 'confirm_delivery') => {
     setIsLoading(true);
     try {
       if (action === 'accept_quote') {
@@ -178,19 +178,15 @@ export default function BuyerRfqs() {
       } else {
         await api.rfqs.buyerAction(id, action);
       }
-      
-      toast({ 
-        title: action === 'accept_quote' 
-          ? 'Order Placed!' 
-          : action === 'reject_quote' 
-            ? 'Quote Declined' 
-            : 'Cancellation Requested',
-        description: action === 'accept_quote' 
-          ? 'Your order has been sent to the supplier.' 
-          : action === 'request_cancellation'
-            ? 'Your request has been sent for admin review.'
-            : 'The request has been closed.'
-      });
+
+      const toastCopy = {
+        accept_quote: { title: 'Order Placed!', description: 'Your order has been sent to the supplier.' },
+        reject_quote: { title: 'Quote Declined', description: 'The request has been closed.' },
+        request_cancellation: { title: 'Cancellation Requested', description: 'Your request has been sent for admin review.' },
+        confirm_delivery: { title: 'Delivery Confirmed', description: 'Thanks for confirming! Funds have been released to the supplier.' },
+      }[action];
+
+      toast(toastCopy);
       setDetailsOpen(false);
       fetchRfqs();
     } catch (error: any) {
@@ -202,8 +198,10 @@ export default function BuyerRfqs() {
 
   // Filter inquiries into Active (In-Progress) and History (Finalized)
   const inquiries = rfqs.filter(r => r.is_direct_order !== true);
-  const activeRfqs = inquiries.filter(r => !['delivered', 'cancelled', 'closed'].includes(r.status));
-  const history = inquiries.filter(r => ['delivered', 'cancelled', 'closed'].includes(r.status));
+  // 'delivered' still needs the buyer to confirm receipt, so it stays Active; only
+  // 'completed' (buyer-confirmed) and terminal states move to History.
+  const activeRfqs = inquiries.filter(r => !['completed', 'cancelled', 'closed'].includes(r.status));
+  const history = inquiries.filter(r => ['completed', 'cancelled', 'closed'].includes(r.status));
 
   if (isLoading) {
     return (
@@ -309,27 +307,27 @@ export default function BuyerRfqs() {
       </Tabs>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-4xl border-border/50 bg-card/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="max-w-5xl border-border/50 bg-card/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-0 overflow-hidden">
           <div className="flex h-[80vh]">
-            <div className="w-80 border-r border-border/50 bg-slate-50/50 p-8 hidden md:block">
+            <div className="w-80 flex-shrink-0 border-r border-border/50 bg-slate-50/50 p-8 hidden md:block">
               <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-8">Purchase Lifecycle</h3>
               {selectedRfq && (
                 <RfqTimeline steps={getRfqSteps(selectedRfq.status, selectedRfq.moderation_status)} />
               )}
             </div>
 
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 min-w-0 flex flex-col">
               <DialogHeader className="p-8 pb-4 border-b border-white/5">
-                <div className="flex items-center justify-between mb-2">
-                  <DialogTitle className="text-2xl font-black tracking-tighter">Inquiry Status</DialogTitle>
-                  {selectedRfq && <Badge className={statusColors[selectedRfq.status]}>{selectedRfq.status}</Badge>}
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <DialogTitle className="text-2xl font-black tracking-tighter truncate">Inquiry Status</DialogTitle>
+                  {selectedRfq && <Badge className={cn(statusColors[selectedRfq.status], "flex-shrink-0")}>{selectedRfq.status}</Badge>}
                 </div>
-                <DialogDescription className="font-bold text-muted-foreground uppercase text-[10px] tracking-widest">
+                <DialogDescription className="font-bold text-muted-foreground uppercase text-[10px] tracking-widest break-all">
                   Reference ID: {selectedRfq?.id}
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-8 space-y-6">
                 {selectedRfq && (
                   <div className="space-y-6">
                     {/* Success Banner for Converted Orders */}
@@ -479,7 +477,7 @@ export default function BuyerRfqs() {
                       </div>
                     )}
 
-                    {selectedRfq.moderation_status === 'quote_approved' && selectedRfq.response_details && (
+                    {selectedRfq.moderation_status === 'quote_approved' && Number(selectedRfq.response_details?.price) > 0 && (
                       <div className="p-6 bg-primary/5 border-2 border-primary/20 rounded-xl space-y-4">
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col">
@@ -539,6 +537,24 @@ export default function BuyerRfqs() {
                           deliveredAt={selectedRfq.shipping_details?.deliveredAt}
                           dispatchLocation={selectedRfq.shipping_details?.dispatchLocation}
                         />
+
+                        {selectedRfq.vendor_status === 'delivered' && !selectedRfq.buyer_acknowledged && (
+                          <div className="p-4 bg-amber-500/10 border-2 border-amber-500/20 rounded-xl space-y-3">
+                            <p className="text-xs font-bold text-amber-700">
+                              The supplier has marked this shipment as delivered. Have you received your cargo?
+                            </p>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex-1"
+                                disabled={isLoading}
+                                onClick={() => handleAction(selectedRfq.id, 'confirm_delivery')}
+                              >
+                                📦 Confirm Receipt
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -555,12 +571,12 @@ export default function BuyerRfqs() {
                 )}
               </div>
  
-              <DialogFooter className="p-8 border-t border-white/5">
-                <div className="flex gap-2">
+              <DialogFooter className="p-8 border-t border-white/5 flex-col sm:flex-col items-stretch sm:justify-start sm:space-x-0 gap-3">
+                <div className="flex flex-col gap-2 w-full">
                   {selectedRfq?.negotiation_step === 'payment_pending' && (
                     <div className="flex flex-col gap-3 w-full bg-slate-50 p-4 rounded-xl border border-indigo-100 text-xs">
-                      <p className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">Escrow Sourcing Invoice & Payment Request</p>
-                      
+                      <p className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">Sourcing Invoice & Payment Request</p>
+
                       <div className="space-y-1 text-slate-600">
                         <div className="flex justify-between">
                           <span>Base Cost:</span>
@@ -587,7 +603,7 @@ export default function BuyerRfqs() {
                         <div className="flex justify-between font-bold border-t pt-1.5 mt-1 text-indigo-600 text-sm">
                           <span>Total Amount Payable:</span>
                           <span>
-                            ₹{selectedRfq.response_details?.payment_breakdown 
+                            ₹{selectedRfq.response_details?.payment_breakdown
                               ? Math.round(Number(selectedRfq.response_details.payment_breakdown.finalAmount)).toLocaleString()
                               : Math.round((Number(selectedRfq.target_price) * Number(selectedRfq.quantity)) * 1.28).toLocaleString()
                             }
@@ -595,61 +611,19 @@ export default function BuyerRfqs() {
                         </div>
                       </div>
 
-                      <div className="space-y-2 pt-2 border-t">
-                        <label className="text-[10px] uppercase font-bold text-indigo-600 block">Bank Transfer Transaction UTR *</label>
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="e.g. UTR128763524 / IMPS Ref"
-                            id={`utr-input-${selectedRfq.id}`}
-                            className="bg-white text-xs h-9 rounded-lg"
-                          />
-                          <Button
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 text-xs"
-                            onClick={async () => {
-                              const inputEl = document.getElementById(`utr-input-${selectedRfq.id}`) as HTMLInputElement;
-                              const val = inputEl?.value?.trim();
-                              if (!val) {
-                                alert('Please input transaction reference to confirm.');
-                                return;
-                              }
-                              setIsLoading(true);
-                              const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/buyer-submit-payment`, {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-                                },
-                                body: JSON.stringify({ paymentReference: val })
-                              });
-                              if (res.ok) {
-                                alert('Payment confirmation submitted!');
-                                setDetailsOpen(false);
-                                fetchRfqs();
-                              }
-                              setIsLoading(false);
-                            }}
-                          >
-                            Submit Confirm
-                          </Button>
-                        </div>
-                      </div>
+                      <Button
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 text-xs"
+                        onClick={() => navigate(`/buyer/rfq-payment/${selectedRfq.id}`)}
+                        disabled={isLoading}
+                      >
+                        Proceed to Payment Confirmation →
+                      </Button>
                     </div>
                   )}
                   {selectedRfq?.negotiation_step === 'payment_submitted' && (
                     <div className="bg-yellow-500/10 border border-yellow-500/25 rounded-xl p-3 text-xs w-full text-center text-yellow-700 font-bold">
-                      ⏳ Escrow payment submitted. Support is verifying transaction receipts.
+                      ⏳ Payment reference submitted. Support is verifying transaction receipts.
                     </div>
-                  )}
-                  {selectedRfq?.negotiation_step === 'payment_pending' && (
-                    <Button 
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest shadow-xl shadow-blue-500/20" 
-                      onClick={() => {
-                        navigate(`/buyer/rfq-payment/${selectedRfq.id}`);
-                      }}
-                      disabled={isLoading}
-                    >
-                      Proceed to Payment Confirmation →
-                    </Button>
                   )}
                   {selectedRfq?.status === 'ordered' && selectedRfq.cancellation_request?.status !== 'pending' && (
                     <Button variant="outline" className="text-destructive" onClick={() => handleAction(selectedRfq.id, 'request_cancellation')}>
@@ -662,9 +636,16 @@ export default function BuyerRfqs() {
                     </div>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 w-full">
                   {selectedRfq && (
-                    <Link to={`/buyer/messages?rfqId=${selectedRfq.id}`}>
+                    <Link to={`/buyer/rfqs/${selectedRfq.id}`}>
+                      <Button variant="outline" className="font-bold gap-2 text-xs py-2 rounded-xl">
+                        <FileText className="h-4 w-4" /> Full Audit Trail
+                      </Button>
+                    </Link>
+                  )}
+                  {selectedRfq && (
+                    <Link to={`/buyer/messages?chatGroupId=${selectedRfq.order_group_id || selectedRfq.negotiation_group_id || ''}&rfqId=${selectedRfq.id}`}>
                       <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2 text-xs py-2 rounded-xl">
                         <MessageSquare className="h-4 w-4" /> Go to Chat Room
                       </Button>
@@ -708,7 +689,7 @@ export default function BuyerRfqs() {
 
             <div className="space-y-2">
               <label className="font-semibold text-xs text-slate-700 dark:text-slate-200">
-                Counter Proposal Reason / Remark <span className="text-muted-foreground font-normal">(Recommended)</span>
+                Counter Proposal Reason / Remark *
               </label>
               <Textarea
                 placeholder="Explain why terms were counter-proposed (e.g. Target budget constraints, custom volume adjustment)..."
@@ -730,35 +711,24 @@ export default function BuyerRfqs() {
             )}
 
             <Button
-              onClick={() => {
-                if (selectedRfq && counterPrice && counterQty) {
+              onClick={async () => {
+                if (selectedRfq && counterPrice && counterQty && counterNotes.trim()) {
                   setIsSubmittingCounter(true);
-                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/buyer-confirm`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-                    },
-                    body: JSON.stringify({ 
-                      source: 'buyer_counter', 
-                      price: Number(counterPrice), 
-                      quantity: Number(counterQty),
-                      notes: counterNotes
-                    })
-                  }).then(res => {
-                    if (res.ok) {
-                      toast({ title: 'Counter-Proposal Sent', description: 'Modified quotation terms submitted for admin approval.' });
-                      setCounterOpen(false);
-                      setDetailsOpen(false);
-                      setCounterNotes('');
-                      fetchRfqs();
-                    }
-                  }).finally(() => {
+                  try {
+                    await api.rfqs.buyerConfirm(selectedRfq.id, 'buyer_counter', Number(counterPrice), Number(counterQty), counterNotes.trim());
+                    toast({ title: 'Counter-Proposal Sent', description: 'Modified quotation terms submitted for admin approval.' });
+                    setCounterOpen(false);
+                    setDetailsOpen(false);
+                    setCounterNotes('');
+                    fetchRfqs();
+                  } catch (err: any) {
+                    toast({ title: 'Failed to send counter-proposal', description: err.message, variant: 'destructive' });
+                  } finally {
                     setIsSubmittingCounter(false);
-                  });
+                  }
                 }
               }}
-              disabled={isSubmittingCounter || !counterPrice || !counterQty}
+              disabled={isSubmittingCounter || !counterPrice || !counterQty || !counterNotes.trim()}
               className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold"
             >
               {isSubmittingCounter ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Dispatch Counter Sourcing Terms'}

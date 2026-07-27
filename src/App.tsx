@@ -26,6 +26,7 @@ import BuyerDashboard from "./pages/buyer/BuyerDashboard";
 import BuyerCart from "./pages/buyer/BuyerCart";
 import BuyerOrders from "./pages/buyer/BuyerOrders";
 import BuyerRfqs from "./pages/buyer/BuyerRfqs";
+import RfqDetailPage from "./pages/shared/RfqDetailPage";
 import BuyerProfile from "./pages/buyer/BuyerProfile";
 import BuyerMessages from "./pages/buyer/BuyerMessages";
 import BuyerWishlist from "./pages/buyer/BuyerWishlist";
@@ -112,6 +113,7 @@ const App = () => (
                   <Route path="/buyer/wishlist" element={<BuyerWishlist />} />
                   <Route path="/buyer/orders" element={<BuyerOrders />} />
                   <Route path="/buyer/rfqs" element={<BuyerRfqs />} />
+                  <Route path="/buyer/rfqs/:id" element={<RfqDetailPage role="buyer" />} />
                   <Route path="/buyer/messages" element={<BuyerMessages />} />
                   <Route path="/buyer/profile" element={<BuyerProfile />} />
                   <Route path="/buyer/settings" element={<BuyerSettings />} />
@@ -124,6 +126,7 @@ const App = () => (
                   <Route path="/vendor/products" element={<VendorProducts />} />
                   <Route path="/vendor/orders" element={<VendorOrders />} />
                   <Route path="/vendor/rfqs" element={<VendorRfqs />} />
+                  <Route path="/vendor/rfqs/:id" element={<RfqDetailPage role="vendor" />} />
                   <Route path="/vendor/messages" element={<VendorMessages />} />
                   <Route path="/vendor/profile" element={<VendorProfile />} />
                   <Route path="/vendor/payouts" element={<VendorPayouts />} />
@@ -137,6 +140,7 @@ const App = () => (
                   <Route path="/admin" element={<AdminDashboard />} />
                   <Route path="/admin/messages" element={<AdminMessages />} />
                   <Route path="/admin/rfqs" element={<AdminRfqs />} />
+                  <Route path="/admin/rfqs/:id" element={<RfqDetailPage role="admin" />} />
                   <Route path="/admin/orders" element={<AdminOrders />} />
                   <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
                   <Route path="/admin/vendors" element={<AdminVendors />} />

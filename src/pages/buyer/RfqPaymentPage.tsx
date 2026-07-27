@@ -7,9 +7,8 @@ import {
   CreditCard, 
   Building2, 
   QrCode, 
-  Ticket, 
-  Check, 
-  AlertCircle, 
+  Ticket,
+  AlertCircle,
   Loader2, 
   Package, 
   FileText,
@@ -36,12 +35,6 @@ export default function RfqPaymentPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Coupon state
-  const [couponInput, setCouponInput] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
-  const [appliedDiscountPercent, setAppliedDiscountPercent] = useState<number>(0);
-  const [couponError, setCouponError] = useState<string | null>(null);
-
   // UTR submission state
   const [utrNumber, setUtrNumber] = useState('');
   const [agreedEscrow, setAgreedEscrow] = useState(false);
@@ -67,15 +60,6 @@ export default function RfqPaymentPage() {
       };
       
       setRfq(normalized);
-
-      // Pre-fill coupon if already attached
-      if (details?.payment_breakdown?.discountPercentage) {
-        setAppliedDiscountPercent(Number(details.payment_breakdown.discountPercentage));
-      }
-      if (details?.coupon_code) {
-        setAppliedCoupon(details.coupon_code);
-        setCouponInput(details.coupon_code);
-      }
     } catch (e: any) {
       console.error('Failed to load RFQ payment page data', e);
       toast({ title: 'Error', description: 'Failed to load sourcing payment details.', variant: 'destructive' });
@@ -105,34 +89,23 @@ export default function RfqPaymentPage() {
     );
   }
 
-  // Cost calculation math
-  const price = Number(rfq.target_price || rfq.negotiated_price || 0);
-  const quantity = Number(rfq.quantity || 0);
-  const baseValue = price * quantity;
-  
-  const discountAmount = baseValue * (appliedDiscountPercent / 100);
-  const discountedBase = baseValue - discountAmount;
-  const platformFee = Math.round(discountedBase * 0.05); // 5% platform fee
-  const gst = Math.round((discountedBase + platformFee) * 0.18); // 18% GST
-  const finalTotal = Math.round(discountedBase + platformFee + gst);
-
+  // Cost breakdown comes from the Admin-issued payment request (adminSendPaymentRequest on the
+  // backend) — it's the authoritative math (real commission rate, real discount coupon, if any).
+  // We never recompute this client-side.
   const breakdown = rfq.response_details?.payment_breakdown || {};
+  const hasBreakdown = Object.keys(breakdown).length > 0;
+
+  const price = Number(breakdown.price ?? rfq.target_price ?? rfq.negotiated_price ?? 0);
+  const quantity = Number(breakdown.quantity ?? rfq.quantity ?? 0);
+  const baseValue = Number(breakdown.baseAmount ?? price * quantity);
+  const discountPercent = Number(breakdown.discountPercentage || 0);
+  const discountAmount = Number(breakdown.discountAmount || 0);
+  const discountedBase = Number(breakdown.discountedBase ?? baseValue - discountAmount);
+  const platformFee = Number(breakdown.platformFee || 0);
+  const gst = Number(breakdown.gst || 0);
+  const finalTotal = Number(breakdown.finalAmount ?? discountedBase + platformFee + gst);
+
   const currentStep = rfq.negotiation_step;
-
-  const handleApplyCoupon = () => {
-    setCouponError(null);
-    const code = couponInput.trim().toUpperCase();
-    if (!code) return;
-
-    if (code === 'JUMA5OFF' || code === 'WELCOME5' || code === rfq.response_details?.coupon_code) {
-      setAppliedCoupon(code);
-      setAppliedDiscountPercent(5);
-      playNotificationChime();
-      toast({ title: 'Coupon Applied!', description: '5% promotional discount subtracted.' });
-    } else {
-      setCouponError('Invalid or expired coupon code');
-    }
-  };
 
   const handleSubmitPaymentReference = async () => {
     if (!utrNumber.trim()) {
@@ -146,29 +119,12 @@ export default function RfqPaymentPage() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfq.id}/buyer-submit-payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-        },
-        body: JSON.stringify({ 
-          paymentReference: utrNumber.trim(),
-          appliedCoupon,
-          discountedTotal: finalTotal
-        })
-      });
-
-      if (res.ok) {
-        playNotificationChime();
-        toast({ title: 'Payment Reference Dispatched!', description: 'Submitted for Admin Verification.' });
-        fetchRfqDetails();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast({ title: 'Submission Failed', description: err.error || 'Could not verify payment reference.', variant: 'destructive' });
-      }
+      await api.rfqs.buyerSubmitPayment(rfq.id, utrNumber.trim());
+      playNotificationChime();
+      toast({ title: 'Payment Reference Dispatched!', description: 'Submitted for Admin Verification.' });
+      fetchRfqDetails();
     } catch (e: any) {
-      toast({ title: 'Network Error', description: e.message, variant: 'destructive' });
+      toast({ title: 'Submission Failed', description: e.message || 'Could not submit payment reference.', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
@@ -194,7 +150,7 @@ export default function RfqPaymentPage() {
         </div>
 
         <Badge className="bg-slate-900 text-white font-bold text-xs py-1 px-3">
-          Escrow Protection Active
+          Payment Verification Active
         </Badge>
       </div>
 
@@ -219,7 +175,7 @@ export default function RfqPaymentPage() {
             <CheckCircle2 className="h-6 w-6" />
           </div>
           <div className="flex-1">
-            <h4 className="text-lg font-bold text-emerald-700 dark:text-emerald-400">Payment Escrow Verified!</h4>
+            <h4 className="text-lg font-bold text-emerald-700 dark:text-emerald-400">Payment Verified!</h4>
             <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80 font-medium">
               Your sourcing payment has been verified. Manufacturing & processing started with vendor <span className="font-bold">{rfq.vendor_business_name || 'Verified Supplier'}</span>.
             </p>
@@ -282,17 +238,21 @@ export default function RfqPaymentPage() {
                 <span className="font-bold">{formatPrice(baseValue)}</span>
               </div>
 
-              {appliedDiscountPercent > 0 && (
+              {discountPercent > 0 && (
                 <div className="flex justify-between font-semibold text-emerald-600">
-                  <span>Coupon Discount ({appliedDiscountPercent}% OFF):</span>
+                  <span>Coupon Discount ({discountPercent}% OFF):</span>
                   <span>-{formatPrice(discountAmount)}</span>
                 </div>
               )}
 
-              <div className="flex justify-between font-medium">
-                <span className="text-muted-foreground">Platform Quality & Sourcing Fee (5%):</span>
-                <span>{formatPrice(platformFee)}</span>
-              </div>
+              {platformFee > 0 && (
+                <div className="flex justify-between font-medium">
+                  <span className="text-muted-foreground">
+                    Platform Service Fee{discountedBase > 0 ? ` (${((platformFee / discountedBase) * 100).toFixed(1)}%)` : ''}:
+                  </span>
+                  <span>{formatPrice(platformFee)}</span>
+                </div>
+              )}
 
               <div className="flex justify-between font-medium">
                 <span className="text-muted-foreground">GST Statutory Tax (18%):</span>
@@ -305,16 +265,22 @@ export default function RfqPaymentPage() {
                 <span className="font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Total Net Amount Payable:</span>
                 <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{formatPrice(finalTotal)}</span>
               </div>
+
+              {!hasBreakdown && (
+                <p className="text-[11px] text-amber-600 font-semibold pt-1">
+                  Waiting for Admin to issue the official billing statement — figures shown are estimates.
+                </p>
+              )}
             </CardContent>
           </Card>
 
-          {/* 3. Escrow Protection Terms Card */}
+          {/* 3. Payment Verification Terms Card */}
           <Card className="border-indigo-500/20 bg-indigo-500/5 rounded-2xl p-5 space-y-3">
             <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-sm">
-              <ShieldCheck className="h-5 w-5" /> Escrow Fund Security Protection Policy
+              <ShieldCheck className="h-5 w-5" /> Payment Verification Policy
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Your payment is deposited safely into JummaBaba Escrow. Funds are <span className="font-bold text-foreground">NOT released</span> to the vendor until you receive your cargo and confirm satisfactory delivery.
+              Your bank transfer is verified by our team before the order is confirmed. Funds are <span className="font-bold text-foreground">NOT released</span> to the vendor until you receive your cargo and confirm satisfactory delivery.
             </p>
           </Card>
 
@@ -322,14 +288,14 @@ export default function RfqPaymentPage() {
           {currentStep === 'payment_pending' && (
             <Card className="border-border/60 shadow-sm rounded-2xl p-5 space-y-4">
               <div className="flex items-start space-x-3">
-                <Checkbox 
-                  id="terms-escrow" 
+                <Checkbox
+                  id="terms-escrow"
                   checked={agreedEscrow}
                   onCheckedChange={(checked) => setAgreedEscrow(!!checked)}
                   className="mt-0.5"
                 />
                 <label htmlFor="terms-escrow" className="text-xs font-semibold text-foreground leading-snug cursor-pointer">
-                  I agree to JummaBaba B2B payment terms and understand funds will be held in Escrow until final cargo delivery confirmation. *
+                  I agree to JummaBaba B2B payment terms and understand funds will be verified and held by JummaBaba until final cargo delivery confirmation. *
                 </label>
               </div>
 
@@ -352,40 +318,24 @@ export default function RfqPaymentPage() {
         {/* RIGHT COLUMN (5 Cols - 40% Sticky Width): Coupon, Bank Details, QR Slot, UTR Submission */}
         <div className="lg:col-span-5 space-y-6">
 
-          {/* 1. Apply Coupon Code Panel */}
-          <Card className="border-border/60 shadow-sm rounded-2xl overflow-hidden">
-            <CardHeader className="bg-muted/30 pb-3 border-b border-border/40">
-              <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-bold text-sm">
-                <Ticket className="h-4 w-4 text-indigo-600" /> Apply Sourcing Coupon
-              </div>
-            </CardHeader>
-            <CardContent className="p-5 space-y-3">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter Code (e.g. JUMA5OFF)"
-                  value={couponInput}
-                  onChange={(e) => setCouponInput(e.target.value)}
-                  disabled={!!appliedCoupon || currentStep !== 'payment_pending'}
-                  className="uppercase text-xs font-mono font-bold h-10"
-                />
-                <Button 
-                  onClick={handleApplyCoupon}
-                  disabled={!couponInput.trim() || !!appliedCoupon || currentStep !== 'payment_pending'}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-10 px-4 shrink-0"
-                >
-                  {appliedCoupon ? <Check me-1 className="h-4 w-4" /> : 'Apply'}
-                </Button>
-              </div>
-
-              {couponError && <p className="text-[11px] font-bold text-destructive">{couponError}</p>}
-              {appliedCoupon && (
-                <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-600 font-bold">
-                  <span className="flex items-center gap-1.5"><Sparkles className="h-4 w-4" /> Coupon {appliedCoupon} Active</span>
-                  <span>5% OFF</span>
+          {/* 1. Applied Coupon Panel (discount is issued by Admin with the billing statement, not entered here) */}
+          {discountPercent > 0 && (
+            <Card className="border-border/60 shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader className="bg-muted/30 pb-3 border-b border-border/40">
+                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-bold text-sm">
+                  <Ticket className="h-4 w-4 text-indigo-600" /> Sourcing Coupon Applied
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-600 font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4" /> {rfq.response_details?.coupon_code || 'Discount'} Active
+                  </span>
+                  <span>{discountPercent}% OFF</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* 2. Platform Bank Transfer Account Details */}
           <Card className="border-border/60 shadow-sm rounded-2xl overflow-hidden">

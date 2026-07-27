@@ -55,7 +55,7 @@ export default function PolicyPage() {
         },
         {
           title: '3. Transactional Integrity',
-          content: 'Orders are legally binding contracts. Payments are held in secure escrow or processed via verified gateways. Platform fees are non-refundable unless specified in service-level agreements.'
+          content: 'Orders are legally binding contracts. Payments are verified by JummaBaba and held pending delivery confirmation before release to the vendor. Platform fees are non-refundable unless specified in service-level agreements.'
         },
         {
           title: '4. Liability Framework',

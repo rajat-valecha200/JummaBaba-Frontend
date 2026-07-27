@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Send,
   Search,
@@ -80,6 +80,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { OrderGroupSummaryPanel } from '@/components/orders/OrderGroupSummaryPanel';
 
 interface Message {
   id: string;
@@ -122,6 +124,7 @@ interface Conversation {
   rfqId?: string;
   canIntervene?: boolean;
   negotiationStep?: string;
+  directChatActive?: boolean;
 }
 
 interface SourcingActionCardProps {
@@ -297,6 +300,24 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
     }
   };
 
+  const handleMarkDelivered = async () => {
+    try {
+      setIsActioning(true);
+      setErrorMsg('');
+      // Preserve the carrier/AWB already recorded at ship time — updateFulfillment
+      // replaces shipping_details wholesale, so omitting these would wipe them out.
+      await api.rfqs.updateFulfillment(metadata.rfq_id, {
+        status: 'delivered',
+        shipping_details: { carrier: metadata.carrier, awb: metadata.awb, trackingNumber: metadata.awb }
+      });
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to mark as delivered');
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
   // Card designs using sleek glassmorphism and tailored dark/light HSL palettes
   switch (cardType) {
     case 'rfq_specs':
@@ -450,7 +471,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             )}
           </div>
 
-          {userRole === 'buyer' && (
+          {userRole === 'buyer' && metadata.rfq_status === 'responded' && (
             <div className="mt-4 pt-4 border-t border-emerald-500/20 flex gap-2">
               <Button
                 onClick={handleAcceptQuote}
@@ -462,10 +483,10 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
           )}
 
-          {userRole !== 'buyer' && (
+          {(userRole !== 'buyer' || metadata.rfq_status !== 'responded') && (
             <div className="mt-4 text-center">
               <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] py-1 border border-emerald-500/10">
-                Awaiting Buyer Decision
+                {userRole === 'buyer' ? '✓ Order Placed' : 'Awaiting Buyer Decision'}
               </Badge>
             </div>
           )}
@@ -481,7 +502,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </div>
           <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-1">Secure Order Group Activated</h4>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Order chat initialized. Buyer, Vendor, and JummaBaba Support are now securely connected. Escrow tracking active.
+            Order chat initialized. Buyer, Vendor, and JummaBaba Support are now securely connected. Payment verification tracking active.
           </p>
         </div>
       );
@@ -518,13 +539,19 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
 
           {userRole === 'vendor' && (
             <div className="mt-4 pt-4 border-t border-indigo-500/20">
-              <Button
-                onClick={handleConfirmOrder}
-                className="w-full text-xs h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm font-semibold transition-all"
-                disabled={isActioning}
-              >
-                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "✓ Confirm & Process Order"}
-              </Button>
+              {metadata.rfq_status === 'ordered' ? (
+                <Button
+                  onClick={handleConfirmOrder}
+                  className="w-full text-xs h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                  disabled={isActioning}
+                >
+                  {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "✓ Confirm & Process Order"}
+                </Button>
+              ) : (
+                <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+                  ✓ Order Confirmed
+                </Badge>
+              )}
             </div>
           )}
           {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
@@ -542,11 +569,17 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             Order confirmed. Production, loading, and transit preparation are now in progress.
           </p>
           {userRole === 'vendor' && (
-            <Link to="/vendor/orders" className="block mt-2">
-              <Button className="w-full text-xs h-8 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-sm font-semibold transition-all">
-                🚚 Dispatch & Add Shipping Details
-              </Button>
-            </Link>
+            metadata.rfq_status === 'confirmed' ? (
+              <Link to="/vendor/orders" className="block mt-2">
+                <Button className="w-full text-xs h-8 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-sm font-semibold transition-all">
+                  🚚 Dispatch & Add Shipping Details
+                </Button>
+              </Link>
+            ) : (
+              <Badge className="w-full justify-center bg-amber-500/10 text-amber-600 border border-amber-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+                ✓ Dispatched
+              </Badge>
+            )
           )}
         </div>
       );
@@ -574,6 +607,25 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <span className="font-bold text-blue-600 dark:text-blue-400">{metadata.awb || 'N/A'}</span>
             </div>
           </div>
+
+          {userRole === 'vendor' && (
+            <div className="mt-4 pt-4 border-t border-blue-500/20">
+              {metadata.rfq_status === 'shipped' ? (
+                <Button
+                  onClick={handleMarkDelivered}
+                  className="w-full text-xs h-9 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                  disabled={isActioning}
+                >
+                  {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "📦 Mark as Delivered"}
+                </Button>
+              ) : (
+                <Badge className="w-full justify-center bg-blue-500/10 text-blue-600 border border-blue-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+                  ✓ Delivered
+                </Badge>
+              )}
+            </div>
+          )}
+          {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
         </div>
       );
 
@@ -662,7 +714,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </div>
           <h4 className="font-bold text-sm text-foreground mb-1">Transaction Completed Successfully</h4>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Successful delivery has been confirmed by the Buyer. Sourcing process closed successfully. Escrow released.
+            Successful delivery has been confirmed by the Buyer. Sourcing process closed successfully. Payment released to vendor.
           </p>
         </div>
       );
@@ -676,7 +728,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
             <div>
               <h4 className="font-bold text-sm text-foreground">Cargo Delivery Disputed</h4>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Escrow Dispute Lock Active</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Payment Hold — Dispute Active</p>
             </div>
           </div>
 
@@ -1062,22 +1114,22 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-indigo-500/20 flex gap-2">
-            {userRole === 'vendor' ? (
+            {userRole === 'vendor' && negotiationStep === 'forwarded_to_seller' ? (
               <>
                 <Button
                   size="sm"
                   className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
                   onClick={async () => {
                     setIsActioning(true);
-                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/seller-accept`, {
-                      method: 'POST',
-                      headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
-                    });
-                    if (res.ok) {
+                    try {
+                      await api.rfqs.sellerAccept(metadata.rfq_id);
                       alert('Terms Accepted successfully!');
                       onRefresh();
+                    } catch (err: any) {
+                      alert(err.message || 'Failed to accept terms.');
+                    } finally {
+                      setIsActioning(false);
                     }
-                    setIsActioning(false);
                   }}
                   disabled={isActioning}
                 >
@@ -1099,7 +1151,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               </>
             ) : (
               <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
-                Awaiting Seller Action
+                {userRole === 'vendor' && negotiationStep && negotiationStep !== 'forwarded_to_seller' ? '✓ Action Taken' : 'Awaiting Seller Action'}
               </Badge>
             )}
           </div>
@@ -1159,10 +1211,15 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 <span>-₹{Number(breakdown.discountAmount).toLocaleString()}</span>
               </div>
             )}
-            <div className="flex justify-between text-[11px] text-muted-foreground">
-              <span>Platform Service Commission (10%):</span>
-              <span>₹{Number(breakdown.platformFee).toLocaleString()}</span>
-            </div>
+            {Number(breakdown.platformFee) > 0 && (
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>
+                  Platform Service Commission
+                  {Number(breakdown.discountedBase) > 0 ? ` (${((Number(breakdown.platformFee) / Number(breakdown.discountedBase)) * 100).toFixed(1)}%)` : ''}:
+                </span>
+                <span>₹{Number(breakdown.platformFee).toLocaleString()}</span>
+              </div>
+            )}
             <div className="flex justify-between text-[11px] text-muted-foreground">
               <span>GST Tax (18%):</span>
               <span>₹{Number(breakdown.gst).toLocaleString()}</span>
@@ -1173,7 +1230,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
           </div>
 
-          {userRole === 'buyer' ? (
+          {userRole === 'buyer' && metadata.rfq_negotiation_step === 'payment_pending' ? (
             <div className="space-y-3">
               <Link to={`/buyer/rfq-payment/${metadata.rfq_id}`}>
                 <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 rounded-xl text-xs shadow-md shadow-indigo-600/20">
@@ -1200,19 +1257,15 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                     return;
                   }
                   setIsActioning(true);
-                  const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-submit-payment`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-                    },
-                    body: JSON.stringify({ paymentReference: paymentRef.trim() })
-                  });
-                  if (res.ok) {
+                  try {
+                    await api.rfqs.buyerSubmitPayment(metadata.rfq_id, paymentRef.trim());
                     alert('Payment details successfully recorded! Support will verify shortly.');
                     onRefresh();
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to submit payment reference.');
+                  } finally {
+                    setIsActioning(false);
                   }
-                  setIsActioning(false);
                 }}
                 disabled={isActioning || !paymentRef.trim()}
               >
@@ -1221,9 +1274,27 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
           ) : (
             <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
-              Awaiting Buyer Escrow Deposit
+              {userRole === 'buyer' ? '✓ Payment Reference Submitted' : 'Awaiting Buyer Payment'}
             </Badge>
           )}
+        </div>
+      );
+
+    case 'order_group_created':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 backdrop-blur-md p-5 shadow-lg text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center mx-auto mb-2 text-indigo-600 dark:text-indigo-400">
+            <Package className="h-5 w-5" />
+          </div>
+          <h4 className="font-bold text-sm text-foreground mb-1">Order Group Created</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+            A dedicated chat has been set up to track fulfillment for this order.
+          </p>
+          <Link to={`${userRole === 'buyer' ? '/buyer' : '/vendor'}/messages?chatGroupId=${metadata.order_group_id}`}>
+            <Button className="w-full text-xs h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm font-semibold transition-all gap-1.5">
+              Go to Order Group <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </Link>
         </div>
       );
 
@@ -1235,7 +1306,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <Clock className="h-5 w-5 animate-pulse" />
             </div>
             <div>
-              <h4 className="font-bold text-sm text-foreground">Escrow Payment Under Verification</h4>
+              <h4 className="font-bold text-sm text-foreground">Payment Under Verification</h4>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Verification Phase</p>
             </div>
           </div>
@@ -1254,10 +1325,93 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-2 text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="h-5 w-5" />
           </div>
-          <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-1">Escrow Payment Verified Successfully</h4>
+          <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-1">Payment Verified Successfully</h4>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Funds verified in secure Escrow hold. Sourcing order officially elevated. PO & Invoices released under JummaBaba GST.
+            Payment has been verified and is held by JummaBaba until delivery is confirmed. Sourcing order officially elevated. PO & Invoices released under JummaBaba GST.
           </p>
+        </div>
+      );
+
+    case 'seller_counter_approved':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-amber-500/25 bg-amber-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Seller Counter Sourcing Terms Approved</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Awaiting Buyer Confirmation</p>
+            </div>
+          </div>
+          <div className="space-y-2.5 text-xs mb-4">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Adjusted Price per Unit:</span>
+              <span className="font-bold text-foreground">₹{Number(metadata.price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Adjusted Quantity:</span>
+              <span className="font-bold text-foreground">{metadata.quantity} units</span>
+            </div>
+            <div className="flex justify-between border-t border-amber-500/10 pt-2 font-semibold">
+              <span className="text-muted-foreground">Total Sourcing Valuation:</span>
+              <span className="font-bold text-foreground">₹{(Number(metadata.price) * Number(metadata.quantity)).toLocaleString()}</span>
+            </div>
+          </div>
+
+          {userRole === 'buyer' ? (
+            negotiationStep === 'admin_approved_seller_counter' ? (
+              <Button
+                onClick={async () => {
+                  setIsActioning(true);
+                  try {
+                    await api.rfqs.buyerConfirm(metadata.rfq_id, 'seller');
+                    alert('Terms Confirmed successfully! Sourcing details updated.');
+                    onRefresh();
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to confirm terms.');
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
+                disabled={isActioning}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg text-xs"
+              >
+                ✓ Accept & Confirm Terms
+              </Button>
+            ) : (
+              <Badge className="w-full justify-center bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+                ✓ Terms Confirmed
+              </Badge>
+            )
+          ) : (
+            <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+              Awaiting Buyer Confirmation
+            </Badge>
+          )}
+        </div>
+      );
+
+    case 'direct_connection_request':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-violet-500/25 bg-violet-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-violet-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Direct Chat Request</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                Requested by {metadata.requestedBy === 'buyer' ? 'Buyer' : 'Seller'}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">{metadata.requesterName || 'A participant'}</span> requested direct communication with the {metadata.requestedBy === 'buyer' ? 'Seller' : 'Buyer'}.
+          </p>
+          <Badge className="w-full justify-center mt-4 bg-violet-500/10 text-violet-600 border border-violet-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+            {metadata.approved ? '✓ Approved by Admin' : 'Awaiting Admin Review'}
+          </Badge>
         </div>
       );
 
@@ -1408,9 +1562,13 @@ interface MessagesPageProps {
 
 export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const location = useLocation();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const dataRef = useRef<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [directConnectionRequested, setDirectConnectionRequested] = useState<Record<string, boolean>>({});
+  const [orderRfq, setOrderRfq] = useState<any>(null);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -1819,7 +1977,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
 
   useEffect(() => {
     if (conversations.length > 0) {
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(location.search);
       const chatGroupId = params.get('chatGroupId') || params.get('groupId');
       const rfqId = params.get('rfqId');
 
@@ -1835,7 +1993,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         }
       }
     }
-  }, [conversations, selectedConversation?.id]);
+  }, [conversations, selectedConversation?.id, location.search]);
 
   useEffect(() => {
     if (selectedConversation?.id) {
@@ -1844,6 +2002,17 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
       return () => clearInterval(interval);
     }
   }, [selectedConversation?.id, fetchMessages]);
+
+  useEffect(() => {
+    if (selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && selectedConversation?.rfqId) {
+      const fetchOrderRfq = () => api.rfqs.get(selectedConversation.rfqId!).then(setOrderRfq).catch(() => {});
+      fetchOrderRfq();
+      const interval = setInterval(fetchOrderRfq, 15000); // settlement status can change over time
+      return () => clearInterval(interval);
+    } else {
+      setOrderRfq(null);
+    }
+  }, [selectedConversation?.id, selectedConversation?.isGroup, selectedConversation?.groupType, selectedConversation?.rfqId]);
 
   const openConversation = async (conv: Conversation) => {
     setSelectedConversation(conv);
@@ -1931,14 +2100,36 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
     }
   }, [selectedConversation?.isTyping, simulateIncomingMessage]);
 
+  const handleRequestDirectConnection = async (conversation: Conversation) => {
+    if (!conversation.rfqId) return;
+    try {
+      await api.messages.send(
+        null,
+        `${user?.role === 'buyer' ? 'Buyer' : 'Seller'} has requested a direct connection to chat without mediator isolation.`,
+        conversation.id,
+        {
+          type: 'direct_connection_request',
+          rfq_id: conversation.rfqId,
+          requestedBy: user?.role,
+          requesterName: user?.full_name || (user?.role === 'buyer' ? 'Buyer' : 'Seller'),
+          target_role: 'admin'
+        }
+      );
+      setDirectConnectionRequested(prev => ({ ...prev, [conversation.id]: true }));
+      toast({ title: 'Request Sent', description: 'Admin will review your request to enable direct chat.' });
+    } catch (err: any) {
+      toast({ title: 'Failed to send request', description: err.message, variant: 'destructive' });
+    }
+  };
+
   const handleToggleIntervention = async () => {
     if (!selectedConversation?.id) return;
     const newStatus = !selectedConversation.canIntervene;
     try {
       await api.messages.toggleIntervention(selectedConversation.id, newStatus);
       setSelectedConversation(prev => prev ? { ...prev, canIntervene: newStatus } : null);
-      fetchConversations();
-      fetchMessages();
+      await fetchConversations();
+      await fetchMessages();
     } catch (err: any) {
       console.error('Failed to toggle intervention:', err);
     }
@@ -2527,7 +2718,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                     <span>
                       {selectedConversation.groupType === 'negotiation'
                         ? 'RFQ Negotiation Panel'
-                        : 'Platform Escrow Orders & Support'}
+                        : 'Platform Verified Orders & Support'}
                     </span>
                   ) : (
                     <>
@@ -2589,6 +2780,11 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               </div>
             </div>
 
+            {/* Order Summary Panel (financial breakdown, role-scoped) */}
+            {selectedConversation.isGroup && selectedConversation.groupType === 'order_group' && orderRfq && (
+              <OrderGroupSummaryPanel rfq={orderRfq} role={(userType || user?.role) as 'buyer' | 'vendor'} />
+            )}
+
             {/* Spectator Intervention Banner */}
             {user?.role === 'admin' && selectedConversation.isGroup && selectedConversation.groupType === 'order_group' && (
               selectedConversation.canIntervene ? (
@@ -2633,6 +2829,47 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               )
             )}
 
+            {/* Direct Connection Request (Buyer/Vendor) */}
+            {(user?.role === 'buyer' || user?.role === 'vendor') &&
+              selectedConversation.isGroup &&
+              (selectedConversation.groupType === 'negotiation' || selectedConversation.groupType === 'order_group') && (
+              selectedConversation.directChatActive ? (
+                <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-4 py-2.5 flex-shrink-0">
+                  <div className="max-w-3xl mx-auto flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                    <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                      Direct Connection is active — you can chat directly with the other party.
+                    </p>
+                  </div>
+                </div>
+              ) : (() => {
+                // Derived from the actual chat history (not just local state) so the button stays
+                // correctly disabled after a page reload, not only for the rest of this session.
+                const alreadyRequested = !!directConnectionRequested[selectedConversation.id] ||
+                  selectedConversation.messages.some(m => m.metadata?.type === 'direct_connection_request');
+                return (
+                  <div className="bg-muted/40 border-b border-border/40 px-4 py-2.5 flex-shrink-0">
+                    <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+                      <p className="text-[11px] text-muted-foreground">
+                        {alreadyRequested
+                          ? 'Direct connection request sent — waiting for Admin approval.'
+                          : 'Need to talk directly with the other party? Ask Admin to enable it.'}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={alreadyRequested}
+                        onClick={() => handleRequestDirectConnection(selectedConversation)}
+                        className="text-[11px] h-7 rounded-lg font-semibold flex-shrink-0"
+                      >
+                        {alreadyRequested ? 'Request Sent' : 'Request Direct Connection'}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()
+            )}
+
             {/* Messages Area with Vertical Scroll - No Horizontal */}
             <div
               ref={messagesContainerRef}
@@ -2671,7 +2908,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                         <SourcingActionCard
                           message={message}
                           userRole={userType || user?.role}
-                          onRefresh={() => { fetchConversations(); fetchMessages(); }}
+                          onRefresh={async () => { await fetchConversations(); await fetchMessages(); }}
                           triggerCounterNegotiation={(rfqId, price, qty) => {
                             setCounterRfqId(rfqId);
                             setCounterPrice(String(price));
@@ -3129,7 +3366,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="font-semibold text-xs">Remark / Description</label>
+              <label className="font-semibold text-xs">Remark / Description *</label>
               <textarea
                 placeholder="Explain the counter-proposal terms..."
                 value={counterNotes}
@@ -3149,41 +3386,29 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
             )}
 
             <Button
-              onClick={() => {
-                if (counterRfqId && counterPrice && counterQty) {
+              onClick={async () => {
+                if (counterRfqId && counterPrice && counterQty && counterNotes.trim()) {
                   setIsSubmittingCounter(true);
-                  const isVendor = (userType || user?.role) === 'vendor';
-                  const endpoint = isVendor
-                    ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${counterRfqId}/seller-counter`
-                    : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${counterRfqId}/buyer-confirm`;
-                  
-                  const bodyPayload = isVendor
-                    ? { counterPrice: Number(counterPrice), counterQuantity: Number(counterQty), notes: counterNotes }
-                    : { source: 'buyer_counter', price: Number(counterPrice), quantity: Number(counterQty), notes: counterNotes };
-
-                  fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-                    },
-                    body: JSON.stringify(bodyPayload)
-                  }).then(res => {
-                    if (res.ok) {
-                      alert('Counter-proposal dispatched successfully!');
-                      setCounterOpen(false);
-                      setCounterNotes('');
-                      fetchConversations();
-                      fetchMessages();
+                  try {
+                    const isVendor = (userType || user?.role) === 'vendor';
+                    if (isVendor) {
+                      await api.rfqs.sellerCounter(counterRfqId, Number(counterPrice), Number(counterQty), counterNotes.trim());
                     } else {
-                      res.json().then(err => alert(err.error || 'Submission failed'));
+                      await api.rfqs.buyerConfirm(counterRfqId, 'buyer_counter', Number(counterPrice), Number(counterQty), counterNotes.trim());
                     }
-                  }).finally(() => {
+                    toast({ title: 'Counter-Proposal Sent', description: 'Dispatched successfully.' });
+                    setCounterOpen(false);
+                    setCounterNotes('');
+                    await fetchConversations();
+                    await fetchMessages();
+                  } catch (err: any) {
+                    toast({ title: 'Submission Failed', description: err.message, variant: 'destructive' });
+                  } finally {
                     setIsSubmittingCounter(false);
-                  });
+                  }
                 }
               }}
-              disabled={isSubmittingCounter || !counterPrice || !counterQty}
+              disabled={isSubmittingCounter || !counterPrice || !counterQty || !counterNotes.trim()}
               className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold"
             >
               {isSubmittingCounter ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Dispatch Counter Sourcing Terms'}

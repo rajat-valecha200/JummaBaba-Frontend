@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { 
   Send,
   Search, 
@@ -29,6 +29,7 @@ import {
   Settings
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { OrderGroupSummaryPanel } from '@/components/orders/OrderGroupSummaryPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -549,7 +550,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </div>
           <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-1">Secure Order Group Activated</h4>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Order chat initialized. Buyer, Vendor, and JummaBaba Support are now securely connected. Escrow tracking active.
+            Order chat initialized. Buyer, Vendor, and JummaBaba Support are now securely connected. Payment verification tracking active.
           </p>
         </div>
       );
@@ -717,7 +718,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </div>
           <h4 className="font-bold text-sm text-foreground mb-1">Transaction Completed Successfully</h4>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Successful delivery has been confirmed by the Buyer. Sourcing process closed successfully. Escrow released.
+            Successful delivery has been confirmed by the Buyer. Sourcing process closed successfully. Payment released to vendor.
           </p>
         </div>
       );
@@ -731,7 +732,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
             <div>
               <h4 className="font-bold text-sm text-foreground">Cargo Delivery Disputed</h4>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Escrow Dispute Lock Active</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Payment Hold — Dispute Active</p>
             </div>
           </div>
 
@@ -1246,15 +1247,21 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           <p className="text-xs text-muted-foreground mb-3">
             Seller accepted finalized terms of ₹{Number(metadata.price).toLocaleString()} for {metadata.quantity} units. Awaiting payment request generation.
           </p>
-          <Button
-            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 text-xs"
-            onClick={() => {
-              const event = new CustomEvent('triggerSendPaymentRequest', { detail: { rfqId: metadata.rfq_id } });
-              window.dispatchEvent(event);
-            }}
-          >
-            ✉️ Send Statement & Request Payment
-          </Button>
+          {negotiationStep === 'seller_accepted_terms' ? (
+            <Button
+              className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 text-xs"
+              onClick={() => {
+                const event = new CustomEvent('triggerSendPaymentRequest', { detail: { rfqId: metadata.rfq_id } });
+                window.dispatchEvent(event);
+              }}
+            >
+              ✉️ Send Statement & Request Payment
+            </Button>
+          ) : (
+            <Badge className="w-full justify-center bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+              ✓ Payment Statement Sent
+            </Badge>
+          )}
         </div>
       );
 
@@ -1290,10 +1297,15 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 <span>-₹{Number(breakdown.discountAmount).toLocaleString()}</span>
               </div>
             )}
-            <div className="flex justify-between text-[11px] text-muted-foreground">
-              <span>Platform Service Commission (10%):</span>
-              <span>₹{Number(breakdown.platformFee).toLocaleString()}</span>
-            </div>
+            {Number(breakdown.platformFee) > 0 && (
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>
+                  Platform Service Commission
+                  {Number(breakdown.discountedBase) > 0 ? ` (${((Number(breakdown.platformFee) / Number(breakdown.discountedBase)) * 100).toFixed(1)}%)` : ''}:
+                </span>
+                <span>₹{Number(breakdown.platformFee).toLocaleString()}</span>
+              </div>
+            )}
             <div className="flex justify-between text-[11px] text-muted-foreground">
               <span>GST Tax (18%):</span>
               <span>₹{Number(breakdown.gst).toLocaleString()}</span>
@@ -1304,8 +1316,30 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
           </div>
           <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
-            Awaiting Buyer Escrow Deposit
+            Awaiting Buyer Payment
           </Badge>
+        </div>
+      );
+
+    case 'order_group_created':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 backdrop-blur-md p-5 shadow-lg text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center mx-auto mb-2 text-indigo-600 dark:text-indigo-400">
+            <Package className="h-5 w-5" />
+          </div>
+          <h4 className="font-bold text-sm text-foreground mb-1">Order Group Created</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+            A dedicated chat has been set up to track fulfillment for this order.
+          </p>
+          <Button
+            className="w-full text-xs h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+            onClick={() => {
+              const event = new CustomEvent('triggerOpenOrderGroup', { detail: { chatGroupId: metadata.order_group_id } });
+              window.dispatchEvent(event);
+            }}
+          >
+            Go to Order Group →
+          </Button>
         </div>
       );
 
@@ -1317,31 +1351,37 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <Clock className="h-5 w-5 animate-pulse" />
             </div>
             <div>
-              <h4 className="font-bold text-sm text-foreground">Escrow Payment Under Verification</h4>
+              <h4 className="font-bold text-sm text-foreground">Payment Under Verification</h4>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Verification Phase</p>
             </div>
           </div>
           <p className="text-xs text-muted-foreground mb-3">
             Buyer submitted UTR payment proof reference: <span className="font-bold text-foreground">"{metadata.reference}"</span>.
           </p>
-          <Button
-            className="w-full bg-success hover:bg-success/90 text-white font-bold h-9 text-xs"
-            onClick={async () => {
-              setIsActioning(true);
-              const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-confirm-payment`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
-              });
-              if (res.ok) {
-                alert('Escrow payment verified manually! Order officially elevated to vendor.');
-                onRefresh();
-              }
-              setIsActioning(false);
-            }}
-            disabled={isActioning}
-          >
-            {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✅ Confirm Escrow Payment Received'}
-          </Button>
+          {negotiationStep === 'payment_submitted' ? (
+            <Button
+              className="w-full bg-success hover:bg-success/90 text-white font-bold h-9 text-xs"
+              onClick={async () => {
+                setIsActioning(true);
+                try {
+                  await api.rfqs.adminConfirmPayment(metadata.rfq_id);
+                  alert('Payment verified manually! Order officially elevated to vendor.');
+                  onRefresh();
+                } catch (err: any) {
+                  alert(err.message || 'Failed to confirm payment.');
+                } finally {
+                  setIsActioning(false);
+                }
+              }}
+              disabled={isActioning}
+            >
+              {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✅ Confirm Payment Received'}
+            </Button>
+          ) : (
+            <Badge className="w-full justify-center bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+              ✓ Payment Already Confirmed
+            </Badge>
+          )}
         </div>
       );
 
@@ -1351,9 +1391,9 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-2 text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="h-5 w-5" />
           </div>
-          <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-1">Escrow Payment Verified Successfully</h4>
+          <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-1">Payment Verified Successfully</h4>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Funds verified in secure Escrow hold. Sourcing order officially elevated. PO & Invoices released under JummaBaba GST.
+            Payment has been verified and is held by JummaBaba until delivery is confirmed. Sourcing order officially elevated. PO & Invoices released under JummaBaba GST.
           </p>
         </div>
       );
@@ -1471,13 +1511,15 @@ function MessageStatus({ status }: { status: Message['status'] }) {
 export default function AdminMessages() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<'all' | 'buyers' | 'vendors'>('all');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  
+  const [orderRfq, setOrderRfq] = useState<any>(null);
+
   // New Chat State
   const [showNewChat, setShowNewChat] = useState<'vendor' | 'buyer' | null>(null);
   const [availableParticipants, setAvailableParticipants] = useState<any[]>([]);
@@ -1609,6 +1651,23 @@ export default function AdminMessages() {
         }
         return mapped;
       });
+
+      // Keep the open conversation's negotiation state in sync too — otherwise action
+      // buttons (Approve Seller Counter, Forward to Seller, etc.) stay stale until the
+      // admin closes and reopens the conversation, even though the sidebar list refreshed.
+      setSelectedConversation(prev => {
+        if (!prev) return prev;
+        const fresh = mapped.find(c => c.id === prev.id);
+        if (!fresh) return prev;
+        if (
+          prev.negotiationStep === fresh.negotiationStep &&
+          prev.directChatActive === fresh.directChatActive &&
+          prev.canIntervene === fresh.canIntervene
+        ) {
+          return prev;
+        }
+        return { ...prev, negotiationStep: fresh.negotiationStep, directChatActive: fresh.directChatActive, canIntervene: fresh.canIntervene };
+      });
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
     } finally {
@@ -1657,8 +1716,8 @@ export default function AdminMessages() {
     try {
       await api.messages.toggleIntervention(selectedConversation.id, newStatus);
       setSelectedConversation(prev => prev ? { ...prev, canIntervene: newStatus } : null);
-      fetchConversations();
-      fetchMessages();
+      await fetchConversations();
+      await fetchMessages();
     } catch (err: any) {
       console.error('Failed to toggle intervention:', err);
     }
@@ -1669,6 +1728,25 @@ export default function AdminMessages() {
     const interval = setInterval(fetchConversations, 10000); // 10s for sidebar
     return () => clearInterval(interval);
   }, [fetchConversations]);
+
+  useEffect(() => {
+    if (conversations.length === 0) return;
+    const params = new URLSearchParams(location.search);
+    const chatGroupId = params.get('chatGroupId') || params.get('groupId');
+    const rfqId = params.get('rfqId');
+
+    if (chatGroupId) {
+      const found = conversations.find(c => c.id === chatGroupId);
+      if (found && (!selectedConversation || selectedConversation.id !== found.id)) {
+        openConversation(found);
+      }
+    } else if (rfqId) {
+      const found = conversations.find(c => c.rfqId === rfqId);
+      if (found && (!selectedConversation || selectedConversation.id !== found.id)) {
+        openConversation(found);
+      }
+    }
+  }, [conversations, selectedConversation?.id, location.search]);
 
   const [modifyMetadata, setModifyMetadata] = useState<any>(null);
 
@@ -1694,6 +1772,17 @@ export default function AdminMessages() {
       return () => clearInterval(interval);
     }
   }, [selectedConversation?.id, fetchMessages]);
+
+  useEffect(() => {
+    if (selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && selectedConversation?.rfqId) {
+      const fetchOrderRfq = () => api.rfqs.get(selectedConversation.rfqId!).then(setOrderRfq).catch(() => {});
+      fetchOrderRfq();
+      const interval = setInterval(fetchOrderRfq, 15000); // settlement status can change over time
+      return () => clearInterval(interval);
+    } else {
+      setOrderRfq(null);
+    }
+  }, [selectedConversation?.id, selectedConversation?.isGroup, selectedConversation?.groupType, selectedConversation?.rfqId]);
 
   useEffect(() => {
     const fetchParticipants = async () => {
@@ -1746,6 +1835,17 @@ export default function AdminMessages() {
   const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
   const buyerUnread = conversations.filter(c => c.participantType === 'buyer').reduce((sum, c) => sum + c.unreadCount, 0);
   const vendorUnread = conversations.filter(c => c.participantType === 'vendor').reduce((sum, c) => sum + c.unreadCount, 0);
+
+  useEffect(() => {
+    const handleTriggerOpenOrderGroup = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const chatGroupId = customEvent.detail?.chatGroupId;
+      const found = conversations.find(c => c.id === chatGroupId);
+      if (found) openConversation(found);
+    };
+    window.addEventListener('triggerOpenOrderGroup', handleTriggerOpenOrderGroup);
+    return () => window.removeEventListener('triggerOpenOrderGroup', handleTriggerOpenOrderGroup);
+  }, [conversations]);
 
   useEffect(() => {
     const handleTriggerSendPayment = () => {
@@ -2157,6 +2257,11 @@ export default function AdminMessages() {
                 </div>
               )}
 
+              {/* Order Summary Panel (financial breakdown, all roles) */}
+              {selectedConversation.isGroup && selectedConversation.groupType === 'order_group' && orderRfq && (
+                <OrderGroupSummaryPanel rfq={orderRfq} role="admin" />
+              )}
+
               {/* Spectator Intervention Banner & Admin Negotiation Controls */}
               {selectedConversation.isGroup && selectedConversation.groupType === 'negotiation' && (
                 <div className="px-4 py-3 border-b flex flex-col gap-3 bg-slate-50/80">
@@ -2195,21 +2300,16 @@ export default function AdminMessages() {
                         size="sm"
                         variant={selectedConversation.directChatActive ? 'destructive' : 'default'}
                         className="text-[10px] uppercase font-bold tracking-wider"
-                        onClick={() => {
+                        onClick={async () => {
                           const nextActive = !selectedConversation.directChatActive;
-                          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedConversation.rfqId}/toggle-direct-chat`, {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-                            },
-                            body: JSON.stringify({ active: nextActive })
-                          }).then(res => {
-                            if (res.ok) {
-                              toast({ title: nextActive ? 'Direct Connection Enabled' : 'Direct Connection Disabled', description: nextActive ? 'Buyer & Vendor can now chat directly.' : 'Mediator mode re-engaged.' });
-                              window.location.reload();
-                            }
-                          });
+                          try {
+                            await api.rfqs.toggleDirectChat(selectedConversation.rfqId!, nextActive);
+                            toast({ title: nextActive ? 'Direct Connection Enabled' : 'Direct Connection Disabled', description: nextActive ? 'Buyer & Vendor can now chat directly.' : 'Mediator mode re-engaged.' });
+                            await fetchConversations();
+                            await fetchMessages();
+                          } catch (err: any) {
+                            toast({ title: 'Failed to toggle direct connection', description: err.message, variant: 'destructive' });
+                          }
                         }}
                       >
                         {selectedConversation.directChatActive ? 'Disable Direct Connection' : 'Enable Direct Connection'}
@@ -2224,14 +2324,13 @@ export default function AdminMessages() {
                         size="sm"
                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase tracking-wider"
                         onClick={async () => {
-                          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedConversation.rfqId}/forward-to-seller`, {
-                            method: 'POST',
-                            headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
-                          });
-                          if (res.ok) {
+                          try {
+                            await api.rfqs.forwardToSeller(selectedConversation.rfqId!);
                             toast({ title: 'Sent to Seller', description: 'RFQ finalized terms successfully forwarded to vendor.' });
-                            fetchConversations();
-                            fetchMessages();
+                            await fetchConversations();
+                            await fetchMessages();
+                          } catch (err: any) {
+                            toast({ title: 'Failed to forward', description: err.message, variant: 'destructive' });
                           }
                         }}
                       >
@@ -2244,14 +2343,13 @@ export default function AdminMessages() {
                         size="sm"
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider"
                         onClick={async () => {
-                          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedConversation.rfqId}/admin-approve-counter`, {
-                            method: 'POST',
-                            headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
-                          });
-                          if (res.ok) {
+                          try {
+                            await api.rfqs.adminApproveCounter(selectedConversation.rfqId!);
                             toast({ title: 'Approved', description: 'Seller counter terms approved and buyer alert dispatched.' });
-                            fetchConversations();
-                            fetchMessages();
+                            await fetchConversations();
+                            await fetchMessages();
+                          } catch (err: any) {
+                            toast({ title: 'Failed to approve', description: err.message, variant: 'destructive' });
                           }
                         }}
                       >
@@ -2274,18 +2372,17 @@ export default function AdminMessages() {
                         size="sm"
                         className="bg-success hover:bg-success/90 text-white font-bold text-[10px] uppercase tracking-wider"
                         onClick={async () => {
-                          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedConversation.rfqId}/admin-confirm-payment`, {
-                            method: 'POST',
-                            headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
-                          });
-                          if (res.ok) {
-                            toast({ title: 'Escrow Confirmed', description: 'Escrow payment verified. Multi-party Order group initialized.' });
-                            fetchConversations();
-                            fetchMessages();
+                          try {
+                            await api.rfqs.adminConfirmPayment(selectedConversation.rfqId!);
+                            toast({ title: 'Payment Confirmed', description: 'Payment verified. Multi-party Order group initialized.' });
+                            await fetchConversations();
+                            await fetchMessages();
+                          } catch (err: any) {
+                            toast({ title: 'Failed to confirm payment', description: err.message, variant: 'destructive' });
                           }
                         }}
                       >
-                        ✅ Confirm Escrow Payment Received
+                        ✅ Confirm Payment Received
                       </Button>
                     )}
                   </div>
@@ -2359,7 +2456,7 @@ export default function AdminMessages() {
                           <SourcingActionCard 
                             message={msg} 
                             userRole="admin" 
-                            onRefresh={() => { fetchConversations(); fetchMessages(); }} 
+                            onRefresh={async () => { await fetchConversations(); await fetchMessages(); }}
                             negotiationStep={selectedConversation.negotiationStep}
                           />
                         </div>
@@ -2437,7 +2534,7 @@ export default function AdminMessages() {
                      </DialogHeader>
                      <div className="space-y-4 py-4 text-sm">
                        <p className="text-xs text-muted-foreground">
-                         This will generate the final invoice billing statement and offline escrow payment prompt for the Buyer. You can optionally apply a discount coupon percentage below.
+                         This will generate the final invoice billing statement and payment request for the Buyer. You can optionally apply a discount coupon percentage below.
                        </p>
                        <div className="bg-slate-50 p-3 rounded-lg border space-y-1.5 text-xs text-slate-700">
                          <div className="flex justify-between">
@@ -2521,7 +2618,7 @@ export default function AdminMessages() {
 
                       <div className="space-y-2">
                         <label className="font-semibold text-xs text-slate-700 dark:text-slate-200">
-                          Modification Reason / Remark <span className="text-muted-foreground font-normal">(Recommended)</span>
+                          Modification Reason / Remark *
                         </label>
                         <Textarea
                           placeholder="Explain why terms were adjusted (e.g. Volume discount applied, special delivery surcharge, tier pricing adjustment)..."
@@ -2552,7 +2649,7 @@ export default function AdminMessages() {
 
                       <Button
                         onClick={handleModifyTermsSubmit}
-                        disabled={isModifyingTerms || !modifyPrice || !modifyQty}
+                        disabled={isModifyingTerms || !modifyPrice || !modifyQty || !modifyNotes.trim()}
                         className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold"
                       >
                         {isModifyingTerms ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Confirm & Apply Terms Adjustment'}

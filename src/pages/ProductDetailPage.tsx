@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ChevronRight,
   MessageSquare,
@@ -59,6 +59,7 @@ const SHOW_BUY_NOW_BUTTON = false;
 export default function ProductDetailPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const [selectedImage, setSelectedImage] = useState(0);
@@ -147,6 +148,34 @@ export default function ProductDetailPage() {
   }, [slug]);
 
   const { user } = useAuth();
+
+  // Auto-open the RFQ dialog when arriving via a "Get Instant Quote" link (?quote=1)
+  useEffect(() => {
+    if (!product || searchParams.get('quote') !== '1') return;
+
+    if (!user) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please login to request a quotation.',
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
+
+    const initialQty = product.moq || 1;
+    const slabs = product.pricingSlabs || [];
+    const tier = slabs.find((s: any) => initialQty >= s.minQty && (s.maxQty === null || initialQty <= s.maxQty)) || slabs[0];
+    setRfqForm({
+      quantity: String(initialQty),
+      unit: product.unit,
+      targetPrice: tier ? String(tier.pricePerUnit) : String(product.minPrice || ''),
+      deliveryLocation: '',
+      description: '',
+    });
+    setRfqOpen(true);
+    setSearchParams({}, { replace: true });
+  }, [product, searchParams, user]);
 
   if (loading) {
     return (

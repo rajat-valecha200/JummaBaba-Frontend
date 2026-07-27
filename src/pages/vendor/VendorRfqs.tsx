@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, Search, Filter, MessageSquare, Clock, CheckCircle, Send, Info, HelpCircle, Package, ArrowRight } from 'lucide-react';
+import { Eye, Search, Filter, MessageSquare, Clock, CheckCircle, Send, Info, HelpCircle, Package, ArrowRight, Loader2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -69,6 +69,8 @@ interface Rfq {
   status: RfqStatus;
   createdAt: string;
   response?: RfqResponse;
+  negotiation_group_id?: string;
+  order_group_id?: string;
 }
 
 function CatalogSlabDialogBanner({ rfq }: { rfq?: any }) {
@@ -156,8 +158,7 @@ export default function VendorRfqs() {
   const [vendorCounterNotes, setVendorCounterNotes] = useState('');
   const [isSubmittingVendorCounter, setIsSubmittingVendorCounter] = useState(false);
 
-  useEffect(() => {
-    const fetchRfqs = async () => {
+  const fetchRfqs = async () => {
       try {
         const data = await api.rfqs.list();
         const normalizedData = data.map((r: any) => {
@@ -197,7 +198,9 @@ export default function VendorRfqs() {
       } finally {
         setLoading(false);
       }
-    };
+  };
+
+  useEffect(() => {
     fetchRfqs();
   }, []);
 
@@ -457,7 +460,7 @@ export default function VendorRfqs() {
 
       {/* RFQ Details Dialog */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-4xl border-border/50 bg-card/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="max-w-5xl border-border/50 bg-card/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-0 overflow-hidden">
           <div className="flex h-[80vh]">
             <div className="w-80 border-r border-border/50 bg-slate-50/50 p-8 hidden md:block">
               <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-8">Inquiry Progress</h3>
@@ -466,10 +469,10 @@ export default function VendorRfqs() {
               )}
             </div>
 
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 min-w-0 flex flex-col">
               <DialogHeader className="p-8 pb-4 border-b border-white/5">
-                <div className="flex items-center justify-between mb-2">
-                  <DialogTitle className="text-2xl font-black tracking-tighter">Requirement Details</DialogTitle>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <DialogTitle className="text-2xl font-black tracking-tighter truncate">Requirement Details</DialogTitle>
                   {selectedRfq && getStatusBadge(selectedRfq)}
                 </div>
                 <DialogDescription className="font-bold text-muted-foreground uppercase text-[10px] tracking-widest">
@@ -477,7 +480,7 @@ export default function VendorRfqs() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-8 space-y-6">
                 {selectedRfq && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -556,7 +559,7 @@ export default function VendorRfqs() {
                 )}
               </div>
 
-              <DialogFooter className="p-6 border-t border-white/5">
+              <DialogFooter className="p-6 border-t border-white/5 flex-col sm:flex-col items-stretch sm:justify-start sm:space-x-0 gap-3">
                 {selectedRfq?.status === 'pending' && (
                   <Button onClick={() => { setDetailsOpen(false); handleOpenResponse(selectedRfq); }}>
                     <Send className="h-4 w-4 mr-2" />
@@ -574,17 +577,17 @@ export default function VendorRfqs() {
                      <Button
                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                        onClick={async () => {
-                         setIsLoading(true);
-                         const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/seller-accept`, {
-                           method: 'POST',
-                           headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
-                         });
-                         if (res.ok) {
+                         setLoading(true);
+                         try {
+                           await api.rfqs.sellerAccept(selectedRfq.id);
                            toast({ title: 'Success', description: 'RFQ terms accepted!' });
                            setDetailsOpen(false);
-                           fetchRfqs();
+                           await fetchRfqs();
+                         } catch (err: any) {
+                           toast({ title: 'Failed to accept terms', description: err.message, variant: 'destructive' });
+                         } finally {
+                           setLoading(false);
                          }
-                         setIsLoading(false);
                        }}
                      >
                        Accept Sourcing Terms
@@ -625,9 +628,16 @@ export default function VendorRfqs() {
                      ⚡ Counter proposal submitted. Awaiting Admin Review.
                    </div>
                  )}
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 w-full">
                   {selectedRfq && (
-                    <Link to={`/vendor/messages?rfqId=${selectedRfq.id}`}>
+                    <Link to={`/vendor/rfqs/${selectedRfq.id}`}>
+                      <Button variant="outline" className="font-bold gap-2 text-xs py-2 rounded-xl">
+                        <FileText className="h-4 w-4" /> Full Audit Trail
+                      </Button>
+                    </Link>
+                  )}
+                  {selectedRfq && (
+                    <Link to={`/vendor/messages?chatGroupId=${selectedRfq.order_group_id || selectedRfq.negotiation_group_id || ''}&rfqId=${selectedRfq.id}`}>
                       <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2 text-xs py-2 rounded-xl">
                         <MessageSquare className="h-4 w-4" /> Go to Chat Room
                       </Button>
@@ -686,7 +696,7 @@ export default function VendorRfqs() {
 
             <div className="space-y-2">
               <label className="font-semibold text-xs text-slate-700 dark:text-slate-200">
-                Counter Proposal Reason / Remark <span className="text-muted-foreground font-normal">(Recommended)</span>
+                Counter Proposal Reason / Remark *
               </label>
               <Textarea
                 placeholder="Explain why terms were adjusted (e.g. Bulk volume discount, expedited lead time, custom packaging)..."
@@ -716,30 +726,24 @@ export default function VendorRfqs() {
             )}
 
             <Button
-              onClick={() => {
-                if (selectedRfq && vendorCounterPrice && vendorCounterQty) {
+              onClick={async () => {
+                if (selectedRfq && vendorCounterPrice && vendorCounterQty && vendorCounterNotes.trim()) {
                   setIsSubmittingVendorCounter(true);
-                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/seller-counter`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${localStorage.getItem('jb_token') || localStorage.getItem('jummababa_token')}`
-                    },
-                    body: JSON.stringify({ price: Number(vendorCounterPrice), quantity: Number(vendorCounterQty), notes: vendorCounterNotes })
-                  }).then(res => {
-                    if (res.ok) {
-                      toast({ title: 'Counter Terms Proposed', description: 'Adjustment successfully submitted to Admin.' });
-                      setVendorCounterOpen(false);
-                      setDetailsOpen(false);
-                      setVendorCounterNotes('');
-                      window.location.reload();
-                    }
-                  }).finally(() => {
+                  try {
+                    await api.rfqs.sellerCounter(selectedRfq.id, Number(vendorCounterPrice), Number(vendorCounterQty), vendorCounterNotes.trim());
+                    toast({ title: 'Counter Terms Proposed', description: 'Adjustment successfully submitted to Admin.' });
+                    setVendorCounterOpen(false);
+                    setDetailsOpen(false);
+                    setVendorCounterNotes('');
+                    await fetchRfqs();
+                  } catch (err: any) {
+                    toast({ title: 'Failed to send counter proposal', description: err.message, variant: 'destructive' });
+                  } finally {
                     setIsSubmittingVendorCounter(false);
-                  });
+                  }
                 }
               }}
-              disabled={isSubmittingVendorCounter || !vendorCounterPrice || !vendorCounterQty}
+              disabled={isSubmittingVendorCounter || !vendorCounterPrice || !vendorCounterQty || !vendorCounterNotes.trim()}
               className="w-full bg-b2b-orange hover:bg-b2b-orange/90 text-white font-bold h-11 rounded-xl"
             >
               {isSubmittingVendorCounter ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '⚡ Send Counter proposal to Admin'}

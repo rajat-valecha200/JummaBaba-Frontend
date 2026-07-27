@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { formatPrice } from '@/lib/utils';
 import { Wallet, Download, CheckCircle, Clock } from 'lucide-react';
+import { api } from '@/lib/api';
 
 export default function VendorEarnings() {
   const [ledgers, setLedgers] = useState<any[]>([]);
@@ -16,13 +17,8 @@ export default function VendorEarnings() {
   useEffect(() => {
     const fetchVendorLedger = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-          }
-        });
-        if (res.ok) {
-          const rfqs = await res.json();
+        const rfqs = await api.rfqs.list().catch(() => null);
+        if (rfqs) {
           // Filter to only include orders assigned to the logged in vendor
           // (role check / ownership is handled backend-side)
           const vendorOrders = rfqs.filter((r: any) => ['ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(r.status));
@@ -76,7 +72,7 @@ export default function VendorEarnings() {
     <div className="container py-8 space-y-8">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">Vendor Sourcing Earnings</h1>
-        <p className="text-slate-500 mt-2">Manage your cleared payments, current escrow holds, and platform fees statements.</p>
+        <p className="text-slate-500 mt-2">Manage your cleared payments, pending settlements, and platform fees statements.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -93,7 +89,7 @@ export default function VendorEarnings() {
 
         <Card className="shadow-lg border-amber-500/10 bg-white">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Escrow Holds</CardTitle>
+            <CardTitle className="text-sm font-semibold text-muted-foreground">Pending Settlement</CardTitle>
             <Clock className="h-5 w-5 text-amber-500" />
           </CardHeader>
           <CardContent>
@@ -117,7 +113,7 @@ export default function VendorEarnings() {
       <Card className="shadow-xl bg-white border border-slate-100 rounded-2xl overflow-hidden">
         <CardHeader className="bg-slate-50/50 p-6 border-b border-slate-100">
           <CardTitle className="text-lg">Fulfillment Payments Ledger</CardTitle>
-          <CardDescription>Breakdown statement of payout cleared or pending escrow approval.</CardDescription>
+          <CardDescription>Breakdown statement of payout cleared or pending settlement.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -150,7 +146,7 @@ export default function VendorEarnings() {
                     <TableCell className="text-right text-emerald-600 font-bold">{formatPrice(row.payout)}</TableCell>
                     <TableCell className="text-center">
                       <Badge variant={row.status === 'completed' ? 'default' : 'secondary'} className={row.status === 'completed' ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}>
-                        {row.status === 'completed' ? 'Cleared' : 'Escrow Hold'}
+                        {row.status === 'completed' ? 'Cleared' : 'Pending Settlement'}
                       </Badge>
                     </TableCell>
                   </TableRow>

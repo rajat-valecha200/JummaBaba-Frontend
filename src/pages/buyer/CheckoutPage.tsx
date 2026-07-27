@@ -118,19 +118,14 @@ export default function CheckoutPage() {
   }, [appliedCoupon]);
 
   const handleApplyCoupon = async () => {
-    if (!couponInput) return;
+    if (!couponInput || !rfqId) return;
     try {
       // Validate coupon code against server / offer endpoint
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId || 'any'}/offer`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-        }
-      });
-      if (!res.ok) {
+      const data = await api.rfqs.getActiveOffer(rfqId).catch(() => null);
+      if (!data) {
         setCouponError('Invalid coupon code');
         return;
       }
-      const data = await res.json();
       if (data && data.code === couponInput) {
         if (new Date(data.expires_at).getTime() < Date.now()) {
           setCouponError('Coupon code expired');
@@ -155,25 +150,17 @@ export default function CheckoutPage() {
         
         if (rfqId) {
           // Fetch RFQ Details
-          const rfqRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId}`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-            }
-          });
-          if (rfqRes.ok) {
-            const rfqData = await rfqRes.json();
-            setRfqDetails(rfqData);
+          try {
+            setRfqDetails(await api.rfqs.get(rfqId));
+          } catch (e) {
+            console.error('Failed to fetch RFQ details for checkout:', e);
           }
 
           // Fetch Active negotiated offer / coupon
-          const offerRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId}/offer`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-            }
-          });
-          if (offerRes.ok) {
-            const offerData = await offerRes.json();
-            setActiveOffer(offerData);
+          try {
+            setActiveOffer(await api.rfqs.getActiveOffer(rfqId));
+          } catch (e) {
+            // No active offer is a normal, expected case (404) — not an error to surface.
           }
         } else {
           const saved = localStorage.getItem('jummababa_cart');
@@ -250,19 +237,8 @@ export default function CheckoutPage() {
     try {
       if (rfqId) {
         // Accept quote endpoint converts RFQ to Order
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId}/accept`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
-          }
-        });
-        
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || 'Failed to complete order checkout');
-        }
-        
+        await api.rfqs.acceptQuote(rfqId);
+
         toast({
           title: 'Order Placed',
           description: 'Your negotiated order has been placed successfully!',
@@ -287,10 +263,10 @@ export default function CheckoutPage() {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div>
       {/* Breadcrumb */}
-      <div className="bg-card border-b">
-        <div className="container py-3">
+      <div className="bg-card border rounded-xl mb-4">
+        <div className="py-3 px-4">
           <nav className="flex items-center gap-2 text-sm">
             <Link to="/buyer/cart" className="text-muted-foreground hover:text-primary flex items-center gap-1">
               <ArrowLeft className="h-4 w-4" />
@@ -302,7 +278,7 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      <div className="container py-6">
+      <div>
         <h1 className="text-2xl font-bold mb-6">Checkout</h1>
 
         <div className="grid lg:grid-cols-3 gap-6">
