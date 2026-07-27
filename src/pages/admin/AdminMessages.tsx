@@ -510,7 +510,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('jummababa_token')}`
+                        'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
                       },
                       body: JSON.stringify({ price: Number(cp), quantity: Number(cq) })
                     }).then(res => {
@@ -862,7 +862,11 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 seller: 'seller_countered',
               };
               const cardStepIdx = STEP_ORDER.indexOf(sourceStep[metadata.source] || '');
-              const isSuperseded = metadata.rfq_id && currentIdx > cardStepIdx && cardStepIdx >= 0;
+              
+              let isSuperseded = (metadata.rfq_id && currentIdx > cardStepIdx && cardStepIdx >= 0) || metadata.active === false;
+              if (userRole === 'vendor' && ['buyer_confirmed_admin', 'buyer_confirmed_seller_counter', 'forwarded_to_seller', 'seller_accepted_terms'].includes(negotiationStep || '')) {
+                isSuperseded = true;
+              }
               return isSuperseded;
             })() ? (
               <Badge className="bg-slate-500/10 text-slate-500 border border-slate-500/20 py-1 text-[10px] uppercase font-bold tracking-wider w-full text-center">
@@ -900,30 +904,41 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                     </div>
                   )
                 )}
-                {userRole === 'admin' && metadata.source === 'seller' && (
-                  <Button 
-                    onClick={() => {
-                      setIsActioning(true);
-                      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-                        }
-                      }).then(res => {
-                        if (res.ok) {
-                          alert('Seller counter-proposal approved and routed to Buyer.');
-                          onRefresh();
-                        }
-                      }).finally(() => {
-                        setIsActioning(false);
-                      });
-                    }}
-                    disabled={isActioning}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 rounded-lg"
-                  >
-                    {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Approve Counter Terms (Send to Buyer)'}
-                  </Button>
+                {userRole === 'admin' && (metadata.source === 'seller' || metadata.source === 'vendor') && (
+                  <div className="flex gap-2 w-full">
+                    <Button 
+                      onClick={() => {
+                        setIsActioning(true);
+                        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                          }
+                        }).then(res => {
+                          if (res.ok) {
+                            alert('Seller counter-proposal approved and routed to Buyer.');
+                            onRefresh();
+                          }
+                        }).finally(() => {
+                          setIsActioning(false);
+                        });
+                      }}
+                      disabled={isActioning}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 text-xs rounded-lg"
+                    >
+                      {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✓ Approve'}
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.price, qty: metadata.quantity, product_id: metadata.product_id, product_name: metadata.product_name } });
+                        window.dispatchEvent(event);
+                      }}
+                      disabled={isActioning}
+                      className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 text-xs rounded-lg"
+                    >
+                      Modify Sourcing Terms
+                    </Button>
+                  </div>
                 )}
                 {userRole === 'admin' && metadata.source === 'buyer' && (
                   <div className="flex gap-2">
@@ -934,7 +949,6 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                           const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
                             method: 'POST',
                             headers: {
-                              'Content-Type': 'application/json',
                               'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
                             }
                           });
@@ -1011,9 +1025,38 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
           </div>
 
-          <Badge className="w-full justify-center bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
-            ✓ Terms Confirmed — Use Control Panel to Forward
-          </Badge>
+          {userRole === 'admin' ? (
+            negotiationStep === 'buyer_confirmed_admin' || negotiationStep === 'buyer_confirmed_seller_counter' ? (
+              <Button
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 text-xs rounded-xl"
+                onClick={async () => {
+                  setIsActioning(true);
+                  try {
+                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/forward-to-seller`, {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
+                    });
+                    if (res.ok) {
+                      onRefresh?.();
+                    }
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
+                disabled={isActioning}
+              >
+                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '📤 Forward Order Details to Seller →'}
+              </Button>
+            ) : (
+              <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+                ✓ Order Forwarded to Seller
+              </Badge>
+            )
+          ) : (
+            <Badge className="w-full justify-center bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+              ✓ Terms Confirmed — Awaiting Order Processing
+            </Badge>
+          )}
         </div>
       );
 
@@ -1031,19 +1074,160 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </div>
           <div className="space-y-2 text-xs">
             <div className="flex justify-between">
-              <span>Negotiated Price:</span>
+              <span className="text-muted-foreground">Adjusted Price per Unit:</span>
               <span className="font-bold">₹{Number(metadata.price).toLocaleString()}</span>
             </div>
             <div className="flex justify-between">
-              <span>Volume Requested:</span>
+              <span className="text-muted-foreground">Adjusted Quantity:</span>
               <span className="font-bold">{metadata.quantity} units</span>
+            </div>
+            <div className="border-t border-slate-200/50 pt-2 space-y-1 text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Product Base Value:</span>
+                <span className="font-bold">₹{(Number(metadata.price) * Number(metadata.quantity)).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-rose-500 font-semibold">
+                <span>Platform Commission Fee (10%):</span>
+                <span>- ₹{(Number(metadata.price) * Number(metadata.quantity) * 0.1).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-emerald-600 font-bold border-t border-dashed border-emerald-500/10 pt-1 text-xs">
+                <span>Vendor Net Settlement Payout:</span>
+                <span>₹{(Number(metadata.price) * Number(metadata.quantity) * 0.9).toLocaleString()}</span>
+              </div>
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-indigo-500/20">
-            <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
-              Awaiting Seller Action
-            </Badge>
+            {userRole === 'vendor' ? (
+              negotiationStep === 'forwarded_to_seller' ? (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                    onClick={async () => {
+                      setIsActioning(true);
+                      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/seller-accept`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
+                      });
+                      if (res.ok) {
+                        alert('Terms Accepted successfully!');
+                        onRefresh();
+                      }
+                      setIsActioning(false);
+                    }}
+                    disabled={isActioning}
+                  >
+                    Accept Terms
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 border-amber-500/30 text-amber-600 font-bold text-xs"
+                    onClick={() => {
+                      if (triggerCounterNegotiation) {
+                        triggerCounterNegotiation(metadata.rfq_id, Number(metadata.price), Number(metadata.quantity));
+                      } else {
+                        const cp = prompt('Propose Counter Price (₹):');
+                        const cq = prompt('Propose Counter Quantity:');
+                        if (cp && cq) {
+                          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/seller-counter`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                            },
+                            body: JSON.stringify({ price: Number(cp), quantity: Number(cq) })
+                          }).then(res => {
+                            if (res.ok) {
+                              alert('Counter proposed! Awaiting admin verification.');
+                              onRefresh();
+                            }
+                          });
+                        }
+                      }
+                    }}
+                    disabled={isActioning}
+                  >
+                    Propose Counter
+                  </Button>
+                </div>
+              ) : (
+                <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+                  ✓ Action Taken ({negotiationStep === 'seller_countered' ? 'Counter Proposed' : 'Accepted'})
+                </Badge>
+              )
+            ) : (
+              <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+                Awaiting Seller Action
+              </Badge>
+            )}
           </div>
+        </div>
+      );
+
+    case 'seller_counter_approved':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-amber-500/25 bg-amber-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Seller Counter Sourcing Terms Approved</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Awaiting Buyer Confirmation</p>
+            </div>
+          </div>
+          <div className="space-y-2.5 text-xs mb-4">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Adjusted Price per Unit:</span>
+              <span className="font-bold text-foreground">₹{Number(metadata.price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Adjusted Quantity:</span>
+              <span className="font-bold text-foreground">{metadata.quantity} units</span>
+            </div>
+            <div className="flex justify-between border-t border-amber-500/10 pt-2 font-semibold">
+              <span className="text-muted-foreground">Total Sourcing Valuation:</span>
+              <span className="font-bold text-foreground">₹{(Number(metadata.price) * Number(metadata.quantity)).toLocaleString()}</span>
+            </div>
+          </div>
+
+          {userRole === 'buyer' ? (
+            negotiationStep === 'admin_approved_seller_counter' ? (
+              <Button
+                onClick={() => {
+                  setIsActioning(true);
+                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-confirm`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                    },
+                    body: JSON.stringify({ source: 'seller' })
+                  }).then(res => {
+                    if (res.ok) {
+                      alert('Terms Confirmed successfully! Sourcing details updated.');
+                      onRefresh();
+                    }
+                  }).finally(() => {
+                    setIsActioning(false);
+                  });
+                }}
+                disabled={isActioning}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg text-xs"
+              >
+                ✓ Accept & Confirm Terms
+              </Button>
+            ) : (
+              <Badge className="w-full justify-center bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+                ✓ Terms Confirmed
+              </Badge>
+            )
+          ) : (
+            <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+              Awaiting Buyer Confirmation
+            </Badge>
+          )}
         </div>
       );
 
@@ -1171,6 +1355,67 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           <p className="text-xs text-muted-foreground leading-relaxed">
             Funds verified in secure Escrow hold. Sourcing order officially elevated. PO & Invoices released under JummaBaba GST.
           </p>
+        </div>
+      );
+
+    case 'direct_connection_request':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-violet-500/25 bg-violet-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-violet-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Direct Chat Request</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                Requested by {metadata.requestedBy === 'buyer' ? 'Buyer' : 'Seller'}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            <span className="font-semibold text-foreground">{metadata.requesterName}</span> has requested direct communication with the {metadata.requestedBy === 'buyer' ? 'Seller' : 'Buyer'}.
+            {metadata.reason && <span className="block mt-1 text-slate-500 italic">Reason: "{metadata.reason}"</span>}
+          </p>
+          {userRole === 'admin' && !metadata.approved && (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs"
+                onClick={async () => {
+                  setIsActioning(true);
+                  try {
+                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/toggle-direct-chat`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                      },
+                      body: JSON.stringify({ active: true })
+                    });
+                    if (res.ok) onRefresh?.();
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
+                disabled={isActioning}
+              >
+                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✅ Approve Direct Connection'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 border-slate-300 text-slate-600 font-bold text-xs"
+                disabled={isActioning}
+              >
+                Decline
+              </Button>
+            </div>
+          )}
+          {metadata.approved && (
+            <Badge className="w-full justify-center bg-violet-500/10 text-violet-600 border border-violet-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+              ✓ Direct Connection Approved
+            </Badge>
+          )}
         </div>
       );
 
@@ -1544,6 +1789,7 @@ export default function AdminMessages() {
       await api.messages.send(receiverId, messageInput.trim(), chatGroupId);
       setMessageInput('');
       fetchConversations();
+      fetchMessages();
     } catch (error) {
       console.error('Failed to send message:', error);
     }
@@ -1926,19 +2172,24 @@ export default function AdminMessages() {
                     </div>
                     
                     <div className="flex gap-2">
-                      <Button 
-                        size="sm"
-                        variant="outline"
-                        className="text-[10px] uppercase font-bold tracking-wider"
-                        onClick={() => {
-                          setModifyRfqId(selectedConversation.rfqId);
-                          setModifyPrice(String(selectedConversation.linkedProductPrice || ''));
-                          setModifyQty(String(selectedConversation.linkedProductQty || ''));
-                          setShowModifyDialog(true);
-                        }}
-                      >
-                        Modify Terms
-                      </Button>
+                      {/* Only show Modify Terms during active negotiation */}
+                      {!['buyer_confirmed_admin', 'buyer_confirmed_seller_counter', 'forwarded_to_seller',
+                        'seller_accepted_terms', 'payment_pending', 'payment_submitted', 'payment_confirmed_escrow'
+                      ].includes(selectedConversation.negotiationStep || '') && (
+                        <Button 
+                          size="sm"
+                          variant="outline"
+                          className="text-[10px] uppercase font-bold tracking-wider"
+                          onClick={() => {
+                            setModifyRfqId(selectedConversation.rfqId);
+                            setModifyPrice(String(selectedConversation.linkedProductPrice || ''));
+                            setModifyQty(String(selectedConversation.linkedProductQty || ''));
+                            setShowModifyDialog(true);
+                          }}
+                        >
+                          Modify Terms
+                        </Button>
+                      )}
 
                       <Button 
                         size="sm"
@@ -2087,8 +2338,8 @@ export default function AdminMessages() {
                     
                     if (isSystem) {
                       return (
-                        <div key={msg.id} className="flex justify-center my-2">
-                          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-800 rounded-full px-4 py-1 text-[10px] font-bold uppercase tracking-widest select-none">
+                        <div key={msg.id} className="flex justify-center my-2 max-w-full">
+                          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-800 rounded-2xl px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest select-none text-center whitespace-pre-wrap max-w-[85%]">
                             {msg.text}
                           </div>
                         </div>
@@ -2107,7 +2358,7 @@ export default function AdminMessages() {
                         >
                           <SourcingActionCard 
                             message={msg} 
-                            userRole={user?.role} 
+                            userRole="admin" 
                             onRefresh={() => { fetchConversations(); fetchMessages(); }} 
                             negotiationStep={selectedConversation.negotiationStep}
                           />

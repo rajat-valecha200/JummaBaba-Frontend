@@ -86,7 +86,7 @@ export function VendorLayout() {
   const handleLogout = () => { signOut(); navigate('/'); };
 
   const location = useLocation();
-  const isMessagesPage = location.pathname === '/vendor/messages';
+  const isMessagesPage = location.pathname.endsWith('/messages');
 
   return (
     <TooltipProvider>
@@ -123,8 +123,8 @@ export function VendorLayout() {
             </div>
           </header>
 
-          <main className={cn("flex-1", isMessagesPage ? "overflow-hidden p-0 bg-background" : "overflow-y-auto p-4 lg:p-8")}>
-            <div className={cn(isMessagesPage ? "h-full" : "max-w-7xl mx-auto")}>
+          <main className={cn("flex-1 min-h-0", isMessagesPage ? "overflow-hidden p-0 bg-background" : "overflow-y-auto p-4 lg:p-8")}>
+            <div className={cn(isMessagesPage ? "h-full min-h-0" : "max-w-7xl mx-auto")}>
               <Outlet />
             </div>
           </main>

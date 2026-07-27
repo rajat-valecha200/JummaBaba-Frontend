@@ -33,7 +33,7 @@ export function AdminLayout() {
   }, []);
 
   const location = useLocation();
-  const isMessagesPage = location.pathname === '/admin/messages';
+  const isMessagesPage = location.pathname.endsWith('/messages');
 
   const pendingVendors = stats?.pendingVendors || 0;
   const pendingProducts = stats?.pendingProducts || 0;
@@ -156,8 +156,8 @@ export function AdminLayout() {
             </div>
           </header>
 
-          <main className={cn("flex-1", isMessagesPage ? "overflow-hidden p-0 bg-background" : "overflow-y-auto p-4 lg:p-8")}>
-            <div className={cn(isMessagesPage ? "h-full" : "max-w-7xl mx-auto")}>
+          <main className={cn("flex-1 min-h-0", isMessagesPage ? "overflow-hidden p-0 bg-background" : "overflow-y-auto p-4 lg:p-8")}>
+            <div className={cn(isMessagesPage ? "h-full min-h-0" : "max-w-7xl mx-auto")}>
               <Outlet />
             </div>
           </main>

@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Send, 
-  Search, 
-  Phone, 
+import {
+  Send,
+  Search,
+  Phone,
   Video,
-  MoreVertical, 
-  Paperclip, 
-  Image as ImageIcon, 
+  MoreVertical,
+  Paperclip,
+  Image as ImageIcon,
   Check,
-  CheckCheck, 
+  CheckCheck,
   ArrowLeft,
   Smile,
   Shield,
@@ -150,16 +150,16 @@ function CatalogSlabBadge({ metadata }: { metadata: any }) {
     const fetchSlab = async () => {
       try {
         const products = await api.products.list();
-        const found = products.find((p: any) => 
+        const found = products.find((p: any) =>
           (metadata.product_id && String(p.id) === String(metadata.product_id)) ||
           (metadata.product_name && p.name && p.name.toLowerCase().trim() === metadata.product_name.toLowerCase().trim())
         );
 
         if (found && isMounted) {
-          const slabs = typeof found.pricing_slabs === 'string' 
-            ? JSON.parse(found.pricing_slabs) 
+          const slabs = typeof found.pricing_slabs === 'string'
+            ? JSON.parse(found.pricing_slabs)
             : (found.pricing_slabs || found.pricingSlabs || []);
-          
+
           if (Array.isArray(slabs) && slabs.length > 0) {
             const qNum = Number(metadata.quantity) || 0;
             const match = slabs.find((s: any) => {
@@ -198,7 +198,7 @@ function CatalogSlabBadge({ metadata }: { metadata: any }) {
 function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegotiation, negotiationStep }: SourcingActionCardProps) {
   const metadata = message.metadata || {};
   const cardType = metadata.type;
-  
+
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>(metadata.supplier_id || '');
   const [isActioning, setIsActioning] = useState<boolean>(false);
@@ -311,7 +311,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Moderated Sourcing Inquiry</p>
             </div>
           </div>
-          
+
           <div className="space-y-2.5 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Product Target:</span>
@@ -359,7 +359,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                     <span className="text-[10px] uppercase text-muted-foreground font-bold block mb-1">Target Supplier (Buyer Choice)</span>
                     <span className="font-semibold text-foreground">{metadata.supplier_name || 'Selected Vendor'}</span>
                   </div>
-                  <Button 
+                  <Button
                     onClick={handleForward}
                     className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
                     disabled={isActioning}
@@ -373,7 +373,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                   <label className="text-[10px] uppercase font-bold text-muted-foreground block">Select Verified Supplier to Forward</label>
                   {suppliers.length > 0 ? (
                     <div className="flex flex-col gap-2">
-                      <select 
+                      <select
                         value={selectedSupplierId}
                         onChange={(e) => setSelectedSupplierId(e.target.value)}
                         className="w-full text-xs bg-muted border border-border rounded-lg h-9 px-2 focus:ring-1 focus:ring-cyan-500 font-medium"
@@ -382,7 +382,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                           <option key={s.id} value={s.id}>{s.business_name || s.full_name}</option>
                         ))}
                       </select>
-                      <Button 
+                      <Button
                         onClick={handleForward}
                         className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
                         disabled={isActioning}
@@ -405,7 +405,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               </Badge>
               {userRole === 'vendor' && (!metadata.rfq_status || metadata.rfq_status === 'pending') && (
                 <div className="pt-2 border-t border-cyan-500/10">
-                  <Button 
+                  <Button
                     onClick={handleConfirmOrder}
                     className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
                     disabled={isActioning}
@@ -452,7 +452,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
 
           {userRole === 'buyer' && (
             <div className="mt-4 pt-4 border-t border-emerald-500/20 flex gap-2">
-              <Button 
+              <Button
                 onClick={handleAcceptQuote}
                 className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
                 disabled={isActioning}
@@ -596,14 +596,14 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
 
           {userRole === 'buyer' && !showDisputeInput && (!metadata.rfq_status || ['shipped', 'delivered', 'ordered', 'confirmed'].includes(metadata.rfq_status)) && (
             <div className="flex gap-2">
-              <Button 
+              <Button
                 onClick={handleConfirmDelivery}
                 className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
                 disabled={isActioning}
               >
                 {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "📦 Yes, Confirm Delivery"}
               </Button>
-              <Button 
+              <Button
                 onClick={() => setShowDisputeInput(true)}
                 variant="outline"
                 className="flex-1 text-xs h-9 border-destructive hover:bg-destructive/10 text-destructive rounded-lg shadow-sm font-semibold transition-all"
@@ -617,21 +617,21 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           {showDisputeInput && (
             <div className="space-y-3 pt-3 border-t border-yellow-500/10">
               <label className="text-[10px] uppercase font-bold text-destructive block">Dispute Reason / Concerns</label>
-              <textarea 
+              <textarea
                 value={disputeNotes}
                 onChange={(e) => setDisputeNotes(e.target.value)}
                 placeholder="Describe product damage, volume mismatch, or cargo delays..."
                 className="w-full text-xs p-2 bg-muted border border-border rounded-lg h-16 focus:ring-1 focus:ring-destructive resize-none"
               />
               <div className="flex gap-2">
-                <Button 
+                <Button
                   onClick={handleOpenDispute}
                   className="flex-1 text-xs h-9 bg-destructive hover:bg-destructive/90 text-white rounded-lg font-semibold transition-all"
                   disabled={isActioning}
                 >
                   {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Submit Dispute"}
                 </Button>
-                <Button 
+                <Button
                   onClick={() => { setShowDisputeInput(false); setErrorMsg(''); }}
                   variant="ghost"
                   className="text-xs h-9 rounded-lg"
@@ -695,7 +695,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
       const baseTotalVal = Number(metadata.negotiated_price) * Number(metadata.quantity);
       const savings = baseTotalVal * (discountVal / 100);
       const finalTotalVal = baseTotalVal - savings;
-      
+
       return (
         <div className="w-full max-w-md my-2 rounded-2xl border border-b2b-orange/25 bg-b2b-orange/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center gap-2 border-b border-b2b-orange/20 pb-3 mb-4">
@@ -707,7 +707,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Agreed Sourcing Deal</p>
             </div>
           </div>
-          
+
           <div className="space-y-2.5 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Price per Unit:</span>
@@ -759,7 +759,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               </p>
             </div>
           </div>
-          
+
           <div className="space-y-2.5 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Adjusted Price per Unit:</span>
@@ -769,7 +769,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <span className="text-muted-foreground">Adjusted Quantity:</span>
               <span className="font-bold text-foreground">{metadata.quantity} units</span>
             </div>
-            
+
             {/* Financial Splits calculation breakdown inside chat card */}
             <div className="border-t border-slate-200/50 pt-2 space-y-1.5 text-[11px]">
               <div className="flex justify-between">
@@ -817,8 +817,8 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 seller: 'seller_countered',
               };
               const cardStepIdx = STEP_ORDER.indexOf(sourceStep[metadata.source] || '');
-              // Superseded = current step has moved strictly past this card's step
-              const isSuperseded = metadata.rfq_id && currentIdx > cardStepIdx && cardStepIdx >= 0;
+              // Superseded = current step has moved strictly past this card's step, or active is explicitly false
+              const isSuperseded = (metadata.rfq_id && currentIdx > cardStepIdx && cardStepIdx >= 0) || metadata.active === false;
               return isSuperseded;
             })() ? (
               <Badge className="bg-slate-500/10 text-slate-500 border border-slate-500/20 py-1 text-[10px] uppercase font-bold tracking-wider w-full text-center">
@@ -826,21 +826,64 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               </Badge>
             ) : (
               <>
-                {userRole === 'buyer' && metadata.source === 'admin' && (
-                  <div className="flex gap-2">
-                    <Button 
+                {userRole === 'buyer' && (
+                  metadata.source === 'buyer' ? (
+                    <Badge className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-1.5 text-[10px] uppercase font-bold tracking-wider w-full text-center">
+                      Awaiting Admin Approval of Counter Terms
+                    </Badge>
+                  ) : (
+                    <div className="flex gap-2 w-full">
+                      <Button
+                        onClick={() => {
+                          setIsActioning(true);
+                          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-confirm`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                            },
+                            body: JSON.stringify({ source: metadata.source })
+                          }).then(res => {
+                            if (res.ok) {
+                              alert('Quotation Terms Confirmed! Sourcing details updated.');
+                              onRefresh();
+                            }
+                          }).finally(() => {
+                            setIsActioning(false);
+                          });
+                        }}
+                        disabled={isActioning}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg"
+                      >
+                        {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✓ Accept & Confirm Terms'}
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          if (triggerCounterNegotiation) {
+                            triggerCounterNegotiation(metadata.rfq_id, Number(metadata.price), Number(metadata.quantity));
+                          }
+                        }}
+                        disabled={isActioning}
+                        className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 rounded-lg"
+                      >
+                        Propose Counter
+                      </Button>
+                    </div>
+                  )
+                )}
+                {userRole === 'admin' && (metadata.source === 'seller' || metadata.source === 'vendor') && (
+                  <div className="flex gap-2 w-full">
+                    <Button
                       onClick={() => {
                         setIsActioning(true);
-                        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-confirm`, {
+                        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
                           method: 'POST',
                           headers: {
-                            'Content-Type': 'application/json',
                             'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-                          },
-                          body: JSON.stringify({ source: 'admin' })
+                          }
                         }).then(res => {
                           if (res.ok) {
-                            alert('Quotation terms confirmed successfully!');
+                            alert('Seller counter-proposal approved and routed to Buyer.');
                             onRefresh();
                           }
                         }).finally(() => {
@@ -848,47 +891,62 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                         });
                       }}
                       disabled={isActioning}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg"
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 text-xs rounded-lg"
                     >
-                      {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Confirm Terms'}
+                      {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✓ Approve'}
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => {
-                        if (triggerCounterNegotiation) {
-                          triggerCounterNegotiation(metadata.rfq_id, Number(metadata.price), Number(metadata.quantity));
-                        }
+                        const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.price, qty: metadata.quantity, product_id: metadata.product_id, product_name: metadata.product_name } });
+                        window.dispatchEvent(event);
                       }}
                       disabled={isActioning}
-                      className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 rounded-lg"
+                      className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 text-xs rounded-lg"
                     >
-                      Propose Counter
+                      Modify Sourcing Terms
                     </Button>
                   </div>
                 )}
-                {userRole === 'admin' && metadata.source === 'seller' && (
-                  <Button 
-                    onClick={() => {
-                      setIsActioning(true);
-                      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                {userRole === 'admin' && metadata.source === 'buyer' && (
+                  <div className="flex gap-2 w-full">
+                    <Button
+                      onClick={async () => {
+                        setIsActioning(true);
+                        try {
+                          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
+                            method: 'POST',
+                            headers: {
+                              'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                            }
+                          });
+                          if (res.ok) {
+                            onRefresh();
+                          } else {
+                            const err = await res.json().catch(() => ({}));
+                            setErrorMsg(err.error || `Request failed (${res.status})`);
+                          }
+                        } catch (e: any) {
+                          setErrorMsg(e.message || 'Network error');
+                        } finally {
+                          setIsActioning(false);
                         }
-                      }).then(res => {
-                        if (res.ok) {
-                          alert('Seller counter-proposal approved and routed to Buyer.');
-                          onRefresh();
-                        }
-                      }).finally(() => {
-                        setIsActioning(false);
-                      });
-                    }}
-                    disabled={isActioning}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 rounded-lg"
-                  >
-                    {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Approve Counter Terms (Send to Buyer)'}
-                  </Button>
+                      }}
+                      disabled={isActioning}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 text-xs rounded-lg"
+                    >
+                      {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✓ Approve'}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.price, qty: metadata.quantity, product_id: metadata.product_id, product_name: metadata.product_name } });
+                        window.dispatchEvent(event);
+                      }}
+                      disabled={isActioning}
+                      className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 text-xs rounded-lg"
+                    >
+                      Modify Sourcing Terms
+                    </Button>
+                  </div>
                 )}
                 {userRole === 'admin' && metadata.source === 'admin' && (
                   <Badge className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-1 text-[10px] uppercase font-bold tracking-wider w-full text-center">
@@ -910,11 +968,74 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
       return (
         <div className={cn(
           "w-full max-w-sm mx-auto my-3 rounded-xl border p-3 text-center text-xs font-semibold animate-in fade-in slide-in-from-bottom-2 duration-300",
-          metadata.active 
+          metadata.active
             ? "border-amber-500/25 bg-amber-500/5 text-amber-700 dark:text-amber-400 animate-pulse"
             : "border-border bg-muted/30 text-muted-foreground"
         )}>
           {message.text}
+        </div>
+      );
+
+    case 'rfq_terms_confirmed':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-emerald-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Buyer Confirmed Terms ✓</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ready to Forward to Seller</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 text-xs mb-4">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Confirmed Price:</span>
+              <span className="font-bold text-emerald-600">₹{Number(metadata.price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Confirmed Quantity:</span>
+              <span className="font-bold text-foreground">{metadata.quantity} units</span>
+            </div>
+            <div className="flex justify-between border-t border-emerald-500/10 pt-2 font-semibold">
+              <span className="text-muted-foreground">Total Order Value:</span>
+              <span className="font-bold text-foreground">₹{(Number(metadata.price) * Number(metadata.quantity)).toLocaleString()}</span>
+            </div>
+          </div>
+
+          {userRole === 'admin' ? (
+            negotiationStep === 'buyer_confirmed_admin' || negotiationStep === 'buyer_confirmed_seller_counter' ? (
+              <Button
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 text-xs rounded-xl"
+                onClick={async () => {
+                  setIsActioning(true);
+                  try {
+                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/forward-to-seller`, {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
+                    });
+                    if (res.ok) {
+                      onRefresh?.();
+                    }
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
+                disabled={isActioning}
+              >
+                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '📤 Forward Order Details to Seller →'}
+              </Button>
+            ) : (
+              <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+                ✓ Order Forwarded to Seller
+              </Badge>
+            )
+          ) : (
+            <Badge className="w-full justify-center bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+              ✓ Terms Confirmed — Awaiting Order Processing
+            </Badge>
+          )}
         </div>
       );
 
@@ -1006,7 +1127,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
     case 'rfq_payment_request':
       const breakdown = metadata.breakdown || {};
       const [paymentRef, setPaymentRef] = useState('');
-      
+
       return (
         <div className="w-full max-w-md my-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center gap-2 border-b border-indigo-500/20 pb-3 mb-4">
@@ -1179,12 +1300,12 @@ function TypingIndicator() {
 }
 
 // Message Status Icon Component with animation
-function MessageStatus({ 
-  status, 
-  deliveredAt, 
+function MessageStatus({
+  status,
+  deliveredAt,
   readAt,
-  showDetails = false 
-}: { 
+  showDetails = false
+}: {
   status: Message['status'];
   deliveredAt?: string;
   readAt?: string;
@@ -1230,7 +1351,7 @@ function MessageStatus({
 // Read Receipt Sync Indicator - shows when receipts are syncing
 function ReadReceiptSyncIndicator({ isSyncing }: { isSyncing: boolean }) {
   if (!isSyncing) return null;
-  
+
   return (
     <div className="flex items-center gap-1 text-xs text-muted-foreground animate-pulse">
       <div className="w-1.5 h-1.5 bg-primary rounded-full animate-ping" />
@@ -1240,13 +1361,13 @@ function ReadReceiptSyncIndicator({ isSyncing }: { isSyncing: boolean }) {
 }
 
 // Notification Permission Button
-function NotificationButton({ 
-  permission, 
-  onRequest, 
-  isSupported 
-}: { 
-  permission: NotificationPermission; 
-  onRequest: () => void; 
+function NotificationButton({
+  permission,
+  onRequest,
+  isSupported
+}: {
+  permission: NotificationPermission;
+  onRequest: () => void;
   isSupported: boolean;
 }) {
   if (!isSupported) return null;
@@ -1254,9 +1375,9 @@ function NotificationButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           className="rounded-full"
           onClick={onRequest}
         >
@@ -1270,11 +1391,11 @@ function NotificationButton({
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        {permission === 'granted' 
-          ? 'Notifications enabled' 
+        {permission === 'granted'
+          ? 'Notifications enabled'
           : permission === 'denied'
-          ? 'Notifications blocked - enable in browser settings'
-          : 'Click to enable notifications'}
+            ? 'Notifications blocked - enable in browser settings'
+            : 'Click to enable notifications'}
       </TooltipContent>
     </Tooltip>
   );
@@ -1288,13 +1409,14 @@ interface MessagesPageProps {
 export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const dataRef = useRef<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  
+
   // Search and filter state
   const [isMessageSearchOpen, setIsMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
@@ -1307,13 +1429,13 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
     text: string;
     timestamp: string;
   }>>([]);
-  
-  const { 
-    permission, 
-    isSupported, 
-    requestPermission, 
+
+  const {
+    permission,
+    isSupported,
+    requestPermission,
     showMessageNotification,
-    isEnabled 
+    isEnabled
   } = useNotifications();
 
   const {
@@ -1331,21 +1453,22 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const [showActionsFor, setShowActionsFor] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<ReplyToMessage | null>(null);
   const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
-  
+
   // Call state
   const [isCallOpen, setIsCallOpen] = useState(false);
   const [callType, setCallType] = useState<'voice' | 'video'>('voice');
-  
+
   // Read receipt sync state
   const [isReceiptSyncing, setIsReceiptSyncing] = useState(false);
-  
+
   // Custom Counter Dialog States
   const [counterOpen, setCounterOpen] = useState(false);
   const [counterPrice, setCounterPrice] = useState('');
   const [counterQty, setCounterQty] = useState('');
   const [counterRfqId, setCounterRfqId] = useState('');
+  const [counterNotes, setCounterNotes] = useState('');
   const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
-  
+
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [admins, setAdmins] = useState<any[]>([]);
   const [loadingAdmins, setLoadingAdmins] = useState(false);
@@ -1371,7 +1494,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
 
   const startConversationWithAdmin = async (admin: any) => {
     setIsNewChatOpen(false);
-    
+
     // Check if conversation already exists
     const existing = conversations.find(c => c.id === admin.id);
     if (existing) {
@@ -1402,10 +1525,10 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isInputBlocked = user?.role === 'admin' && 
-                         selectedConversation?.isGroup && 
-                         selectedConversation?.groupType === 'order_group' && 
-                         !selectedConversation?.canIntervene;
+  const isInputBlocked = user?.role === 'admin' &&
+    selectedConversation?.isGroup &&
+    selectedConversation?.groupType === 'order_group' &&
+    !selectedConversation?.canIntervene;
 
   // Search messages across all conversations
   const handleMessageSearch = useCallback((query: string) => {
@@ -1414,7 +1537,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
       setSearchResults([]);
       return;
     }
-    
+
     const results: typeof searchResults = [];
     conversations.forEach(conv => {
       conv.messages.forEach(msg => {
@@ -1452,26 +1575,26 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
     let filtered = conversations.filter(c =>
       c.participantName.toLowerCase().includes(searchQuery.toLowerCase())
     );
-    
+
     // Apply filter type
     if (filterType === 'unread') {
       filtered = filtered.filter(c => c.unreadCount > 0);
     } else if (filterType === 'recent') {
-      filtered = filtered.filter(c => 
-        c.lastMessageTime === 'Just now' || 
-        c.lastMessageTime.includes('AM') || 
+      filtered = filtered.filter(c =>
+        c.lastMessageTime === 'Just now' ||
+        c.lastMessageTime.includes('AM') ||
         c.lastMessageTime.includes('PM') ||
         c.lastMessageTime === 'Yesterday'
       );
     }
-    
+
     // Apply supplier type filter
     if (supplierTypeFilter !== 'all') {
-      filtered = filtered.filter(c => 
+      filtered = filtered.filter(c =>
         c.participantCompany.toLowerCase().includes(supplierTypeFilter.toLowerCase())
       );
     }
-    
+
     return filtered;
   }, [conversations, searchQuery, filterType, supplierTypeFilter]);
 
@@ -1497,7 +1620,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
     conversationIds.forEach(convId => {
       setConversations(prev => prev.map(conv => {
         if (conv.id !== convId) return conv;
-        
+
         const forwardedMsg: Message = {
           id: `fwd-${Date.now()}-${convId}`,
           senderId: "me",
@@ -1541,10 +1664,10 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         ...prev,
         messages: prev.messages.map(msg => {
           if (msg.id !== messageId) return msg;
-          
+
           const existingReactions = msg.reactions || [];
           const existingReaction = existingReactions.find(r => r.emoji === emoji);
-          
+
           if (existingReaction) {
             if (existingReaction.hasReacted) {
               // Remove reaction
@@ -1556,8 +1679,8 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               }
               return {
                 ...msg,
-                reactions: existingReactions.map(r => 
-                  r.emoji === emoji 
+                reactions: existingReactions.map(r =>
+                  r.emoji === emoji
                     ? { ...r, count: r.count - 1, hasReacted: false }
                     : r
                 )
@@ -1590,7 +1713,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
-  
+
   const playNotificationSound = useCallback(() => {
     playNotificationChime();
   }, []);
@@ -1599,6 +1722,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const fetchConversations = useCallback(async () => {
     try {
       const data = await api.messages.getConversations();
+      dataRef.current = data;
       const mapped: Conversation[] = data.map((c: any) => ({
         id: c.participant_id,
         participantName: c.participant_name,
@@ -1650,11 +1774,28 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         senderName: m.sender_name,
         senderRole: m.sender_role
       }));
-      
+
       setSelectedConversation(prev => {
         if (!prev || prev.id !== selectedConversation.id) return prev;
-        if (JSON.stringify(prev.messages) === JSON.stringify(mappedMessages)) return prev;
-        return { ...prev, messages: mappedMessages };
+        
+        // Find latest metadata values from fresh conversations sidebar mapping
+        const currentConv = dataRef.current?.find((c: any) => c.participant_id === selectedConversation.id);
+        const nextStep = currentConv ? currentConv.negotiation_step : prev.negotiationStep;
+        const nextDirect = currentConv ? !!currentConv.direct_chat_active : prev.directChatActive;
+
+        if (
+          JSON.stringify(prev.messages) === JSON.stringify(mappedMessages) &&
+          prev.negotiationStep === nextStep &&
+          prev.directChatActive === nextDirect
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          messages: mappedMessages,
+          negotiationStep: nextStep,
+          directChatActive: nextDirect
+        };
       });
 
       // If there are unread messages from other users, mark them as read
@@ -1681,7 +1822,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
       const params = new URLSearchParams(window.location.search);
       const chatGroupId = params.get('chatGroupId') || params.get('groupId');
       const rfqId = params.get('rfqId');
-      
+
       if (chatGroupId) {
         const found = conversations.find(c => c.id === chatGroupId);
         if (found && (!selectedConversation || selectedConversation.id !== found.id)) {
@@ -1707,7 +1848,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const openConversation = async (conv: Conversation) => {
     setSelectedConversation(conv);
     // Locally zero out count for immediate feedback
-    setConversations(prev => prev.map(c => 
+    setConversations(prev => prev.map(c =>
       c.id === conv.id ? { ...c, unreadCount: 0 } : c
     ));
     try {
@@ -1731,9 +1872,9 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
       "Your order has been processed successfully!",
       "I'll send you the updated quotation shortly."
     ];
-    
+
     const randomMessage = incomingMessages[Math.floor(Math.random() * incomingMessages.length)];
-    
+
     const newMessage: Message = {
       id: `m-incoming-${Date.now()}`,
       senderId: 'other',
@@ -1805,7 +1946,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation || isSending) return;
-    
+
     try {
       setIsSending(true);
       const isGroup = !!selectedConversation.isGroup;
@@ -1815,7 +1956,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
       await api.messages.send(receiverId, messageInput.trim(), chatGroupId);
       setMessageInput('');
       setReplyingTo(null);
-      
+
       // Refresh messages immediately
       const history = await api.messages.getHistory(selectedConversation.id, isGroup);
       const mappedMessages: Message[] = history.map((m: any) => ({
@@ -1828,7 +1969,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         senderName: m.sender_name,
         senderRole: m.sender_role
       }));
-      
+
       setSelectedConversation(prev => prev ? { ...prev, messages: mappedMessages } : null);
       fetchConversations();
     } catch (error) {
@@ -1840,7 +1981,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
 
   const handleSendVoiceMessage = async () => {
     if (!selectedConversation) return;
-    
+
     const recording = await stopRecording();
     if (!recording) return;
 
@@ -1869,7 +2010,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
     };
 
     setSelectedConversation(updatedConversation);
-    setConversations(prev => prev.map(c => 
+    setConversations(prev => prev.map(c =>
       c.id === selectedConversation.id ? updatedConversation : c
     ));
     setIsReceiptSyncing(true);
@@ -1903,24 +2044,24 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
 
   const handleFileSelect = (files: FileList | null, type: 'image' | 'document') => {
     if (!files) return;
-    
+
     const validFiles: File[] = [];
     const maxSize = 10 * 1024 * 1024; // 10MB
-    
+
     Array.from(files).forEach(file => {
       if (file.size > maxSize) {
         console.warn(`File ${file.name} is too large`);
         return;
       }
-      
+
       if (type === 'image' && !file.type.startsWith('image/')) {
         console.warn(`File ${file.name} is not an image`);
         return;
       }
-      
+
       validFiles.push(file);
     });
-    
+
     setSelectedFiles(prev => [...prev, ...validFiles]);
   };
 
@@ -1964,14 +2105,14 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
     const updatedConversation = {
       ...selectedConversation,
       messages: [...selectedConversation.messages, ...newMessages],
-      lastMessage: newMessages.length === 1 
+      lastMessage: newMessages.length === 1
         ? (selectedFiles[0].type.startsWith('image/') ? '📷 Photo' : `📎 ${selectedFiles[0].name}`)
         : `📎 ${newMessages.length} files`,
       lastMessageTime: 'Just now'
     };
 
     setSelectedConversation(updatedConversation);
-    setConversations(prev => prev.map(c => 
+    setConversations(prev => prev.map(c =>
       c.id === selectedConversation.id ? updatedConversation : c
     ));
     setSelectedFiles([]);
@@ -2031,16 +2172,16 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   return (
     <div className={cn(
       "flex bg-background overflow-hidden",
-      isMessagesRoute 
-        ? "h-full rounded-none border-0 shadow-none" 
+      isMessagesRoute
+        ? "h-full rounded-none border-0 shadow-none"
         : "h-[calc(100vh-10rem)] md:h-[calc(100vh-8rem)] rounded-xl border shadow-sm"
     )}>
       {/* Conversations List */}
-      <div 
+      <div
         className={cn(
           "flex flex-col transition-all duration-300 ease-out overflow-hidden",
-          selectedConversation 
-            ? "hidden md:flex md:w-[340px] md:border-r md:flex-shrink-0" 
+          selectedConversation
+            ? "hidden md:flex md:w-[340px] md:border-r md:flex-shrink-0"
             : "w-full"
         )}
       >
@@ -2049,12 +2190,12 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl font-bold">Chats</h2>
             <div className="flex items-center gap-1">
-              <NotificationButton 
+              <NotificationButton
                 permission={permission}
                 onRequest={requestPermission}
                 isSupported={isSupported}
               />
-              
+
               <Dialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 text-primary hover:bg-primary/10">
@@ -2155,8 +2296,8 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               {filterType !== 'all' && (
                 <Badge variant="secondary" className="text-xs flex items-center gap-1">
                   {filterType === 'unread' ? 'Unread' : 'Recent'}
-                  <X 
-                    className="h-3 w-3 cursor-pointer" 
+                  <X
+                    className="h-3 w-3 cursor-pointer"
                     onClick={() => setFilterType('all')}
                   />
                 </Badge>
@@ -2164,8 +2305,8 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               {supplierTypeFilter !== 'all' && (
                 <Badge variant="secondary" className="text-xs flex items-center gap-1">
                   {supplierTypeFilter}
-                  <X 
-                    className="h-3 w-3 cursor-pointer" 
+                  <X
+                    className="h-3 w-3 cursor-pointer"
                     onClick={() => setSupplierTypeFilter('all')}
                   />
                 </Badge>
@@ -2185,7 +2326,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
 
         {/* Notification Banner */}
         {isSupported && permission === 'default' && (
-          <div 
+          <div
             className="mx-4 mt-3 p-3 bg-primary/10 rounded-lg border border-primary/20 cursor-pointer hover:bg-primary/15 transition-colors"
             onClick={requestPermission}
           >
@@ -2205,7 +2346,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         <div className="flex-1 overflow-y-auto">
           {filteredConversations.map((conv) => {
             const lastStatus = getLastMessageStatus(conv);
-            
+
             return (
               <div
                 key={conv.id}
@@ -2240,12 +2381,12 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                     <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-success rounded-full border-2 border-background" />
                   )}
                 </div>
-                
+
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <p 
+                      <p
                         className="font-semibold truncate"
                         title={conv.participantName}
                       >
@@ -2309,7 +2450,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               </div>
               <p className="text-sm font-medium text-foreground">No conversations found</p>
               <p className="text-xs mt-1 mb-4">Start a new chat with JummaBaba support for any assistance.</p>
-              <Button 
+              <Button
                 onClick={() => {
                   setIsNewChatOpen(true);
                   fetchAdmins();
@@ -2325,11 +2466,11 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
       </div>
 
       {/* Chat View */}
-      <div 
+      <div
         className={cn(
           "flex-1 flex flex-col transition-all duration-300 ease-out min-w-0 overflow-hidden",
-          selectedConversation 
-            ? "w-full" 
+          selectedConversation
+            ? "w-full"
             : "hidden md:flex md:flex-1"
         )}
       >
@@ -2338,15 +2479,15 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
             {/* WhatsApp-style Chat Header - Sticky */}
             <div className="bg-card border-b px-2 md:px-4 py-2 flex items-center gap-2 md:gap-3 flex-shrink-0 z-20">
               {/* Back Button */}
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="flex-shrink-0 rounded-full"
                 onClick={handleBack}
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              
+
               {/* Supplier DP */}
               <div className="relative flex-shrink-0">
                 {selectedConversation.isGroup ? (
@@ -2372,9 +2513,9 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                   <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-success rounded-full border-2 border-background" />
                 )}
               </div>
-              
+
               {/* Supplier Info */}
-              <div className="flex-1 min-w-0" onClick={() => {}}>
+              <div className="flex-1 min-w-0" onClick={() => { }}>
                 <div className="flex items-center gap-1.5">
                   <p className="font-semibold truncate">{selectedConversation.participantName}</p>
                   {selectedConversation.isVerified && !selectedConversation.isGroup && (
@@ -2384,8 +2525,8 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   {selectedConversation.isGroup ? (
                     <span>
-                      {selectedConversation.groupType === 'negotiation' 
-                        ? 'RFQ Negotiation Panel' 
+                      {selectedConversation.groupType === 'negotiation'
+                        ? 'RFQ Negotiation Panel'
                         : 'Platform Escrow Orders & Support'}
                     </span>
                   ) : (
@@ -2407,11 +2548,11 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                   )}
                 </div>
               </div>
-              
+
               {/* Action Icons */}
               <div className="flex items-center gap-0.5">
                 {/* Call actions hidden for now */}
-                
+
                 {/* 3-dot Menu */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -2460,7 +2601,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                         <p className="text-[11px] text-muted-foreground">You are actively moderating this thread. Both parties can see your comments.</p>
                       </div>
                     </div>
-                    <Button 
+                    <Button
                       size="sm"
                       variant="outline"
                       onClick={handleToggleIntervention}
@@ -2480,7 +2621,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                         <p className="text-[11px] text-muted-foreground">You are currently observing this negotiation thread. Typing and actions are disabled.</p>
                       </div>
                     </div>
-                    <Button 
+                    <Button
                       size="sm"
                       onClick={handleToggleIntervention}
                       className="text-xs h-8 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-sm font-semibold transition-all flex items-center gap-1.5 flex-shrink-0"
@@ -2493,7 +2634,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
             )}
 
             {/* Messages Area with Vertical Scroll - No Horizontal */}
-            <div 
+            <div
               ref={messagesContainerRef}
               className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 scroll-smooth min-h-0"
               style={{
@@ -2501,7 +2642,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                 backgroundColor: 'hsl(var(--muted) / 0.3)'
               }}
             >
-              <div className="flex flex-col gap-2 max-w-3xl mx-auto w-full">
+              <div className="flex flex-col gap-2 mx-auto w-full">
                 {/* Date separator - Sticky */}
                 <div className="flex justify-center mb-4 sticky top-0 z-10">
                   <span className="bg-muted/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-muted-foreground shadow-sm">
@@ -2527,10 +2668,10 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                           isCentered ? "justify-center" : (message.senderId === 'me' ? "justify-end" : "justify-start")
                         )}
                       >
-                        <SourcingActionCard 
-                          message={message} 
-                          userRole={user?.role} 
-                          onRefresh={() => { fetchConversations(); fetchMessages(); }} 
+                        <SourcingActionCard
+                          message={message}
+                          userRole={userType || user?.role}
+                          onRefresh={() => { fetchConversations(); fetchMessages(); }}
                           triggerCounterNegotiation={(rfqId, price, qty) => {
                             setCounterRfqId(rfqId);
                             setCounterPrice(String(price));
@@ -2568,7 +2709,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                               "absolute bottom-full mb-2 z-10",
                               message.senderId === 'me' ? "right-0" : "left-0"
                             )}>
-                              <MessageActions 
+                              <MessageActions
                                 onReply={() => handleReply(message)}
                                 onForward={() => {
                                   setForwardMessage(message);
@@ -2589,7 +2730,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                               "absolute bottom-full mb-2 z-10",
                               message.senderId === 'me' ? "right-0" : "left-0"
                             )}>
-                              <QuickReactions 
+                              <QuickReactions
                                 onSelect={(emoji) => handleAddReaction(message.id, emoji)}
                                 isOwn={message.senderId === 'me'}
                               />
@@ -2624,7 +2765,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
 
                             {/* Quoted Reply */}
                             {message.replyTo && (
-                              <QuotedMessage 
+                              <QuotedMessage
                                 replyTo={message.replyTo}
                                 isOwn={message.senderId === 'me'}
                                 onClick={() => scrollToMessage(message.replyTo!.id)}
@@ -2632,12 +2773,12 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                             )}
 
                             {message.isMedia && message.mediaData ? (
-                              <MediaMessage 
+                              <MediaMessage
                                 media={message.mediaData}
                                 isOwn={message.senderId === 'me'}
                               />
                             ) : message.isVoice && message.voiceData ? (
-                              <VoiceMessage 
+                              <VoiceMessage
                                 audioUrl={message.voiceData.audioUrl}
                                 duration={message.voiceData.duration}
                                 isOwn={message.senderId === 'me'}
@@ -2656,8 +2797,8 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                                 {message.timestamp}
                               </span>
                               {message.senderId === 'me' && (
-                                <MessageStatus 
-                                  status={message.status} 
+                                <MessageStatus
+                                  status={message.status}
                                   deliveredAt={message.deliveredAt}
                                   readAt={message.readAt}
                                 />
@@ -2707,7 +2848,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
 
                 {/* Typing indicator */}
                 {selectedConversation.isTyping && <TypingIndicator />}
-                
+
                 {/* Scroll anchor for auto-scroll */}
                 <div ref={messagesEndRef} className="h-px flex-shrink-0" />
               </div>
@@ -2717,22 +2858,22 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
             {isRecording ? (
               <div className="bg-card border-t px-2 md:px-4 py-3 flex-shrink-0">
                 <div className="flex items-center gap-3">
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     size="icon"
                     onClick={cancelRecording}
                     className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
                   >
                     <Trash2 className="h-5 w-5" />
                   </Button>
-                  
+
                   <div className="flex-1 flex items-center justify-center gap-3">
                     <span className="w-2.5 h-2.5 bg-destructive rounded-full animate-pulse" />
                     <span className="text-sm font-medium tabular-nums">{formatDuration(recordingDuration)}</span>
                     <span className="text-xs text-muted-foreground">Recording...</span>
                   </div>
-                  
-                  <Button 
+
+                  <Button
                     size="icon"
                     onClick={handleSendVoiceMessage}
                     className="rounded-full h-10 w-10"
@@ -2748,14 +2889,14 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                   <div className="mx-2 md:mx-4 mb-2 p-2 bg-destructive/10 rounded-lg flex items-center gap-2 text-sm text-destructive">
                     <MicOff className="h-4 w-4 flex-shrink-0" />
                     <span>Microphone access denied. Enable it in browser settings.</span>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto" onClick={() => {}}>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto" onClick={() => { }}>
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
                 )}
 
                 {/* File Preview Bar */}
-                <MediaPreviewBar 
+                <MediaPreviewBar
                   files={selectedFiles}
                   onRemove={handleRemoveFile}
                   onClear={handleClearFiles}
@@ -2764,7 +2905,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                 {/* Reply Preview */}
                 {replyingTo && (
                   <div className="px-2 md:px-4 pt-2">
-                    <ReplyPreview 
+                    <ReplyPreview
                       replyTo={replyingTo}
                       onClear={() => setReplyingTo(null)}
                       isOwn={replyingTo.senderId === "me"}
@@ -2794,7 +2935,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                 <div className="bg-card border-t px-2 md:px-4 py-2 flex-shrink-0">
                   <div className="flex items-center gap-1 md:gap-2">
                     <div className="hidden md:block">
-                      <EmojiPicker 
+                      <EmojiPicker
                         onSelect={(emoji) => setMessageInput(prev => prev + emoji)}
                         trigger={
                           <Button variant="ghost" size="icon" className="rounded-full" disabled={isInputBlocked}>
@@ -2804,7 +2945,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                         align="start"
                       />
                     </div>
-                    
+
                     {/* Attachments hidden for now */}
 
                     <div className="flex-1 relative">
@@ -2821,7 +2962,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                     </div>
 
                     {(messageInput.trim() || selectedFiles.length > 0) && (
-                      <Button 
+                      <Button
                         onClick={selectedFiles.length > 0 ? handleSendMedia : handleSendMessage}
                         size="icon"
                         className="rounded-full flex-shrink-0 h-10 w-10"
@@ -2844,7 +2985,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
             <p className="text-muted-foreground text-center max-w-md mb-8">
               Welcome to JummaBaba Messaging. Start a conversation with our support team to get help with your account, listings, or orders.
             </p>
-            <Button 
+            <Button
               size="lg"
               onClick={() => {
                 setIsNewChatOpen(true);
@@ -2855,20 +2996,20 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               <Plus className="h-5 w-5 mr-2" />
               Start New Conversation
             </Button>
-            
+
             <div className="mt-12 grid grid-cols-3 gap-8 max-w-lg w-full">
-               <div className="text-center">
-                 <div className="text-primary font-bold">24/7</div>
-                 <div className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Support</div>
-               </div>
-               <div className="text-center">
-                 <div className="text-primary font-bold">Safe</div>
-                 <div className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Platform</div>
-               </div>
-               <div className="text-center">
-                 <div className="text-primary font-bold">Direct</div>
-                 <div className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Chat</div>
-               </div>
+              <div className="text-center">
+                <div className="text-primary font-bold">24/7</div>
+                <div className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Support</div>
+              </div>
+              <div className="text-center">
+                <div className="text-primary font-bold">Safe</div>
+                <div className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Platform</div>
+              </div>
+              <div className="text-center">
+                <div className="text-primary font-bold">Direct</div>
+                <div className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Chat</div>
+              </div>
             </div>
           </div>
         )}
@@ -2892,7 +3033,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               Search Messages
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -2962,7 +3103,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         />
       )}
 
-      {/* Clean Custom Sourcing Term Adjustment Dialog Popup for Buyer Counter in Chat */}
+      {/* Clean Custom Sourcing Term Adjustment Dialog Popup for Counter in Chat */}
       <Dialog open={counterOpen} onOpenChange={setCounterOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -2987,6 +3128,15 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                 onChange={(e) => setCounterQty(e.target.value)}
               />
             </div>
+            <div className="space-y-2">
+              <label className="font-semibold text-xs">Remark / Description</label>
+              <textarea
+                placeholder="Explain the counter-proposal terms..."
+                value={counterNotes}
+                onChange={(e) => setCounterNotes(e.target.value)}
+                className="w-full text-xs p-2 bg-muted border border-border rounded-lg h-16 resize-none focus:ring-1 focus:ring-slate-400"
+              />
+            </div>
 
             {counterPrice && counterQty && (
               <div className="p-3 bg-muted rounded-xl text-xs space-y-1.5 border border-slate-200">
@@ -3002,23 +3152,31 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
               onClick={() => {
                 if (counterRfqId && counterPrice && counterQty) {
                   setIsSubmittingCounter(true);
-                  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${counterRfqId}/buyer-confirm`, {
+                  const isVendor = (userType || user?.role) === 'vendor';
+                  const endpoint = isVendor
+                    ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${counterRfqId}/seller-counter`
+                    : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${counterRfqId}/buyer-confirm`;
+                  
+                  const bodyPayload = isVendor
+                    ? { counterPrice: Number(counterPrice), counterQuantity: Number(counterQty), notes: counterNotes }
+                    : { source: 'buyer_counter', price: Number(counterPrice), quantity: Number(counterQty), notes: counterNotes };
+
+                  fetch(endpoint, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
                       'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
                     },
-                    body: JSON.stringify({ 
-                      source: 'buyer_counter', 
-                      price: Number(counterPrice), 
-                      quantity: Number(counterQty) 
-                    })
+                    body: JSON.stringify(bodyPayload)
                   }).then(res => {
                     if (res.ok) {
-                      alert('Counter-proposal dispatched to admin!');
+                      alert('Counter-proposal dispatched successfully!');
                       setCounterOpen(false);
+                      setCounterNotes('');
                       fetchConversations();
                       fetchMessages();
+                    } else {
+                      res.json().then(err => alert(err.error || 'Submission failed'));
                     }
                   }).finally(() => {
                     setIsSubmittingCounter(false);
