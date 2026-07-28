@@ -151,7 +151,7 @@ export default function RfqDetailPage({ role }: { role: 'buyer' | 'vendor' | 'ad
         <div className="space-y-6">
           {hasOrder && (
             <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden p-0">
-              <OrderGroupSummaryPanel rfq={rfq} role={role} />
+              <OrderGroupSummaryPanel rfq={rfq} role={role} onSettled={fetchAll} />
             </Card>
           )}
 

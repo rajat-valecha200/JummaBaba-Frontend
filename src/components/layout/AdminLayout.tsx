@@ -135,7 +135,7 @@ export function AdminLayout() {
         />
 
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-sidebar-border px-4 py-3 flex items-center justify-between">
+          <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-sidebar-border h-20 px-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
                 <Menu className="h-5 w-5" />
@@ -150,7 +150,7 @@ export function AdminLayout() {
               <NotificationBell />
               <div className="h-8 w-[1px] bg-border mx-2 hidden sm:block" />
               <div className="flex flex-col items-end hidden sm:flex">
-                <p className="text-xs font-black uppercase tracking-wider">{user?.name}</p>
+                <p className="text-xs font-black uppercase tracking-wider">{user?.full_name || user?.email || 'Administrator'}</p>
                 <Badge variant="outline" className="text-[10px] h-4 bg-destructive/10 text-destructive border-destructive/20 uppercase font-bold tracking-widest">Super Admin</Badge>
               </div>
             </div>

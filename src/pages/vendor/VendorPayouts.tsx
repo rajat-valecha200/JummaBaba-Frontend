@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { formatPrice } from '@/lib/utils';
 import { api } from '@/lib/api';
+import { computeOrderBreakdown } from '@/lib/orderBreakdown';
 import { useState, useEffect } from 'react';
 
 export default function VendorPayouts() {
@@ -17,20 +18,33 @@ export default function VendorPayouts() {
   useEffect(() => {
     const fetchPayouts = async () => {
       try {
-        const data = await api.profiles.mePayouts();
-        setDbPayouts(data);
-        const total = data.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-        const paid = data
-          .filter((p: any) => p.status === 'paid')
-          .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+        const rfqs = await api.rfqs.list();
+        const orders = rfqs.filter((r: any) => ['ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(r.status));
+
+        const items = orders.map((rfq: any) => {
+          const bd = computeOrderBreakdown(rfq);
+          // This is the vendor's net take-home (commission already deducted) — the same
+          // figure shown on the Earnings ledger and the Admin billing ledger, so it never drifts.
+          return {
+            id: rfq.id,
+            title: rfq.product_name,
+            amount: bd.vendorNetPayout,
+            status: bd.isSettled ? 'paid' : 'pending',
+            created_at: rfq.created_at,
+          };
+        });
+
+        setDbPayouts(items);
+        const total = items.reduce((sum: number, p: any) => sum + p.amount, 0);
+        const paid = items.filter((p: any) => p.status === 'paid').reduce((sum: number, p: any) => sum + p.amount, 0);
         setStats({
           totalEarnings: total,
           paidAmount: paid,
           pendingAmount: total - paid,
-          lastPayoutDate: data.find((p: any) => p.status === 'paid')?.created_at || new Date().toISOString()
+          lastPayoutDate: items.find((p: any) => p.status === 'paid')?.created_at || new Date().toISOString()
         });
       } catch (e) {
-        console.error('Payouts fetch failed');
+        console.error('Payouts fetch failed', e);
       }
     };
     fetchPayouts();

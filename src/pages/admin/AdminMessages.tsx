@@ -718,7 +718,20 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </div>
           <h4 className="font-bold text-sm text-foreground mb-1">Transaction Completed Successfully</h4>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Successful delivery has been confirmed by the Buyer. Sourcing process closed successfully. Payment released to vendor.
+            Successful delivery has been confirmed by the Buyer. Sourcing process closed successfully. Payment release to the vendor is pending Admin settlement.
+          </p>
+        </div>
+      );
+
+    case 'payment_released':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 backdrop-blur-md p-5 shadow-lg text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-3 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="h-6 w-6" />
+          </div>
+          <h4 className="font-bold text-sm text-foreground mb-1">Payment Released</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            You released ₹{Number(metadata.amount).toLocaleString()} to the vendor's wallet (platform commission: ₹{Number(metadata.commission).toLocaleString()}).
           </p>
         </div>
       );
@@ -2259,7 +2272,7 @@ export default function AdminMessages() {
 
               {/* Order Summary Panel (financial breakdown, all roles) */}
               {selectedConversation.isGroup && selectedConversation.groupType === 'order_group' && orderRfq && (
-                <OrderGroupSummaryPanel rfq={orderRfq} role="admin" />
+                <OrderGroupSummaryPanel rfq={orderRfq} role="admin" onSettled={() => api.rfqs.get(orderRfq.id).then(setOrderRfq)} />
               )}
 
               {/* Spectator Intervention Banner & Admin Negotiation Controls */}

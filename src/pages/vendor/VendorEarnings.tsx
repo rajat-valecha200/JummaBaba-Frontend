@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatPrice } from '@/lib/utils';
 import { Wallet, Download, CheckCircle, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
+import { computeOrderBreakdown } from '@/lib/orderBreakdown';
 
 export default function VendorEarnings() {
   const [ledgers, setLedgers] = useState<any[]>([]);
@@ -28,28 +29,23 @@ export default function VendorEarnings() {
           let fees = 0;
 
           const items = vendorOrders.map((rfq: any) => {
-            const resp = typeof rfq.response_details === 'string' ? JSON.parse(rfq.response_details) : (rfq.response_details || {});
-            const price = Number(resp.price) || Number(rfq.target_price) || 0;
-            const quantity = Number(rfq.quantity) || 0;
-            const grossAmount = price * quantity;
-            
-            const commission = resp.commission_breakdown?.totalCommission || (grossAmount * 0.09);
-            const payout = grossAmount - commission;
+            const bd = computeOrderBreakdown(rfq);
 
-            if (rfq.status === 'completed') {
-              cleared += payout;
+            if (bd.isSettled) {
+              cleared += bd.vendorNetPayout;
             } else {
-              held += payout;
+              held += bd.vendorNetPayout;
             }
-            fees += commission;
+            fees += bd.platformCommission;
 
             return {
               id: rfq.id,
               productName: rfq.product_name,
-              grossAmount,
-              payout,
-              commission,
+              grossAmount: bd.baseAmount,
+              payout: bd.vendorNetPayout,
+              commission: bd.platformCommission,
               status: rfq.status,
+              isSettled: bd.isSettled,
               createdAt: rfq.created_at
             };
           });
@@ -145,8 +141,8 @@ export default function VendorEarnings() {
                     <TableCell className="text-right text-slate-500 font-medium">-{formatPrice(row.commission)}</TableCell>
                     <TableCell className="text-right text-emerald-600 font-bold">{formatPrice(row.payout)}</TableCell>
                     <TableCell className="text-center">
-                      <Badge variant={row.status === 'completed' ? 'default' : 'secondary'} className={row.status === 'completed' ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}>
-                        {row.status === 'completed' ? 'Cleared' : 'Pending Settlement'}
+                      <Badge variant={row.isSettled ? 'default' : 'secondary'} className={row.isSettled ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}>
+                        {row.isSettled ? 'Cleared' : row.status === 'completed' ? 'Pending Settlement' : 'Pending Delivery'}
                       </Badge>
                     </TableCell>
                   </TableRow>

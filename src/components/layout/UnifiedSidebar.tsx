@@ -146,7 +146,7 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
 
   return (
     <aside className={cn("flex flex-col h-full bg-sidebar border-r border-sidebar-border overflow-hidden", className)}>
-      <div className="p-6 border-b border-sidebar-border flex items-center justify-between shrink-0 bg-white">
+      <div className="h-20 px-6 border-b border-sidebar-border flex items-center justify-between shrink-0 bg-white">
         <div>
           <Logo size="md" />
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-1.5 opacity-70">

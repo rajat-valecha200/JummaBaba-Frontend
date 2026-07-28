@@ -88,19 +88,19 @@ export function BuyerLayout() {
 
   return (
     <TooltipProvider>
-      <div className="h-screen bg-background flex overflow-hidden">
+      <div className="h-screen bg-background flex overflow-hidden print:h-auto print:overflow-visible">
         {/* Mobile Sidebar Overlay */}
-        <div className={cn('fixed inset-0 z-50 lg:hidden transition-opacity bg-black/50', sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')} onClick={() => setSidebarOpen(false)} />
-        
+        <div className={cn('fixed inset-0 z-50 lg:hidden transition-opacity bg-black/50 print:hidden', sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')} onClick={() => setSidebarOpen(false)} />
+
         {/* Sidebar */}
-        <UnifiedSidebar 
-          role="buyer" 
-          onClose={() => setSidebarOpen(false)} 
-          className={cn('fixed lg:sticky top-0 z-50 w-64 h-screen transition-transform lg:translate-x-0', sidebarOpen ? 'translate-x-0' : '-translate-x-full')} 
+        <UnifiedSidebar
+          role="buyer"
+          onClose={() => setSidebarOpen(false)}
+          className={cn('fixed lg:sticky top-0 z-50 w-64 h-screen transition-transform lg:translate-x-0 print:hidden', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}
         />
 
-        <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-sidebar-border px-4 py-3 flex items-center justify-between">
+        <div className="flex-1 flex flex-col min-w-0 print:block">
+          <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-sidebar-border h-20 px-4 flex items-center justify-between print:hidden">
             <div className="flex items-center gap-3">
               <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
                 <Menu className="h-5 w-5" />
@@ -115,14 +115,14 @@ export function BuyerLayout() {
               <NotificationBell />
               <div className="h-8 w-[1px] bg-border mx-2 hidden sm:block" />
               <div className="flex flex-col items-end hidden sm:flex">
-                <p className="text-xs font-black uppercase tracking-wider">{user?.name}</p>
+                <p className="text-xs font-black uppercase tracking-wider">{user?.full_name || user?.email || 'Buyer'}</p>
                 <Badge variant="outline" className="text-[10px] h-4 bg-primary/10 text-primary border-primary/20 uppercase font-bold tracking-widest">Active Buyer</Badge>
               </div>
             </div>
           </header>
 
-          <main className={cn("flex-1 min-h-0", isMessagesPage ? "overflow-hidden p-0 bg-background" : "overflow-y-auto p-4 lg:p-8")}>
-            <div className={cn(isMessagesPage ? "h-full min-h-0" : "max-w-7xl mx-auto")}>
+          <main className={cn("flex-1 min-h-0", isMessagesPage ? "overflow-hidden p-0 bg-background" : "overflow-y-auto p-4 lg:p-8 print:overflow-visible print:p-0 print:h-auto")}>
+            <div className={cn(isMessagesPage ? "h-full min-h-0" : "max-w-7xl mx-auto print:max-w-none")}>
               <Outlet />
             </div>
           </main>

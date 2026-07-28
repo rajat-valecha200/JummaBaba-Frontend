@@ -1,22 +1,53 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, Receipt, CheckCircle2, Clock } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { ChevronDown, ChevronUp, Receipt, CheckCircle2, Clock, Wallet, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { formatPrice, cn } from '@/lib/utils';
 import { computeOrderBreakdown } from '@/lib/orderBreakdown';
+import { api } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 
 interface OrderGroupSummaryPanelProps {
   rfq: any;
   role: 'buyer' | 'vendor' | 'admin';
+  onSettled?: () => void;
 }
 
-export function OrderGroupSummaryPanel({ rfq, role }: OrderGroupSummaryPanelProps) {
+export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSummaryPanelProps) {
   const [expanded, setExpanded] = useState(false);
+  const [releasing, setReleasing] = useState(false);
+  const releaseInFlight = useRef(false);
+  const { toast } = useToast();
   if (!rfq) return null;
 
   const bd = computeOrderBreakdown(rfq);
+  const isDelivered = rfq.status === 'completed';
+  const settlementLabel = bd.isSettled ? 'Settled' : isDelivered ? 'Pending Settlement' : 'Pending Delivery';
 
   const headlineLabel = role === 'buyer' ? 'You Paid' : role === 'vendor' ? 'You Will Receive' : 'Order Value';
   const headlineAmount = role === 'buyer' ? bd.buyerTotalPaid : role === 'vendor' ? bd.vendorNetPayout : bd.baseAmount;
+
+  const handleRelease = async () => {
+    // Guard synchronously — a fast double-tap can fire this twice before React re-renders
+    // with the button disabled, since setReleasing(true) below only takes effect next render.
+    if (releaseInFlight.current) return;
+    releaseInFlight.current = true;
+    try {
+      setReleasing(true);
+      const result = await api.rfqs.releasePayment(rfq.id);
+      if (result?.alreadySettled) {
+        toast({ title: 'Already Released', description: 'This order was already settled — no further action needed.' });
+      } else {
+        toast({ title: 'Payment Released', description: `${formatPrice(bd.vendorNetPayout)} credited to the vendor's wallet.` });
+      }
+      onSettled?.();
+    } catch (err: any) {
+      toast({ title: 'Failed to release payment', description: err.message, variant: 'destructive' });
+    } finally {
+      releaseInFlight.current = false;
+      setReleasing(false);
+    }
+  };
 
   return (
     <div className="border-b border-border/40 bg-slate-50/70 dark:bg-slate-900/40 flex-shrink-0 min-w-0">
@@ -39,7 +70,7 @@ export function OrderGroupSummaryPanel({ rfq, role }: OrderGroupSummaryPanelProp
             {bd.isSettled ? (
               <><CheckCircle2 className="h-3 w-3 mr-1" /> Settled</>
             ) : (
-              <><Clock className="h-3 w-3 mr-1" /> Pending Delivery</>
+              <><Clock className="h-3 w-3 mr-1" /> {settlementLabel}</>
             )}
           </Badge>
         </div>
@@ -72,7 +103,7 @@ export function OrderGroupSummaryPanel({ rfq, role }: OrderGroupSummaryPanelProp
               <Row label="Platform Commission" value={`-${formatPrice(bd.platformCommission)}`} tone="rose" />
               <Row label="Net Payout" value={formatPrice(bd.vendorNetPayout)} bold />
               <p className="text-[10px] text-muted-foreground pt-1">
-                {bd.isSettled ? 'Released to your wallet.' : 'Released once buyer confirms delivery.'}
+                {bd.isSettled ? 'Released to your wallet.' : 'Released once Admin settles this order.'}
               </p>
             </div>
           )}
@@ -82,7 +113,24 @@ export function OrderGroupSummaryPanel({ rfq, role }: OrderGroupSummaryPanelProp
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Platform Commission</p>
               <Row label="Commission Earned" value={formatPrice(bd.platformCommission)} bold tone="indigo" />
               <Row label="Charged To" value={bd.payerRoute === 'buyer_add' ? 'Buyer' : 'Seller'} />
-              <Row label="Settlement" value={bd.isSettled ? 'Paid Out' : 'Held'} />
+              <Row label="Settlement" value={settlementLabel} />
+
+              {isDelivered && !bd.isSettled && (
+                <Button
+                  size="sm"
+                  onClick={handleRelease}
+                  disabled={releasing}
+                  className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 rounded-lg"
+                >
+                  {releasing ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Wallet className="h-3.5 w-3.5 mr-1.5" />}
+                  Release {formatPrice(bd.vendorNetPayout)} to Vendor
+                </Button>
+              )}
+              {!isDelivered && (
+                <p className="text-[10px] text-muted-foreground pt-1">
+                  Available once the buyer confirms delivery.
+                </p>
+              )}
             </div>
           )}
         </div>

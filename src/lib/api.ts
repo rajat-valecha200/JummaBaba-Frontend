@@ -227,6 +227,8 @@ export const api = {
       apiFetch(`/rfqs/${id}/buyer-submit-payment`, { method: 'POST', body: JSON.stringify({ paymentReference }) }),
     adminConfirmPayment: (id: string) =>
       apiFetch(`/rfqs/${id}/admin-confirm-payment`, { method: 'POST' }),
+    releasePayment: (id: string) =>
+      apiFetch(`/rfqs/${id}/release-payment`, { method: 'POST' }),
     toggleDirectChat: (id: string, active: boolean) =>
       apiFetch(`/rfqs/${id}/toggle-direct-chat`, { method: 'POST', body: JSON.stringify({ active }) }),
     createNegotiatedOffer: (id: string, negotiatedPrice: number, quantity: number, discountPercentage?: number) =>

@@ -213,8 +213,11 @@
 /* Print Styles for Vendor Auditing */
 @media print {
 
-  /* Hide everything except the sheet content */
-  body>*:not([role="dialog"]),
+  /* Hide everything except the sheet content. #root (the app itself) is exempted here —
+     full pages like the invoice print from inside it and rely on their own layout's
+     print:hidden rules instead; this blanket rule is for body-level portals (dialogs,
+     toasts, tooltips) that render outside #root. */
+  body>*:not([role="dialog"]):not(#root),
   header,
   footer,
   aside,

@@ -93,7 +93,12 @@ const TYPE_HANDLERS: Record<string, (m: any) => { title: string; description: st
   }),
   delivery_completed: () => ({
     title: 'Delivery Confirmed — Complete',
-    description: `Buyer confirmed receipt. Payment released to the vendor.`,
+    description: `Buyer confirmed receipt. Payment release to the vendor is pending Admin settlement.`,
+    tone: 'success',
+  }),
+  payment_released: (m) => ({
+    title: 'Payment Released to Vendor',
+    description: `Admin released ${money(m.amount)} (platform commission ${money(m.commission)}).`,
     tone: 'success',
   }),
   dispute_opened: (m) => ({

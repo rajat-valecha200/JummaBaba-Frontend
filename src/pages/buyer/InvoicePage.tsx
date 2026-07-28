@@ -1,17 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Printer, Download, ArrowLeft, ShieldCheck, Mail, Phone, MapPin } from 'lucide-react';
+import { Printer, Download, ArrowLeft, ShieldCheck, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatPrice } from '@/lib/utils';
 import { api } from '@/lib/api';
+import { computeOrderBreakdown } from '@/lib/orderBreakdown';
 
 export default function InvoicePage() {
   const { rfqId } = useParams();
   const navigate = useNavigate();
   const [rfq, setRfq] = useState<any>(null);
-  const [offer, setOffer] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
+  const invoiceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!rfqId) return;
@@ -21,13 +23,6 @@ export default function InvoicePage() {
       } catch (e) {
         console.error('Failed to load invoice details', e);
       }
-
-      try {
-        setOffer(await api.rfqs.getActiveOffer(rfqId));
-      } catch (e) {
-        // No active offer is a normal, expected case (404) — not an error to surface.
-      }
-
       setLoading(false);
     };
     fetchInvoiceData();
@@ -37,48 +32,52 @@ export default function InvoicePage() {
     window.print();
   };
 
-  const handleDownloadPDF = () => {
-    // Triggers standard print dialog configured to "Save as PDF" cleanly
-    window.print();
+  const handleDownloadPDF = async () => {
+    if (!invoiceRef.current || downloading) return;
+    setDownloading(true);
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      await html2pdf()
+        .set({
+          filename: `${invoiceId}.pdf`,
+          margin: 0.3,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+        })
+        .from(invoiceRef.current)
+        .save();
+    } catch (e) {
+      console.error('Failed to generate invoice PDF', e);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  if (!rfq || !offer) {
+  if (!rfq) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 text-sm">
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-sm">
         <p className="text-muted-foreground mb-4">Invoice details could not be found or are not ready yet.</p>
         <Button onClick={() => navigate('/buyer/orders')}>Back to Orders</Button>
       </div>
     );
   }
 
-  const basePrice = Number(offer.negotiated_price);
-  const quantity = Number(offer.quantity);
-  const subtotal = basePrice * quantity;
-  const discountVal = Number(offer.discount_percentage || 0) / 100;
-  const discountAmount = subtotal * discountVal;
-  const discountedSubtotal = subtotal - discountAmount;
-  
-  const platformCommissionRate = Math.min(0.10, Math.max(0.08, discountVal > 0 ? discountVal : 0.09));
-  const platformCommission = discountedSubtotal * platformCommissionRate;
-  
-  const gst = discountedSubtotal * 0.18;
-  const shipping = discountedSubtotal > 50000 ? 0 : 2500;
-  const total = discountedSubtotal + gst + shipping;
-
+  const bd = computeOrderBreakdown(rfq);
   const invoiceId = `JB-INV-${rfq.id.substring(0, 8).toUpperCase()}`;
 
   return (
-    <div className="min-h-screen bg-slate-100 py-8 px-4 print:bg-white print:p-0 print:m-0">
-      {/* Action Header Bar (Hidden during printing) */}
-      <div className="max-w-4xl mx-auto mb-6 flex justify-between items-center print:hidden">
+    <div className="space-y-6">
+      {/* Action Header Bar (hidden during printing) */}
+      <div className="max-w-4xl mx-auto flex justify-between items-center print:hidden">
         <Button variant="ghost" onClick={() => navigate('/buyer/orders')} className="gap-2 text-slate-600 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
           Back to Orders
@@ -88,15 +87,15 @@ export default function InvoicePage() {
             <Printer className="h-4 w-4" />
             Print Invoice
           </Button>
-          <Button onClick={handleDownloadPDF} className="gap-2 bg-b2b-orange hover:bg-b2b-orange/90 text-white shadow-md">
-            <Download className="h-4 w-4" />
-            Download PDF
+          <Button onClick={handleDownloadPDF} disabled={downloading} className="gap-2 bg-b2b-orange hover:bg-b2b-orange/90 text-white shadow-md">
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {downloading ? 'Preparing...' : 'Download PDF'}
           </Button>
         </div>
       </div>
 
       {/* Invoice Sheet */}
-      <Card className="max-w-4xl mx-auto bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden print:border-0 print:shadow-none print:rounded-none">
+      <Card ref={invoiceRef} className="max-w-4xl mx-auto bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden print:max-w-none print:border-0 print:shadow-none print:rounded-none">
         <CardContent className="p-8 sm:p-12 space-y-8">
           
           {/* Top Section */}
@@ -150,9 +149,9 @@ export default function InvoicePage() {
                     <p className="font-semibold">{rfq.product_name || 'Agreed Industrial Item'}</p>
                     <p className="text-xs text-slate-400 mt-1 italic">{rfq.description || 'Custom specifications match.'}</p>
                   </td>
-                  <td className="p-4 text-center align-top">{quantity} {rfq.unit || 'units'}</td>
-                  <td className="p-4 text-right align-top">{formatPrice(basePrice)}</td>
-                  <td className="p-4 text-right align-top font-semibold">{formatPrice(subtotal)}</td>
+                  <td className="p-4 text-center align-top">{bd.quantity} {rfq.unit || 'units'}</td>
+                  <td className="p-4 text-right align-top">{formatPrice(bd.unitPrice)}</td>
+                  <td className="p-4 text-right align-top font-semibold">{formatPrice(bd.baseAmount)}</td>
                 </tr>
               </tbody>
             </table>
@@ -174,29 +173,21 @@ export default function InvoicePage() {
             <div className="w-full sm:w-80 space-y-2.5 text-sm">
               <div className="flex justify-between text-slate-500">
                 <span>Product Base Cost:</span>
-                <span>{formatPrice(subtotal)}</span>
+                <span>{formatPrice(bd.baseAmount)}</span>
               </div>
-              {discountAmount > 0 && (
+              {bd.discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-600 font-medium">
-                  <span>Agreed Discount ({offer.discount_percentage}%):</span>
-                  <span>-{formatPrice(discountAmount)}</span>
+                  <span>Agreed Discount ({bd.discountPercentage}%):</span>
+                  <span>-{formatPrice(bd.discountAmount)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-slate-500">
-                <span>Platform Commission (Included):</span>
-                <span>{formatPrice(platformCommission)} ({(platformCommissionRate * 100).toFixed(0)}%)</span>
-              </div>
-              <div className="flex justify-between text-slate-500">
-                <span>GST (18%):</span>
-                <span>{formatPrice(gst)}</span>
-              </div>
               <div className="flex justify-between text-slate-500 border-b border-slate-100 pb-2">
-                <span>Shipping / Logistics:</span>
-                <span>{shipping === 0 ? 'FREE' : formatPrice(shipping)}</span>
+                <span>GST (18%):</span>
+                <span>{formatPrice(bd.gst)}</span>
               </div>
               <div className="flex justify-between text-slate-800 font-extrabold text-base pt-1">
                 <span>Total Amount:</span>
-                <span className="text-b2b-orange">{formatPrice(total)}</span>
+                <span className="text-b2b-orange">{formatPrice(bd.buyerTotalPaid)}</span>
               </div>
             </div>
           </div>
