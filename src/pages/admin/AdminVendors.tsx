@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, XCircle, Eye, Search, Filter, Star, Loader2, FileText, Clock, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,10 @@ export default function AdminVendors() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [imagePreviewTitle, setImagePreviewTitle] = useState('');
+  const [actioningId, setActioningId] = useState<string | null>(null);
+  // Synchronous guard — a fast double-tap can fire the handler twice before React re-renders
+  // with the row's buttons disabled, since setActioningId below only takes effect next render.
+  const actionGuard = useRef<string | null>(null);
 
   const fetchVendors = async () => {
     try {
@@ -86,6 +90,9 @@ export default function AdminVendors() {
   });
 
   const handleVendorStatus = async (vendorId: string, status: 'approved' | 'rejected', reason?: string) => {
+    if (actionGuard.current === vendorId) return;
+    actionGuard.current = vendorId;
+    setActioningId(vendorId);
     try {
       let updated;
       if (reason === 'reset') {
@@ -95,15 +102,18 @@ export default function AdminVendors() {
         updated = await api.profiles.updateStatus(vendorId, status, reason);
         toast({ title: `Vendor ${status === 'approved' ? 'Approved' : 'Rejected'}` });
       }
-      
+
       // Update selected vendor state to reflect changes in the details sheet immediately
       if (selectedVendor && selectedVendor.id === vendorId) {
         setSelectedVendor({ ...selectedVendor, status: updated.status, rejection_reason: updated.rejection_reason });
       }
-      
+
       fetchVendors();
     } catch (error: any) {
       toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
+    } finally {
+      actionGuard.current = null;
+      setActioningId(null);
     }
   };
 
@@ -125,18 +135,24 @@ export default function AdminVendors() {
   };
 
   const handleToggleTop = async (vendorId: string, currentStatus: boolean) => {
+    if (actionGuard.current === vendorId) return;
+    actionGuard.current = vendorId;
+    setActioningId(vendorId);
     try {
       await apiFetch(`/profiles/${vendorId}/top-supplier`, {
         method: 'PATCH',
         body: JSON.stringify({ is_top_supplier: !currentStatus })
       });
-      toast({ 
+      toast({
         title: !currentStatus ? 'Supplier Featured' : 'Removed from Featured',
-        description: !currentStatus ? 'They will now appear in the Top Suppliers section.' : 'They have been removed from the homepage slider.' 
+        description: !currentStatus ? 'They will now appear in the Top Suppliers section.' : 'They have been removed from the homepage slider.'
       });
       fetchVendors();
     } catch (error: any) {
       toast({ title: 'Failed to update status', variant: 'destructive' });
+    } finally {
+      actionGuard.current = null;
+      setActioningId(null);
     }
   };
 
@@ -275,6 +291,7 @@ export default function AdminVendors() {
                       size="sm"
                       variant="ghost"
                       onClick={() => handleToggleTop(vendor.id, vendor.is_top_supplier || false)}
+                      disabled={actioningId === vendor.id}
                       className={vendor.is_top_supplier ? "text-b2b-orange" : "text-muted-foreground/30"}
                     >
                       <Star className={cn("h-4 w-4", vendor.is_top_supplier && "fill-current")} />
@@ -295,16 +312,16 @@ export default function AdminVendors() {
                       </Button>
                       {vendor.status === 'pending' && (
                         <>
-                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleOpenReject(vendor.id)}>
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleOpenReject(vendor.id)} disabled={actioningId === vendor.id}>
                             <XCircle className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="text-success hover:text-success" onClick={() => handleApprove(vendor.id)}>
+                          <Button size="sm" variant="ghost" className="text-success hover:text-success" onClick={() => handleApprove(vendor.id)} disabled={actioningId === vendor.id}>
                             <CheckCircle className="h-4 w-4" />
                           </Button>
                         </>
                       )}
                       {vendor.status === 'rejected' && (
-                        <Button size="sm" variant="ghost" className="text-amber-600 hover:text-amber-700" onClick={() => handleVendorStatus(vendor.id, 'rejected', 'reset')}>
+                        <Button size="sm" variant="ghost" className="text-amber-600 hover:text-amber-700" onClick={() => handleVendorStatus(vendor.id, 'rejected', 'reset')} disabled={actioningId === vendor.id}>
                           <Clock className="h-4 w-4" />
                         </Button>
                       )}
@@ -351,7 +368,7 @@ export default function AdminVendors() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmReject} disabled={!rejectionReason.trim()}>
+            <Button variant="destructive" onClick={handleConfirmReject} disabled={!rejectionReason.trim() || actioningId === rejectingId}>
               Confirm Rejection
             </Button>
           </DialogFooter>

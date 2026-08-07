@@ -167,7 +167,12 @@ export default function RfqDetailPage({ role }: { role: 'buyer' | 'vendor' | 'ad
                   </div>
                   <div>
                     <p className="font-bold text-foreground">{rfq.buyer_name || 'Verified Client'}</p>
-                    {role === 'admin' && <p className="text-xs text-muted-foreground">{rfq.buyer_email}</p>}
+                    {role === 'admin' && (
+                      <>
+                        <p className="text-xs text-muted-foreground">{rfq.buyer_email}</p>
+                        <p className="text-xs text-muted-foreground">{rfq.buyer_phone || 'No phone on file'}</p>
+                      </>
+                    )}
                     <div className="flex items-start gap-2 mt-2 p-3 bg-muted/50 rounded-xl text-xs text-muted-foreground">
                       <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
                       <p>{rfq.delivery_location || 'Address on file'}</p>
@@ -185,6 +190,12 @@ export default function RfqDetailPage({ role }: { role: 'buyer' | 'vendor' | 'ad
                   </div>
                   <div>
                     <p className="font-bold text-primary">{rfq.vendor_business_name || 'Premium Supplier'}</p>
+                    {role === 'admin' && (
+                      <>
+                        <p className="text-xs text-muted-foreground">{rfq.vendor_email}</p>
+                        <p className="text-xs text-muted-foreground">{rfq.vendor_phone || 'No phone on file'}</p>
+                      </>
+                    )}
                   </div>
                 </div>
               )}

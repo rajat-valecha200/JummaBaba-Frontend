@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, XCircle, FileText, Building, MapPin, Phone, Mail, Globe, Eye, Clock, CreditCard, Tag, Briefcase, Printer, X, Sliders, Save, Percent } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -38,6 +39,34 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
   const [isRejecting, setIsRejecting] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isSubmittingReject, setIsSubmittingReject] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  // Synchronous guard — a fast double-tap can fire the handler twice before React re-renders
+  // with the button disabled, since setIsApproving below only takes effect next render.
+  const approveGuard = useRef(false);
+
+  const handleApproveClick = async () => {
+    if (approveGuard.current || !vendor) return;
+    approveGuard.current = true;
+    setIsApproving(true);
+    try {
+      await onApprove?.(vendor.id);
+    } finally {
+      approveGuard.current = false;
+      setIsApproving(false);
+    }
+  };
+
+  const handleResetClick = async () => {
+    if (approveGuard.current || !vendor) return;
+    approveGuard.current = true;
+    setIsApproving(true);
+    try {
+      await onReject?.(vendor.id, 'reset');
+    } finally {
+      approveGuard.current = false;
+      setIsApproving(false);
+    }
+  };
 
   const [overrideCancellationDays, setOverrideCancellationDays] = useState<string>('');
   const [overrideEscrowRate, setOverrideEscrowRate] = useState<string>('');
@@ -192,7 +221,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
               </div>
               <div className="space-y-1">
                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Est. Year</p>
-                <p className="text-sm font-semibold">{vendor.establishedYear || vendor.established_year || 'N/A'}</p>
+                <p className="text-sm font-semibold">{vendor.establishedYear || vendor.established_year || vendor.business_details?.established_year || 'N/A'}</p>
               </div>
               <div className="space-y-1">
                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Company Size</p>
@@ -211,9 +240,15 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
                   <div className="h-px w-8 bg-muted-foreground/20" />
                   About Company
                 </h4>
-                <p className="text-sm leading-relaxed text-foreground/80 bg-muted/20 p-4 rounded-xl border border-dashed italic">
-                  "{vendor.description || vendor.business_details?.description}"
-                </p>
+                <div className="bg-muted/20 p-4 rounded-xl border border-dashed">
+                  <ExpandableText
+                    text={vendor.description || vendor.business_details?.description}
+                    textClassName="text-sm leading-relaxed text-foreground/80 italic"
+                    lines={3}
+                    charLimit={220}
+                    title={`About ${vendor.companyName || vendor.business_name || 'this Vendor'}`}
+                  />
+                </div>
               </div>
             )}
 
@@ -526,13 +561,15 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
                   variant="outline"
                   className="flex-1 text-destructive border-destructive hover:bg-destructive/10 h-12 rounded-xl"
                   onClick={() => setIsRejecting(true)}
+                  disabled={isApproving}
                 >
                   <XCircle className="h-4 w-4 mr-2" />
                   Reject
                 </Button>
                 <Button
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 h-12 rounded-xl"
-                  onClick={() => onApprove?.(vendor.id)}
+                  onClick={handleApproveClick}
+                  disabled={isApproving}
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Approve
@@ -544,7 +581,8 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
               <Button
                 variant="outline"
                 className="flex-1 h-12 rounded-xl border-amber-500 text-amber-600 hover:bg-amber-50"
-                onClick={() => onReject?.(vendor.id, 'reset')} // We'll handle 'reset' as moving back to pending
+                onClick={handleResetClick} // We'll handle 'reset' as moving back to pending
+                disabled={isApproving}
               >
                 <Clock className="h-4 w-4 mr-2" />
                 Reset to Pending

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
@@ -80,7 +80,16 @@ export default function AdminDashboard() {
     fetchData();
   }, []);
 
+  const [actioningVendorId, setActioningVendorId] = useState<string | null>(null);
+  // Synchronous guards — a fast double-tap can fire a handler twice before React re-renders
+  // with the button disabled, since the setState calls below only take effect next render.
+  const vendorActionGuard = useRef<string | null>(null);
+  const productActionGuard = useRef<string | null>(null);
+
   const handleVendorStatus = async (id: string, status: 'approved' | 'rejected', reason?: string) => {
+    if (vendorActionGuard.current === id) return;
+    vendorActionGuard.current = id;
+    setActioningVendorId(id);
     try {
       let updated;
       if (reason === 'reset') {
@@ -90,15 +99,18 @@ export default function AdminDashboard() {
         updated = await api.profiles.updateStatus(id, status, reason);
         toast({ title: `Vendor ${status === 'approved' ? 'Approved' : 'Rejected'}` });
       }
-      
+
       // Update local state if the sheet is open
       if (selectedVendor && selectedVendor.id === id) {
         setSelectedVendor({ ...selectedVendor, status: updated.status, rejection_reason: updated.rejection_reason });
       }
-      
+
       fetchData(); // Refresh all data
     } catch (error: any) {
       toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
+    } finally {
+      vendorActionGuard.current = null;
+      setActioningVendorId(null);
     }
     setDetailsOpen(false);
   };
@@ -106,7 +118,8 @@ export default function AdminDashboard() {
   const [actioningProductId, setActioningProductId] = useState<string | null>(null);
 
   const handleProductStatus = async (id: string, status: 'approved' | 'rejected', reason?: string) => {
-    if (actioningProductId) return;
+    if (productActionGuard.current === id) return;
+    productActionGuard.current = id;
     try {
       setActioningProductId(id);
       await api.products.updateStatus(id, status, reason);
@@ -117,6 +130,7 @@ export default function AdminDashboard() {
     } catch (error: any) {
       toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
     } finally {
+      productActionGuard.current = null;
       setActioningProductId(null);
     }
   };
@@ -195,8 +209,8 @@ export default function AdminDashboard() {
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleVendorStatus(v.id, 'rejected')}><XCircle className="h-4 w-4" /></Button>
-                      <Button size="sm" onClick={() => handleVendorStatus(v.id, 'approved')}><CheckCircle className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="outline" onClick={() => handleVendorStatus(v.id, 'rejected')} disabled={actioningVendorId === v.id}><XCircle className="h-4 w-4" /></Button>
+                      <Button size="sm" onClick={() => handleVendorStatus(v.id, 'approved')} disabled={actioningVendorId === v.id}><CheckCircle className="h-4 w-4" /></Button>
                     </div>
                   </div>
                 ))

@@ -141,6 +141,12 @@ export default function VendorOrders() {
   const [shippingProof, setShippingProof] = useState<File | null>(null);
   const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [cancelRequestSubmitting, setCancelRequestSubmitting] = useState(false);
+  // Synchronous guards — a fast double-tap can fire a handler twice before React re-renders
+  // with the button disabled, since the setState calls below only take effect next render.
+  const orderStatusGuard = useRef<string | null>(null);
+  const cancelRequestGuard = useRef(false);
   const shippingProofInputRef = useRef<HTMLInputElement>(null);
 
   const filteredOrders = orders.filter((o) => {
@@ -151,6 +157,9 @@ export default function VendorOrders() {
   });
 
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    if (orderStatusGuard.current === orderId) return;
+    orderStatusGuard.current = orderId;
+    setUpdatingOrderId(orderId);
     try {
       await api.rfqs.updateFulfillment(orderId, {
         status: newStatus,
@@ -181,6 +190,9 @@ export default function VendorOrders() {
       }
     } catch (err: any) {
       toast({ title: 'Failed to update status', description: err.message, variant: 'destructive' });
+    } finally {
+      orderStatusGuard.current = null;
+      setUpdatingOrderId(null);
     }
   };
 
@@ -189,10 +201,13 @@ export default function VendorOrders() {
       toast({ title: 'Please provide a reason for cancellation', variant: 'destructive' });
       return;
     }
+    if (cancelRequestGuard.current) return;
+    cancelRequestGuard.current = true;
+    setCancelRequestSubmitting(true);
     api.rfqs.vendorAction(selectedOrder.id, 'request_cancellation', cancelReason).then(() => {
-      toast({ 
-        title: 'Cancellation request submitted', 
-        description: 'Admin will review your request and get back to you.' 
+      toast({
+        title: 'Cancellation request submitted',
+        description: 'Admin will review your request and get back to you.'
       });
       setCancelRequestOpen(false);
       setCancelReason('');
@@ -200,6 +215,9 @@ export default function VendorOrders() {
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'cancel_requested' } : o));
     }).catch((error: any) => {
       toast({ title: 'Failed to submit request', description: error.message, variant: 'destructive' });
+    }).finally(() => {
+      cancelRequestGuard.current = false;
+      setCancelRequestSubmitting(false);
     });
   };
 
@@ -380,6 +398,7 @@ export default function VendorOrders() {
                   <Button
                     className="w-full"
                     onClick={() => updateOrderStatus(selectedOrder.id, getNextStatus(selectedOrder.status)!)}
+                    disabled={updatingOrderId === selectedOrder.id}
                   >
                     {selectedOrder.status === 'pending' && (
                       <>
@@ -625,6 +644,7 @@ export default function VendorOrders() {
                         <Button
                           size="sm"
                           variant="outline"
+                          disabled={updatingOrderId === order.id}
                           onClick={() => updateOrderStatus(order.id, getNextStatus(order.status)!)}
                         >
                           {order.status === 'pending' && 'Confirm'}
@@ -679,7 +699,7 @@ export default function VendorOrders() {
             <Button variant="outline" onClick={() => setCancelRequestOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleRequestCancellation}>
+            <Button onClick={handleRequestCancellation} disabled={cancelRequestSubmitting}>
               Submit Request
             </Button>
           </DialogFooter>

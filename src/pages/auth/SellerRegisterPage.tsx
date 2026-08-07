@@ -99,6 +99,7 @@ export default function SellerRegisterPage() {
     annualTurnover: '',
     employeeCount: '',
     yearsInBusiness: '',
+    establishedYear: '',
     websiteUrl: '',
     bankAccountName: '',
     bankName: '',
@@ -504,6 +505,7 @@ export default function SellerRegisterPage() {
         business_type: formData.businessType,
         gst_number: formData.gstNumber,
         pan_number: formData.panNumber,
+        established_year: formData.establishedYear,
         location: [formData.city, formData.state].filter(Boolean).join(', '),
         bank_details: {
           bankAccountName: formData.bankAccountName,
@@ -521,6 +523,7 @@ export default function SellerRegisterPage() {
           pincode: formData.pincode,
           description: formData.businessDescription,
           categories: selectedCategories,
+          established_year: formData.establishedYear,
           yearsInBusiness: formData.yearsInBusiness,
           employeeCount: formData.employeeCount,
           annualTurnover: formData.annualTurnover,
@@ -830,7 +833,19 @@ export default function SellerRegisterPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="establishedYear">Establishment Year</Label>
+                  <Input
+                    id="establishedYear"
+                    type="number"
+                    placeholder="e.g. 2015"
+                    min={1900}
+                    max={new Date().getFullYear()}
+                    value={formData.establishedYear}
+                    onChange={(e) => handleInputChange('establishedYear', e.target.value)}
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="yearsInBusiness">Years in Business</Label>
                   <Select value={formData.yearsInBusiness} onValueChange={(value) => handleInputChange('yearsInBusiness', value)}>
@@ -1244,8 +1259,8 @@ export default function SellerRegisterPage() {
                   onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
                 />
                 <Label htmlFor="terms" className="text-sm text-muted-foreground leading-relaxed">
-                  I agree to the <Link to="/terms" className="text-primary hover:underline">Seller Terms</Link>,{' '}
-                  <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>, and confirm that all information provided is accurate.
+                  I agree to the <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Seller Terms</Link>,{' '}
+                  <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Privacy Policy</Link>, and confirm that all information provided is accurate.
                 </Label>
               </div>
 
@@ -1282,6 +1297,7 @@ export default function SellerRegisterPage() {
         email={formData.email}
         onVerify={handleVerifyOtp}
         onResend={handleResendOtp}
+        onChangeEmail={() => { setIsOtpModalOpen(false); setStep(1); }}
         isLoading={otpLoading}
         isError={otpError}
         isSuccess={otpSuccess}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ import {
   Edit3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -136,6 +137,14 @@ export default function AdminRfqs() {
   const [isForwarding, setIsForwarding] = useState(false);
   const [isModerating, setIsModerating] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isSubmittingStep, setIsSubmittingStep] = useState(false);
+  // Synchronous guards — a fast double-tap can fire a handler twice before React re-renders
+  // with the button disabled, since the setState calls below only take effect next render.
+  const forwardGuard = useRef(false);
+  const quoteActionGuard = useRef(false);
+  const privacyGuard = useRef(false);
+  const cancellationGuard = useRef(false);
+  const stepActionGuard = useRef(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelFee, setCancelFee] = useState('');
   const [cancelLiableParty, setCancelLiableParty] = useState<'buyer' | 'seller' | 'none'>('none');
@@ -236,6 +245,8 @@ export default function AdminRfqs() {
       setForwardDialogOpen(true);
       return;
     }
+    if (forwardGuard.current) return;
+    forwardGuard.current = true;
 
     try {
       setIsForwarding(true);
@@ -247,21 +258,23 @@ export default function AdminRfqs() {
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
+      forwardGuard.current = false;
       setIsForwarding(false);
     }
   };
 
   const handleQuoteAction = async (id: string, status: 'approved' | 'rejected') => {
+    if (quoteActionGuard.current) return;
+    if (status === 'rejected' && !rejectionReason.trim()) {
+      toast({ title: 'Error', description: 'Please provide a rejection reason', variant: 'destructive' });
+      return;
+    }
+    quoteActionGuard.current = true;
     try {
       setIsModerating(true);
-      if (status === 'rejected' && !rejectionReason.trim()) {
-        toast({ title: 'Error', description: 'Please provide a rejection reason', variant: 'destructive' });
-        return;
-      }
-
-      await api.rfqs.approveQuote(id, { 
-        status, 
-        rejection_reason: status === 'rejected' ? rejectionReason : undefined 
+      await api.rfqs.approveQuote(id, {
+        status,
+        rejection_reason: status === 'rejected' ? rejectionReason : undefined
       });
       toast({ title: 'Success', description: `Quote ${status}` });
       setDetailsOpen(false);
@@ -270,11 +283,14 @@ export default function AdminRfqs() {
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
+      quoteActionGuard.current = false;
       setIsModerating(false);
     }
   };
 
   const handleTogglePrivacy = async (id: string, checked: boolean) => {
+    if (privacyGuard.current) return;
+    privacyGuard.current = true;
     setUpdatingPrivacy(true);
     try {
       await api.rfqs.togglePrivacy(id, checked);
@@ -283,11 +299,14 @@ export default function AdminRfqs() {
     } catch (err: any) {
       toast({ title: 'Update Failed', description: err.message, variant: 'destructive' });
     } finally {
+      privacyGuard.current = false;
       setUpdatingPrivacy(false);
     }
   };
 
   const handleCancellationAction = async (id: string, status: 'approved' | 'rejected') => {
+    if (cancellationGuard.current) return;
+    cancellationGuard.current = true;
     try {
       setIsCancelling(true);
       await api.rfqs.updateCancellation(id, status);
@@ -297,7 +316,40 @@ export default function AdminRfqs() {
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
+      cancellationGuard.current = false;
       setIsCancelling(false);
+    }
+  };
+
+  // Shared handler for the ad-hoc negotiation-step actions below (forward finalized terms,
+  // approve seller counter, send payment request, confirm payment received) — these previously
+  // had no guard at all against a double-tap firing the request twice.
+  const handleNegotiationStepAction = async (path: string, successTitle: string, successDesc: string, body?: any) => {
+    if (stepActionGuard.current) return;
+    stepActionGuard.current = true;
+    setIsSubmittingStep(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/${path}`, {
+        method: 'POST',
+        headers: {
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+          'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+        },
+        ...(body ? { body: JSON.stringify(body) } : {})
+      });
+      if (res.ok) {
+        toast({ title: successTitle, description: successDesc });
+        setDetailsOpen(false);
+        fetchRfqs();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast({ title: 'Error', description: err.error || 'Action failed', variant: 'destructive' });
+      }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      stepActionGuard.current = false;
+      setIsSubmittingStep(false);
     }
   };
 
@@ -309,7 +361,8 @@ export default function AdminRfqs() {
   };
 
   const handleConfirmCancelOrder = async () => {
-    if (!selectedRfq) return;
+    if (!selectedRfq || cancellationGuard.current) return;
+    cancellationGuard.current = true;
     try {
       setIsCancelling(true);
       await api.rfqs.updateCancellation(selectedRfq.id, 'approved', {
@@ -324,6 +377,7 @@ export default function AdminRfqs() {
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
+      cancellationGuard.current = false;
       setIsCancelling(false);
     }
   };
@@ -613,9 +667,15 @@ export default function AdminRfqs() {
                           </div>
                         </div>
                         <div className="p-4 border rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50/50">
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Description</p>
-                            <p className="text-sm">{selectedRfq.description || 'No description provided'}</p>
+                            <ExpandableText
+                              text={selectedRfq.description || 'No description provided'}
+                              textClassName="text-sm"
+                              lines={2}
+                              charLimit={140}
+                              title="Full RFQ Description"
+                            />
                           </div>
                           <Button 
                             variant="outline"
@@ -731,79 +791,45 @@ export default function AdminRfqs() {
                   {selectedRfq && (selectedRfq.negotiation_step === 'buyer_confirmed_admin' || selectedRfq.negotiation_step === 'buyer_confirmed_seller_counter') && (
                     <Button
                       className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
-                      onClick={async () => {
-                        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/forward-to-seller`, {
-                          method: 'POST',
-                          headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
-                        });
-                        if (res.ok) {
-                          toast({ title: 'Success', description: 'RFQ finalized terms forwarded to seller.' });
-                          setDetailsOpen(false);
-                          fetchRfqs();
-                        }
-                      }}
+                      disabled={isSubmittingStep}
+                      onClick={() => handleNegotiationStepAction('forward-to-seller', 'Success', 'RFQ finalized terms forwarded to seller.')}
                     >
+                      {isSubmittingStep ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                       Forward Finalized Terms to Seller
                     </Button>
                   )}
                   {selectedRfq && selectedRfq.negotiation_step === 'seller_countered' && (
                     <Button
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                      onClick={async () => {
-                        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/admin-approve-counter`, {
-                          method: 'POST',
-                          headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
-                        });
-                        if (res.ok) {
-                          toast({ title: 'Approved', description: 'Seller counter approved.' });
-                          setDetailsOpen(false);
-                          fetchRfqs();
-                        }
-                      }}
+                      disabled={isSubmittingStep}
+                      onClick={() => handleNegotiationStepAction('admin-approve-counter', 'Approved', 'Seller counter approved.')}
                     >
+                      {isSubmittingStep ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                       Approve Seller Counter
                     </Button>
                   )}
                   {selectedRfq && selectedRfq.negotiation_step === 'seller_accepted_terms' && (
                     <Button
                       className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
-                      onClick={async () => {
+                      disabled={isSubmittingStep}
+                      onClick={() => {
                         // Prompt for coupon percentage
                         const pct = prompt('Enter Discount Coupon Percentage (Optional, e.g. 10):', '0');
                         if (pct === null) return;
-                        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/payment-request`, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-                          },
-                          body: JSON.stringify({ discountPercentage: Number(pct) || 0 })
-                        });
-                        if (res.ok) {
-                          toast({ title: 'Payment Request Sent', description: 'Statement successfully generated and buyer notified.' });
-                          setDetailsOpen(false);
-                          fetchRfqs();
-                        }
+                        handleNegotiationStepAction('payment-request', 'Payment Request Sent', 'Statement successfully generated and buyer notified.', { discountPercentage: Number(pct) || 0 });
                       }}
                     >
+                      {isSubmittingStep ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                       Send Payment Request & Coupon
                     </Button>
                   )}
                   {selectedRfq && selectedRfq.negotiation_step === 'payment_submitted' && (
                     <Button
                       className="bg-success hover:bg-success/90 text-white font-bold"
-                      onClick={async () => {
-                        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${selectedRfq.id}/admin-confirm-payment`, {
-                          method: 'POST',
-                          headers: { 'Authorization': `Bearer ${localStorage.getItem('jb_token')}` }
-                        });
-                        if (res.ok) {
-                          toast({ title: 'Payment Confirmed', description: 'Payment verified and PO generated.' });
-                          setDetailsOpen(false);
-                          fetchRfqs();
-                        }
-                      }}
+                      disabled={isSubmittingStep}
+                      onClick={() => handleNegotiationStepAction('admin-confirm-payment', 'Payment Confirmed', 'Payment verified and PO generated.')}
                     >
+                      {isSubmittingStep ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                       Confirm Payment Received
                     </Button>
                   )}

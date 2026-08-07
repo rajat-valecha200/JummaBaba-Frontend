@@ -67,7 +67,7 @@ export default function VendorDashboard() {
               Your vendor application was not approved for the following reason:
             </p>
             <div className="mt-3 p-3 bg-white/50 border border-destructive/10 rounded-lg text-sm font-medium italic text-destructive/80">
-              "{user?.rejectionReason || 'Incomplete documentation or invalid details.'}"
+              "{user?.rejection_reason || 'Incomplete documentation or invalid details.'}"
             </div>
             <p className="text-sm text-muted-foreground mt-4">
               Please update your <Link to="/vendor/profile" className="text-primary hover:underline font-bold">Business Profile</Link> and ensure all documents are clear and valid. After updating, your profile will be re-submitted for moderation.

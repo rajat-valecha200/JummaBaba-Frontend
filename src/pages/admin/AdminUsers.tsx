@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Eye, Search, Filter, Shield, ShoppingCart, Store, Loader2,
   CheckCircle, XCircle, FileText, File, ImageIcon, Download,
@@ -226,6 +226,9 @@ function UserDetailDialog({
   const [activityOpen, setActivityOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [actioning, setActioning] = useState(false);
+  // Synchronous guard — a fast double-tap can fire the handler twice before React re-renders
+  // with the button disabled, since setActioning below only takes effect next render.
+  const actionGuard = useRef(false);
 
   if (!user) return null;
 
@@ -236,6 +239,8 @@ function UserDetailDialog({
     .split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
   const handleApprove = async () => {
+    if (actionGuard.current) return;
+    actionGuard.current = true;
     setActioning(true);
     try {
       await api.profiles.updateStatus(user.id, 'approved');
@@ -244,20 +249,33 @@ function UserDetailDialog({
       onClose();
     } catch (e: any) {
       toast({ title: 'Failed', description: e.message, variant: 'destructive' });
-    } finally { setActioning(false); }
+    } finally {
+      actionGuard.current = false;
+      setActioning(false);
+    }
   };
 
   const handleReject = async () => {
-    if (!rejectionReason.trim()) return;
+    if (!rejectionReason.trim() || actionGuard.current) return;
+    actionGuard.current = true;
     setActioning(true);
     try {
-      await api.profiles.updateStatus(user.id, 'rejected', rejectionReason);
-      toast({ title: '❌ User Rejected', description: 'The rejection reason has been recorded.' });
+      const updated = await api.profiles.updateStatus(user.id, 'rejected', rejectionReason);
+      if (updated?.activeOrderCount > 0) {
+        toast({
+          title: '⚠️ User Rejected — Active Orders Need Review',
+          description: `This buyer has ${updated.activeOrderCount} order(s) already in progress. Rejection only blocks new orders — review the existing ones via "View Activity".`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({ title: '❌ User Rejected', description: 'The rejection reason has been recorded.' });
+      }
       onRefresh();
       onClose();
     } catch (e: any) {
       toast({ title: 'Failed', description: e.message, variant: 'destructive' });
     } finally {
+      actionGuard.current = false;
       setActioning(false);
       setRejectOpen(false);
     }
@@ -481,12 +499,24 @@ export default function AdminUsers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Buyer IDs with at least one order still in progress — used to flag rejected buyers
+  // whose rejection isn't retroactive, so admin knows those orders still need attention.
+  const [activeOrderBuyerIds, setActiveOrderBuyerIds] = useState<Set<string>>(new Set());
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const data = await api.profiles.list();
+      const [data, rfqs] = await Promise.all([
+        api.profiles.list(),
+        api.rfqs.list().catch(() => []),
+      ]);
       setUsers(Array.isArray(data) ? data : []);
+      const activeIds = new Set<string>(
+        (Array.isArray(rfqs) ? rfqs : [])
+          .filter((r: any) => ['ordered', 'confirmed', 'shipped', 'delivered'].includes(r.status))
+          .map((r: any) => r.buyer_id)
+      );
+      setActiveOrderBuyerIds(activeIds);
     } catch (error) {
       console.error('Failed to fetch users:', error);
     } finally {
@@ -541,7 +571,16 @@ export default function AdminUsers() {
               <TableCell className="text-sm text-muted-foreground">{user.phone || '—'}</TableCell>
               <TableCell className="text-sm">{user.business_name || '—'}</TableCell>
               <TableCell>{getRoleBadge(user.role)}</TableCell>
-              <TableCell>{getStatusBadge(user.status)}</TableCell>
+              <TableCell>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {getStatusBadge(user.status)}
+                  {user.status === 'rejected' && user.role === 'buyer' && activeOrderBuyerIds.has(user.id) && (
+                    <Badge variant="destructive" className="text-[9px] h-4 px-1.5" title="This buyer has orders already in progress — rejection doesn't cancel them.">
+                      Active Orders
+                    </Badge>
+                  )}
+                </div>
+              </TableCell>
               <TableCell className="text-sm text-muted-foreground">
                 {user.created_at ? new Date(user.created_at).toLocaleDateString('en-IN') : '—'}
               </TableCell>

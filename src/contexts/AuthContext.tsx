@@ -9,6 +9,7 @@ interface User {
   business_name?: string;
   phone?: string;
   status?: 'pending' | 'approved' | 'rejected';
+  rejection_reason?: string;
   logo_url?: string;
   gst_number?: string;
   pan_number?: string;

@@ -38,6 +38,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { buildAuditTrail } from '@/lib/auditTrail';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Tooltip,
@@ -1435,6 +1436,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 size="sm"
                 className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs"
                 onClick={async () => {
+                  if (isActioning) return;
                   setIsActioning(true);
                   try {
                     const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/toggle-direct-chat`, {
@@ -1458,6 +1460,23 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 size="sm"
                 variant="outline"
                 className="flex-1 border-slate-300 text-slate-600 font-bold text-xs"
+                onClick={async () => {
+                  if (isActioning) return;
+                  setIsActioning(true);
+                  try {
+                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/toggle-direct-chat`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
+                      },
+                      body: JSON.stringify({ active: false })
+                    });
+                    if (res.ok) onRefresh?.();
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
                 disabled={isActioning}
               >
                 Decline
@@ -1472,8 +1491,34 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
         </div>
       );
 
-    default:
-      return null;
+    default: {
+      // Fallback for message types without a dedicated card above (e.g. cancellation events) —
+      // reuse the same title/description logic the Full Audit Trail page uses, so these events
+      // show up as readable text instead of silently rendering nothing in the admin chat too.
+      const [entry] = buildAuditTrail([message]);
+      // Even types auditTrail.ts doesn't know about still have a real message the backend
+      // wrote for exactly this purpose — better to show that than render nothing at all.
+      if (!entry && !message.text) return null;
+      const toneClass = entry?.tone === 'danger'
+        ? 'border-destructive/20 bg-destructive/5 text-destructive'
+        : entry?.tone === 'warning'
+        ? 'border-amber-500/20 bg-amber-500/5 text-amber-700'
+        : entry?.tone === 'success'
+        ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-700'
+        : 'border-border bg-muted/40 text-foreground';
+      return (
+        <div className={cn('rounded-xl border p-3 text-sm', toneClass)}>
+          {entry ? (
+            <>
+              <p className="font-bold">{entry.title}</p>
+              <p className="text-xs opacity-90 mt-0.5">{entry.description}</p>
+            </>
+          ) : (
+            <p>{message.text}</p>
+          )}
+        </div>
+      );
+    }
   }
 }
 

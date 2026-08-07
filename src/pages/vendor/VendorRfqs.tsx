@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, Search, Filter, MessageSquare, Clock, CheckCircle, Send, Info, HelpCircle, Package, ArrowRight, Loader2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -505,9 +506,15 @@ export default function VendorRfqs() {
 
                     <div>
                       <h4 className="font-medium mb-2">Requirements</h4>
-                      <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-lg">
-                        {selectedRfq.description}
-                      </p>
+                      <div className="p-3 bg-muted/50 rounded-lg">
+                        <ExpandableText
+                          text={selectedRfq.description}
+                          textClassName="text-sm text-muted-foreground"
+                          lines={3}
+                          charLimit={220}
+                          title="Full RFQ Requirements"
+                        />
+                      </div>
                     </div>
 
                     <Separator />

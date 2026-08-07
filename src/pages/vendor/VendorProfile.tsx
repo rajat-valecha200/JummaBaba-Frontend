@@ -124,6 +124,8 @@ export default function VendorProfile() {
   const [loading, setLoading] = useState(true);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
+  const [saving, setSaving] = useState(false);
+  const saveGuard = useRef(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -202,6 +204,9 @@ export default function VendorProfile() {
   }, []);
 
   const handleSave = async () => {
+    if (saveGuard.current) return;
+    saveGuard.current = true;
+    setSaving(true);
     try {
       await api.profiles.update(user!.id, {
         business_name: profile.companyName,
@@ -226,6 +231,9 @@ export default function VendorProfile() {
       setIsEditing(false);
     } catch (error: any) {
       toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
+    } finally {
+      saveGuard.current = false;
+      setSaving(false);
     }
   };
 
@@ -268,7 +276,7 @@ export default function VendorProfile() {
           {isEditing ? (
             <>
               <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
-              <Button onClick={handleSave}>
+              <Button onClick={handleSave} disabled={saving}>
                 <Save className="h-4 w-4 mr-2" />
                 Save Changes
               </Button>

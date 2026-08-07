@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, XCircle, Eye, Search, Filter, Loader2, Clock, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
@@ -66,6 +66,11 @@ export default function AdminProducts() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [rejectingInFlight, setRejectingInFlight] = useState(false);
+  // Synchronous guard — a fast double-tap can fire a handler twice before React re-renders
+  // with the button disabled, since the setState calls below only take effect next render.
+  const productActionGuard = useRef<string | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
@@ -116,7 +121,8 @@ export default function AdminProducts() {
   });
 
   const handleApprove = async (productId: string) => {
-    if (approvingId) return;
+    if (productActionGuard.current === productId) return;
+    productActionGuard.current = productId;
     try {
       setApprovingId(productId);
       await api.products.updateStatus(productId, 'approved');
@@ -125,6 +131,7 @@ export default function AdminProducts() {
     } catch (error: any) {
       toast({ title: 'Approval Failed', description: error.message, variant: 'destructive' });
     } finally {
+      productActionGuard.current = null;
       setApprovingId(null);
       setDetailsOpen(false);
     }
@@ -137,7 +144,9 @@ export default function AdminProducts() {
   };
 
   const handleConfirmReject = async () => {
-    if (!rejectingId) return;
+    if (!rejectingId || productActionGuard.current === rejectingId) return;
+    productActionGuard.current = rejectingId;
+    setRejectingInFlight(true);
     try {
       await api.products.updateStatus(rejectingId, 'rejected', rejectionReason);
       setProductList(productList.map(p => p.id === rejectingId ? { ...p, status: 'rejected' as ProductStatus, rejectionReason: rejectionReason } : p));
@@ -147,16 +156,25 @@ export default function AdminProducts() {
       setDetailsOpen(false);
     } catch (error: any) {
       toast({ title: 'Rejection Failed', description: error.message, variant: 'destructive' });
+    } finally {
+      productActionGuard.current = null;
+      setRejectingInFlight(false);
     }
   };
 
   const handleRevoke = async (productId: string) => {
+    if (productActionGuard.current === productId) return;
+    productActionGuard.current = productId;
+    setRevokingId(productId);
     try {
       await api.products.updateStatus(productId, 'pending', '');
       setProductList(productList.map(p => p.id === productId ? { ...p, status: 'pending' as ProductStatus, rejectionReason: '' } : p));
       toast({ title: 'Rejection Revoked', description: 'Product is now pending review again.' });
     } catch (error: any) {
       toast({ title: 'Failed to revoke', description: error.message, variant: 'destructive' });
+    } finally {
+      productActionGuard.current = null;
+      setRevokingId(null);
     }
   };
 
@@ -316,7 +334,7 @@ export default function AdminProducts() {
                         </>
                       )}
                       {product.status === 'rejected' && (
-                        <Button size="sm" variant="ghost" className="text-amber-600 hover:text-amber-700" onClick={() => handleRevoke(product.id)} title="Revoke Rejection">
+                        <Button size="sm" variant="ghost" className="text-amber-600 hover:text-amber-700" onClick={() => handleRevoke(product.id)} disabled={revokingId === product.id} title="Revoke Rejection">
                           <Clock className="h-4 w-4" />
                         </Button>
                       )}
@@ -361,7 +379,7 @@ export default function AdminProducts() {
           </div>
           <DialogFooter className="gap-3">
             <Button variant="ghost" onClick={() => setRejectDialogOpen(false)} className="rounded-xl font-black uppercase text-xs tracking-widest text-slate-400 hover:text-slate-600">Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmReject} disabled={!rejectionReason.trim()} className="rounded-xl px-8 font-black uppercase text-xs tracking-widest shadow-lg shadow-destructive/20">
+            <Button variant="destructive" onClick={handleConfirmReject} disabled={!rejectionReason.trim() || rejectingInFlight} className="rounded-xl px-8 font-black uppercase text-xs tracking-widest shadow-lg shadow-destructive/20">
               Confirm Rejection
             </Button>
           </DialogFooter>

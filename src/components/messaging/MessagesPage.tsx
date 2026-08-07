@@ -48,6 +48,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { buildAuditTrail } from '@/lib/auditTrail';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useVoiceRecorder } from '@/hooks/use-voice-recorder';
 import { VoiceMessage } from './VoiceMessage';
@@ -471,7 +472,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             )}
           </div>
 
-          {userRole === 'buyer' && metadata.rfq_status === 'responded' && (
+          {userRole === 'buyer' && metadata.rfq_status === 'responded' && metadata.moderation_status === 'quote_approved' && (
             <div className="mt-4 pt-4 border-t border-emerald-500/20 flex gap-2">
               <Button
                 onClick={handleAcceptQuote}
@@ -480,6 +481,14 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               >
                 {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "✅ Accept Quote"}
               </Button>
+            </div>
+          )}
+
+          {userRole === 'buyer' && metadata.rfq_status === 'responded' && metadata.moderation_status !== 'quote_approved' && (
+            <div className="mt-4 text-center">
+              <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] py-1 border border-amber-500/10">
+                Pending Admin Review
+              </Badge>
             </div>
           )}
 
@@ -1428,8 +1437,34 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
         </div>
       );
 
-    default:
-      return null;
+    default: {
+      // Fallback for message types without a dedicated card above (e.g. cancellation events) —
+      // reuse the same title/description logic the Full Audit Trail page uses, so these events
+      // show up as readable text instead of silently rendering nothing.
+      const [entry] = buildAuditTrail([message]);
+      // Even types auditTrail.ts doesn't know about still have a real message the backend
+      // wrote for exactly this purpose — better to show that than render nothing at all.
+      if (!entry && !message.text) return null;
+      const toneClass = entry?.tone === 'danger'
+        ? 'border-destructive/20 bg-destructive/5 text-destructive'
+        : entry?.tone === 'warning'
+        ? 'border-amber-500/20 bg-amber-500/5 text-amber-700'
+        : entry?.tone === 'success'
+        ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-700'
+        : 'border-border bg-muted/40 text-foreground';
+      return (
+        <div className={cn('rounded-xl border p-3 text-sm', toneClass)}>
+          {entry ? (
+            <>
+              <p className="font-bold">{entry.title}</p>
+              <p className="text-xs opacity-90 mt-0.5">{entry.description}</p>
+            </>
+          ) : (
+            <p>{message.text}</p>
+          )}
+        </div>
+      );
+    }
   }
 }
 

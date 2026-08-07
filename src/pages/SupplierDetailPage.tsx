@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import { Progress } from '@/components/ui/progress';
 import { TrustBadges } from '@/components/b2b/TrustBadge';
 import {
@@ -176,7 +177,13 @@ export default function SupplierDetailPage() {
                   <MapPin className="h-4 w-4" />
                   <span>{supplier.location}, {supplier.state}</span>
                 </div>
-                <p className="text-muted-foreground text-sm sm:text-base">{details.description}</p>
+                <ExpandableText
+                  text={details.description}
+                  textClassName="text-muted-foreground text-sm sm:text-base"
+                  lines={3}
+                  charLimit={220}
+                  title={`About ${supplier.companyName || 'this Supplier'}`}
+                />
               </div>
             </div>
 

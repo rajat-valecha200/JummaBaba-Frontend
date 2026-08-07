@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Eye, 
@@ -20,6 +20,7 @@ import {
 import { RfqTimeline, getRfqSteps } from '@/components/b2b/RfqTimeline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -170,7 +171,10 @@ export default function BuyerRfqs() {
     fetchRfqs();
   }, []);
 
+  const actionGuard = useRef(false);
   const handleAction = async (id: string, action: 'accept_quote' | 'reject_quote' | 'request_cancellation' | 'confirm_delivery') => {
+    if (actionGuard.current) return;
+    actionGuard.current = true;
     setIsLoading(true);
     try {
       if (action === 'accept_quote') {
@@ -183,7 +187,7 @@ export default function BuyerRfqs() {
         accept_quote: { title: 'Order Placed!', description: 'Your order has been sent to the supplier.' },
         reject_quote: { title: 'Quote Declined', description: 'The request has been closed.' },
         request_cancellation: { title: 'Cancellation Requested', description: 'Your request has been sent for admin review.' },
-        confirm_delivery: { title: 'Delivery Confirmed', description: 'Thanks for confirming! Funds have been released to the supplier.' },
+        confirm_delivery: { title: 'Delivery Confirmed', description: 'Thanks for confirming! Payment release to the supplier is now pending Admin review.' },
       }[action];
 
       toast(toastCopy);
@@ -192,6 +196,7 @@ export default function BuyerRfqs() {
     } catch (error: any) {
       toast({ title: 'Action Failed', description: error.message, variant: 'destructive' });
     } finally {
+      actionGuard.current = false;
       setIsLoading(false);
     }
   };
@@ -367,6 +372,21 @@ export default function BuyerRfqs() {
                         </p>
                       </div>
                     </div>
+
+                    {selectedRfq.description && (
+                      <div className="p-4 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-2 text-sm font-semibold mb-2">
+                          <FileText className="h-4 w-4 text-primary" /> Your Requirements
+                        </div>
+                        <ExpandableText
+                          text={selectedRfq.description}
+                          textClassName="text-sm text-muted-foreground"
+                          lines={3}
+                          charLimit={220}
+                          title="Full Requirements"
+                        />
+                      </div>
+                    )}
 
                     {selectedRfq.negotiation_step && selectedRfq.negotiation_step !== 'rfq_submitted' && (
                       <div className="p-6 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-4">
@@ -626,7 +646,7 @@ export default function BuyerRfqs() {
                     </div>
                   )}
                   {selectedRfq?.status === 'ordered' && selectedRfq.cancellation_request?.status !== 'pending' && (
-                    <Button variant="outline" className="text-destructive" onClick={() => handleAction(selectedRfq.id, 'request_cancellation')}>
+                    <Button variant="outline" className="text-destructive" onClick={() => handleAction(selectedRfq.id, 'request_cancellation')} disabled={isLoading}>
                       <AlertCircle className="h-4 w-4 mr-2" /> Request Cancellation
                     </Button>
                   )}

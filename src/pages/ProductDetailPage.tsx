@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
@@ -67,6 +68,7 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState<number>(0);
   // Removed UnderConstructionModal logic for F-006
   const [rfqOpen, setRfqOpen] = useState(false);
+  const [isSampleRequest, setIsSampleRequest] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submittingRfq, setSubmittingRfq] = useState(false);
 
@@ -222,10 +224,32 @@ export default function ProductDetailPage() {
     }
     const initialQty = quantity || product.moq;
     const initialTier = getActiveTier(initialQty);
+    setIsSampleRequest(false);
     setRfqForm({
       quantity: String(initialQty),
       unit: product.unit,
       targetPrice: initialTier ? String(initialTier.pricePerUnit) : String(product.minPrice || ''),
+      deliveryLocation: '',
+      description: '',
+    });
+    setRfqOpen(true);
+  };
+
+  const handleOpenSampleRequest = () => {
+    if (!user) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please login to request a sample.',
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
+    setIsSampleRequest(true);
+    setRfqForm({
+      quantity: String(product.sampleMOQ || 1),
+      unit: product.unit,
+      targetPrice: String(product.samplePrice || 0),
       deliveryLocation: '',
       description: '',
     });
@@ -319,6 +343,9 @@ export default function ProductDetailPage() {
 
     setSubmittingRfq(true);
     try {
+      const description = isSampleRequest
+        ? `[SAMPLE REQUEST]${rfqForm.description ? ` ${rfqForm.description}` : ''}`
+        : rfqForm.description;
       await api.rfqs.create({
         product_id: product.id,
         buyer_id: user?.id,
@@ -326,13 +353,13 @@ export default function ProductDetailPage() {
         unit: rfqForm.unit,
         target_price: rfqForm.targetPrice ? parseFloat(rfqForm.targetPrice) : null,
         delivery_location: rfqForm.deliveryLocation,
-        description: rfqForm.description,
+        description,
         product_name: product.name,
         category_id: product.categoryId,
         supplier_id: product.supplier_id
       });
       toast({
-        title: 'RFQ Submitted Successfully!',
+        title: isSampleRequest ? 'Sample Request Submitted!' : 'RFQ Submitted Successfully!',
         description: 'Your request has been sent to our admin team for mediation.',
         action: (
           <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
@@ -341,6 +368,7 @@ export default function ProductDetailPage() {
         )
       });
       setRfqOpen(false);
+      setIsSampleRequest(false);
     } catch (error: any) {
       toast({
         title: 'Submission Failed',
@@ -617,6 +645,17 @@ export default function ProductDetailPage() {
                     <span className="text-xs font-black text-primary font-mono">{formatPrice(activeTier.pricePerUnit)} / {product.unit}</span>
                   </div>
                 )}
+
+                {(product.hasSample) && (
+                  <Button
+                    variant="outline"
+                    onClick={handleOpenSampleRequest}
+                    className="w-full h-11 text-xs font-black uppercase tracking-widest border-primary/30 text-primary hover:bg-primary/5 rounded-xl flex items-center justify-center gap-2 mt-1"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Request Sample — {formatPrice(product.samplePrice || 0)}
+                  </Button>
+                )}
               </div>
 
               {SHOW_BUY_NOW_BUTTON && (
@@ -633,12 +672,14 @@ export default function ProductDetailPage() {
             </div>
 
             {/* RFQ Dialog */}
-            <Dialog open={rfqOpen} onOpenChange={setRfqOpen}>
+            <Dialog open={rfqOpen} onOpenChange={(open) => { setRfqOpen(open); if (!open) setIsSampleRequest(false); }}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Request for Quotation</DialogTitle>
+                  <DialogTitle>{isSampleRequest ? 'Request a Sample' : 'Request for Quotation'}</DialogTitle>
                   <DialogDescription>
-                    Get a custom quote from <span className="font-semibold"><span className="font-extrabold text-black">J</span>umma<span className="font-extrabold text-b2b-gst">B</span>aba<span className="text-b2b-orange">.com</span></span> Platform
+                    {isSampleRequest
+                      ? `Order a sample at the vendor's fixed sample price before committing to a bulk order.`
+                      : <>Get a custom quote from <span className="font-semibold"><span className="font-extrabold text-black">J</span>umma<span className="font-extrabold text-b2b-gst">B</span>aba<span className="text-b2b-orange">.com</span></span> Platform</>}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -656,10 +697,11 @@ export default function ProductDetailPage() {
                         id="rfqQty"
                         type="number"
                         value={rfqForm.quantity}
+                        disabled={isSampleRequest}
                         onChange={(e) => {
                           const newQty = e.target.value;
                           const qNum = parseInt(newQty) || 0;
-                          
+
                           // Find matching slab
                           const slabs = product?.pricingSlabs || [];
                           const matchedSlab = slabs.find((s: any) => {
@@ -671,8 +713,8 @@ export default function ProductDetailPage() {
 
                           const autoPrice = matchedSlab ? String(matchedSlab.pricePerUnit) : rfqForm.targetPrice;
 
-                          setRfqForm({ 
-                            ...rfqForm, 
+                          setRfqForm({
+                            ...rfqForm,
                             quantity: newQty,
                             targetPrice: autoPrice
                           });
@@ -689,6 +731,12 @@ export default function ProductDetailPage() {
                     </div>
                   </div>
 
+                  {isSampleRequest ? (
+                    <div className="p-2.5 bg-primary/5 border border-primary/20 rounded-lg text-xs flex items-center justify-between text-primary font-medium">
+                      <span>Fixed Sample Price</span>
+                      <span className="font-black font-mono">{formatPrice(product.samplePrice || 0)}/{product.unit || 'unit'}</span>
+                    </div>
+                  ) : (
                   <div>
                     <Label htmlFor="rfqTarget">Target Price (₹/{rfqForm.unit}) - Optional</Label>
                     <Input
@@ -718,6 +766,7 @@ export default function ProductDetailPage() {
                       );
                     })()}
                   </div>
+                  )}
 
                   <div>
                     <Label htmlFor="rfqLocation">Delivery Location *</Label>
@@ -743,7 +792,7 @@ export default function ProductDetailPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setRfqOpen(false)} disabled={submittingRfq}>Cancel</Button>
+                  <Button variant="outline" onClick={() => { setRfqOpen(false); setIsSampleRequest(false); }} disabled={submittingRfq}>Cancel</Button>
                   <Button onClick={handleSubmitRfq} disabled={submittingRfq} className="bg-b2b-orange hover:bg-b2b-orange/90 text-white font-bold">
                     {submittingRfq ? (
                       <>
@@ -753,7 +802,7 @@ export default function ProductDetailPage() {
                     ) : (
                       <>
                         <Send className="h-4 w-4 mr-2" />
-                        Submit RFQ
+                        {isSampleRequest ? 'Request Sample' : 'Submit RFQ'}
                       </>
                     )}
                   </Button>
@@ -780,9 +829,12 @@ export default function ProductDetailPage() {
                   {/* Description Section */}
                   <div className="p-6">
                     <h3 className="font-bold text-sm uppercase tracking-widest text-primary mb-3">Description</h3>
-                    <div 
-                      className="prose prose-slate max-w-none text-sm text-slate-700 leading-relaxed description-html-content"
-                      dangerouslySetInnerHTML={{ __html: product.description || product.shortDescription || 'No detailed description provided.' }} 
+                    <ExpandableText
+                      html={product.description || product.shortDescription || 'No detailed description provided.'}
+                      textClassName="text-sm text-slate-700 leading-relaxed description-html-content"
+                      lines={6}
+                      charLimit={600}
+                      title="Full Product Description"
                     />
                     <style dangerouslySetInnerHTML={{ __html: `
                       .description-html-content table { width: 100% !important; border-collapse: collapse !important; margin: 1rem 0 !important; font-size: 0.875rem !important; background-color: #ffffff !important; border-radius: 0.75rem !important; overflow: hidden !important; border: 1px solid #e2e8f0 !important; }

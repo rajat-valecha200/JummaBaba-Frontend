@@ -19,6 +19,7 @@ interface OtpModalProps {
   email: string;
   onVerify: (otp: string) => void;
   onResend: () => void;
+  onChangeEmail?: () => void;
   isLoading?: boolean;
   isError?: boolean;
   isSuccess?: boolean;
@@ -31,6 +32,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
   email,
   onVerify,
   onResend,
+  onChangeEmail,
   isLoading = false,
   isError = false,
   isSuccess = false,
@@ -112,6 +114,19 @@ export const OtpModal: React.FC<OtpModalProps> = ({
               <DialogDescription className="text-slate-400 text-base leading-relaxed">
                 Enter the 6-digit code sent to <br />
                 <span className="font-semibold text-primary/90 underline decoration-primary/30 underline-offset-4">{email}</span>
+                {onChangeEmail && (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      onClick={onChangeEmail}
+                      disabled={isLoading || isSuccess}
+                      className="text-slate-400 hover:text-primary underline underline-offset-2 text-sm font-medium disabled:opacity-50"
+                    >
+                      (wrong email? change it)
+                    </button>
+                  </>
+                )}
               </DialogDescription>
             </div>
           </DialogHeader>

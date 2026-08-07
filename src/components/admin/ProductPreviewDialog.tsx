@@ -3,6 +3,7 @@ import { Eye, LayoutGrid, FileText, MessageSquare, Info, CheckCircle, XCircle, C
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProductCard } from '@/components/b2b/ProductCard';
 import { PricingSlabsTable } from '@/components/b2b/PricingSlabsTable';
@@ -278,9 +279,12 @@ export function ProductPreviewDialog({
                         </div>
                       </TabsContent>
                       <TabsContent value="desc">
-                        <div 
-                          className="prose prose-slate max-w-none prose-sm text-slate-600 leading-relaxed font-medium preview-content"
-                          dangerouslySetInnerHTML={{ __html: product.description || product.shortDescription || product.short_description || 'No detailed description provided.' }}
+                        <ExpandableText
+                          html={product.description || product.shortDescription || product.short_description || 'No detailed description provided.'}
+                          textClassName="text-slate-600 leading-relaxed font-medium preview-content"
+                          lines={6}
+                          charLimit={600}
+                          title="Full Product Description"
                         />
                         <style dangerouslySetInnerHTML={{ __html: `
                           .preview-content ul { list-style-type: disc !important; padding-left: 1.5rem !important; margin-top: 1rem !important; margin-bottom: 1rem !important; }

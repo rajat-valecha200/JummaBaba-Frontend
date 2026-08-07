@@ -646,8 +646,8 @@ export default function BuyerRegisterPage() {
                   onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
                 />
                 <Label htmlFor="terms" className="text-sm text-muted-foreground leading-relaxed">
-                  I agree to the <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link> and{' '}
-                  <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>
+                  I agree to the <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Terms of Service</Link> and{' '}
+                  <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Privacy Policy</Link>
                 </Label>
               </div>
 
@@ -683,6 +683,7 @@ export default function BuyerRegisterPage() {
         email={formData.email}
         onVerify={handleVerifyOtp}
         onResend={handleResendOtp}
+        onChangeEmail={() => { setIsOtpModalOpen(false); setStep(1); }}
         isLoading={otpLoading}
         isError={otpError}
         isSuccess={otpSuccess}

@@ -162,7 +162,7 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
 
       <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide">
         {/* Status Badges for Verification-dependent roles */}
-        {(role === 'vendor') && user?.status === 'pending' && (
+        {(role === 'vendor' || role === 'buyer') && user?.status === 'pending' && (
           <div className="mb-4 p-4 bg-amber-500/5 border border-amber-500/10 rounded-xl animate-pulse">
             <div className="flex items-center gap-2 text-amber-600 mb-2">
               <ShieldAlert className="h-4 w-4" />
@@ -171,6 +171,25 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
             <p className="text-[10px] text-muted-foreground leading-relaxed">
               Your profile is being verified. Some features are restricted.
             </p>
+          </div>
+        )}
+
+        {(role === 'vendor' || role === 'buyer') && user?.status === 'rejected' && (
+          <div className="mb-4 p-4 bg-destructive/5 border border-destructive/10 rounded-xl">
+            <div className="flex items-center gap-2 text-destructive mb-2">
+              <ShieldAlert className="h-4 w-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Profile Rejected</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-relaxed mb-2">
+              {user.rejection_reason || 'Your profile did not pass review.'} You can't place new orders until this is fixed.
+            </p>
+            <Link
+              to={role === 'vendor' ? '/vendor/profile' : '/buyer/profile'}
+              onClick={onClose}
+              className="text-[10px] font-black uppercase tracking-widest text-destructive underline"
+            >
+              Update Profile →
+            </Link>
           </div>
         )}
 

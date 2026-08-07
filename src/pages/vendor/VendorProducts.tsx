@@ -151,6 +151,8 @@ export default function VendorProducts() {
   const [currentStep, setCurrentStep] = useState(1);
   const [editingProduct, setEditingProduct] = useState<ProductFormData | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const deleteGuard = useRef(false);
   const [formData, setFormData] = useState<ProductFormData>(emptyProduct);
   const [categories, setCategories] = useState<any[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -410,7 +412,9 @@ export default function VendorProducts() {
   };
 
   const handleDelete = () => {
-    if (deleteId) {
+    if (deleteId && !deleteGuard.current) {
+      deleteGuard.current = true;
+      setDeleteSubmitting(true);
       api.products.remove(deleteId)
         .then(() => {
           setProductList(productList.filter(p => p.id !== deleteId));
@@ -420,6 +424,10 @@ export default function VendorProducts() {
         })
         .catch((error: any) => {
           toast({ title: 'Delete failed', description: error.message, variant: 'destructive' });
+        })
+        .finally(() => {
+          deleteGuard.current = false;
+          setDeleteSubmitting(false);
         });
     }
   };
@@ -513,7 +521,7 @@ export default function VendorProducts() {
                 <>
                   Your vendor profile was not approved for the following reason:
                   <div className="mt-3 p-4 bg-white/80 border border-destructive/10 rounded-2xl text-sm font-bold italic">
-                    "{user?.rejectionReason || 'Incomplete documentation or invalid details.'}"
+                    "{user?.rejection_reason || 'Incomplete documentation or invalid details.'}"
                   </div>
                   <p className="mt-4 text-xs font-bold uppercase tracking-widest opacity-70">
                     Please update your business profile to re-submit for moderation.
@@ -1360,7 +1368,7 @@ export default function VendorProducts() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleDelete} disabled={deleteSubmitting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

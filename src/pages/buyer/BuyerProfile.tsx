@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Save, Plus, Pencil, Trash2, MapPin, Building, Phone, Mail, CheckCircle, Loader2, Info, ShoppingBag, FileText, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -177,7 +177,12 @@ export default function BuyerProfile() {
     }
   };
 
+  const [addressSubmitting, setAddressSubmitting] = useState(false);
+  const addressGuard = useRef(false);
   const persistAddresses = async (newAddresses: Address[]) => {
+    if (addressGuard.current) return false;
+    addressGuard.current = true;
+    setAddressSubmitting(true);
     try {
       await api.profiles.update(user!.id, {
         addresses: newAddresses
@@ -187,6 +192,9 @@ export default function BuyerProfile() {
     } catch (error: any) {
       toast({ title: 'Failed to save address', description: error.message, variant: 'destructive' });
       return false;
+    } finally {
+      addressGuard.current = false;
+      setAddressSubmitting(false);
     }
   };
 
@@ -578,7 +586,7 @@ export default function BuyerProfile() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddressDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveAddress}>Save Address</Button>
+            <Button onClick={handleSaveAddress} disabled={addressSubmitting}>Save Address</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -592,7 +600,7 @@ export default function BuyerProfile() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteAddress} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteAddress} disabled={addressSubmitting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
