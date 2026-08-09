@@ -28,7 +28,7 @@ jobs:
 
             # Install dependencies and build
             npm install
-            npm run build
+            VITE_API_URL=/api npm run build
 
             # Clean and copy to Nginx static serving directory
             # (Assumes Nginx points to /var/www/jummababa/frontend)
