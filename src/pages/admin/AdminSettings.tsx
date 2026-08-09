@@ -58,7 +58,8 @@ export default function AdminSettings() {
       ]
     },
     escrow_confirmation_rate: 30.00,
-    wallet_enabled: true
+    wallet_enabled: true,
+    trial_mode_enabled: true
   });
 
   useEffect(() => {
@@ -250,6 +251,31 @@ export default function AdminSettings() {
                       />
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Trial Mode Switch */}
+              <Card className="border-none shadow-2xl bg-white/50 backdrop-blur-xl overflow-hidden relative">
+                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-emerald-500 to-teal-600" />
+                <CardHeader className="border-b bg-muted/20 pb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sliders className="h-5 w-5 text-emerald-600" />
+                      <div>
+                        <CardTitle className="text-lg font-black uppercase tracking-wider">Seller Registration Trial Mode</CardTitle>
+                        <CardDescription>Make seller registration steps optional dynamically</CardDescription>
+                      </div>
+                    </div>
+                    <Switch 
+                      checked={globalConfig.trial_mode_enabled} 
+                      onCheckedChange={(checked) => setGlobalConfig({...globalConfig, trial_mode_enabled: checked})}
+                    />
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    When enabled, a "Trial Mode" badge is displayed on the seller registration wizard and validations for business/bank details (GST, PAN, bank account, etc.) are bypassed to allow rapid onboarding.
+                  </p>
                 </CardContent>
               </Card>
 

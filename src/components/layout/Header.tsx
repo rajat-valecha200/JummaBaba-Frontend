@@ -49,7 +49,7 @@ export function Header() {
 
   return <header className="sticky top-0 z-50 bg-card border-b shadow-sm">
     {/* Top bar */}
-    <div className="bg-secondary text-secondary-foreground">
+    {/* <div className="bg-secondary text-secondary-foreground">
       <div className="b2b-container py-1.5 flex items-center justify-between text-xs sm:text-sm">
         <div className="flex items-center gap-4">
           <span className="hidden sm:flex items-center gap-1">
@@ -69,7 +69,7 @@ export function Header() {
           </Link>
         </div>
       </div>
-    </div>
+    </div> */}
 
     {/* Main header */}
     <div className="b2b-container py-3">

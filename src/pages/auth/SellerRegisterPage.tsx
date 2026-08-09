@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Phone, ArrowRight, User, Building2, MapPin, Check, FileText, Upload, BadgeCheck, Package, AlertCircle, X, File, Image, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -113,6 +113,21 @@ export default function SellerRegisterPage() {
   const [otpError, setOtpError] = useState(false);
   const [otpSuccess, setOtpSuccess] = useState(false);
   const [otpErrorMessage, setOtpErrorMessage] = useState('');
+  const [trialMode, setTrialMode] = useState(false);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const config = await api.public.getConfig();
+        if (config && config.trial_mode_enabled) {
+          setTrialMode(true);
+        }
+      } catch (err) {
+        console.error('Failed to load trial mode status:', err);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   // Document uploads state
   interface DocumentFile {
@@ -213,6 +228,15 @@ export default function SellerRegisterPage() {
   const validateSingleField = (field: string) => {
     let error: string | null = null;
     const value = field === 'otp' ? otp : formData[field as keyof typeof formData];
+
+    // If trialMode is enabled, blank/empty entries for step 2+ fields are allowed
+    if (trialMode && !value) {
+      const step2PlusFields = ['businessName', 'gstNumber', 'panNumber', 'pincode', 'accountNumber', 'ifscCode', 'businessType'];
+      if (step2PlusFields.includes(field)) {
+        setErrors(prev => ({ ...prev, [field]: null }));
+        return null;
+      }
+    }
 
     switch (field) {
       case 'fullName':
@@ -329,6 +353,7 @@ export default function SellerRegisterPage() {
   };
 
   const validateStep2 = (): boolean => {
+    if (trialMode) return true; // Bypass validation completely in trial mode
     const result = sellerStep2Schema.safeParse({
       businessName: formData.businessName,
       businessType: formData.businessType,
@@ -360,6 +385,7 @@ export default function SellerRegisterPage() {
   };
 
   const validateStep4 = (): boolean => {
+    if (trialMode) return true; // Bypass validation completely in trial mode
     const result = sellerStep4Schema.safeParse({
       bankAccountName: formData.bankAccountName,
       bankName: formData.bankName,
@@ -419,7 +445,7 @@ export default function SellerRegisterPage() {
       toast({ title: 'Validation Error', description: 'Please fix the errors before continuing', variant: 'destructive' });
       return;
     }
-    if (step === 3 && selectedCategories.length === 0) {
+    if (step === 3 && !trialMode && selectedCategories.length === 0) {
       toast({ title: 'Select Categories', description: 'Please select at least one product category', variant: 'destructive' });
       return;
     }
@@ -588,7 +614,14 @@ export default function SellerRegisterPage() {
           <div className="flex items-center justify-between mb-4">
             <Link to="/"><Logo size="md" /></Link>
             <div className="text-right">
-              <p className="text-sm font-semibold text-foreground">Register as Seller</p>
+              <div className="flex items-center justify-end gap-2">
+                {trialMode && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 uppercase tracking-wider animate-pulse">
+                    Trial Mode
+                  </span>
+                )}
+                <p className="text-sm font-semibold text-foreground">Register as Seller</p>
+              </div>
               <p className="text-xs text-muted-foreground">Step {step} of {totalSteps}</p>
             </div>
           </div>
@@ -760,7 +793,7 @@ export default function SellerRegisterPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="businessName">Business Name *</Label>
+                  <Label htmlFor="businessName">Business Name {trialMode ? '(Optional)' : '*'}</Label>
                   <div className="relative">
                     <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -776,7 +809,7 @@ export default function SellerRegisterPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="businessType">Business Type *</Label>
+                  <Label htmlFor="businessType">Business Type {trialMode ? '(Optional)' : '*'}</Label>
                   <Select value={formData.businessType} onValueChange={(value) => { handleInputChange('businessType', value); setTouched(prev => ({ ...prev, businessType: true })); }}>
                     <SelectTrigger className={touched.businessType && errors.businessType ? 'border-destructive' : ''}>
                       <SelectValue placeholder="Select type" />
@@ -793,7 +826,7 @@ export default function SellerRegisterPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="gstNumber">GST Number *</Label>
+                  <Label htmlFor="gstNumber">GST Number {trialMode ? '(Optional)' : '*'}</Label>
                   <div className="relative">
                     <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -922,8 +955,8 @@ export default function SellerRegisterPage() {
             <div className="space-y-4">
               <div className="text-center mb-4">
                 <Package className="h-10 w-10 mx-auto text-primary mb-2" />
-                <h3 className="font-medium text-foreground">Select Product Categories *</h3>
-                <p className="text-sm text-muted-foreground">Choose at least one category you'll be selling in</p>
+                <h3 className="font-medium text-foreground">Select Product Categories {trialMode ? '(Optional)' : '*'}</h3>
+                <p className="text-sm text-muted-foreground">Choose the categories you'll be selling in</p>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -949,7 +982,7 @@ export default function SellerRegisterPage() {
                 <p className="text-sm text-muted-foreground">
                   <BadgeCheck className="h-4 w-4 inline mr-1 text-primary" />
                   Selected: {selectedCategories.length} categor{selectedCategories.length === 1 ? 'y' : 'ies'}
-                  {selectedCategories.length === 0 && <span className="text-destructive ml-2">(minimum 1 required)</span>}
+                  {selectedCategories.length === 0 && !trialMode && <span className="text-destructive ml-2">(minimum 1 required)</span>}
                 </p>
               </div>
 

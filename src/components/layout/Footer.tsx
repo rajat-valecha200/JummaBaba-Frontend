@@ -141,6 +141,9 @@ export function Footer() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-secondary-foreground/70">
             <p>© {new Date().getFullYear()} <span className="font-bold text-black">J</span>umma<span className='text-b2b-gst'><span className="font-bold">B</span>aba</span><span className="text-b2b-orange font-bold">.com</span>. All rights reserved.</p>
             <div className="flex gap-4">
+              {/* <Link to="/help" className="hidden sm:block hover:underline">
+                Help
+              </Link> */}
               <Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
               <Link to="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
             </div>

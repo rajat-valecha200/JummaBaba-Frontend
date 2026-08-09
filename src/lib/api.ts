@@ -340,5 +340,8 @@ export const api = {
       api.rfqs.updateFulfillment(id, { status, shipping_details: trackingDetails }),
     submitFeedback: (id: string, data: { rating: number, text: string }) =>
       apiFetch(`/rfqs/${id}/feedback`, { method: 'PATCH', body: JSON.stringify(data) })
+  },
+  public: {
+    getConfig: () => apiFetch('/public/config')
   }
 };
