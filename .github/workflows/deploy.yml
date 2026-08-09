@@ -1,0 +1,37 @@
+name: Deploy Frontend to Production
+
+on:
+  push:
+    branches:
+      - main  # Triggers deployment when you push to the 'main' branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: 97.74.94.237
+          username: jummababa
+          key: ${{ secrets.JUMMABABA }}
+          script: |
+            # Navigate to the frontend directory on VPS
+            cd /home/jummababa/frontend || cd /var/www/jummababa/frontend
+
+            # Pull the latest changes from the main branch
+            git pull origin main
+
+            # Install dependencies and build
+            npm install
+            npm run build
+
+            # Clean and copy to Nginx static serving directory
+            # (Assumes Nginx points to /var/www/jummababa/frontend)
+            rm -rf /var/www/jummababa/frontend/*
+            mkdir -p /var/www/jummababa/frontend
+            cp -r dist/* /var/www/jummababa/frontend/
