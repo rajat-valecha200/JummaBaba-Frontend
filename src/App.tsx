@@ -63,6 +63,7 @@ import AdminSettings from "./pages/admin/AdminSettings";
 import AdminCategories from "./pages/admin/AdminCategories";
 import AdminOrderDetail from "./pages/admin/AdminOrderDetail";
 import AdminEarnings from "./pages/admin/AdminEarnings";
+import AdminWaitlist from "./pages/admin/AdminWaitlist";
 
 import NotFound from "./pages/NotFound";
 
@@ -149,6 +150,7 @@ const App = () => (
                   <Route path="/admin/analytics" element={<AdminAnalytics />} />
                   <Route path="/admin/commissions" element={<AdminCommissions />} />
                   <Route path="/admin/settings" element={<AdminSettings />} />
+                  <Route path="/admin/waitlist" element={<AdminWaitlist />} />
                   <Route path="/admin/categories" element={<AdminCategories />} />
                   <Route path="/admin/earnings" element={<AdminEarnings />} />
                 </Route>

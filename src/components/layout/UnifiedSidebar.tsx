@@ -23,7 +23,8 @@ import {
   BarChart3,
   Globe,
   Heart,
-  ListTodo
+  ListTodo,
+  ClipboardList
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { api } from '@/lib/api';
@@ -114,6 +115,7 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
     { icon: DollarSign, label: 'Commissions', path: '/admin/commissions' },
     { icon: DollarSign, label: 'Earnings Ledger', path: '/admin/earnings' },
     { icon: Users, label: 'Users', path: '/admin/users' },
+    { icon: ClipboardList, label: 'Waitlist', path: '/admin/waitlist' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
     { icon: MessageSquare, label: 'Messages', path: '/admin/messages', badgeCount: unreadMessages },
     { icon: Settings, label: 'Settings', path: '/admin/settings' },

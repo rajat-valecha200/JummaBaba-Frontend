@@ -290,6 +290,11 @@ export const api = {
     updateGlobalConfig: (data: any) => apiFetch('/admin/global-config', { method: 'PATCH', body: JSON.stringify(data) }),
     getStats: () => apiFetch('/admin/stats'),
   },
+  waitlist: {
+    submit: (email: string) => apiFetch('/waitlist', { method: 'POST', body: JSON.stringify({ email }) }),
+    list: () => apiFetch('/waitlist/admin/list'),
+    remove: (id: string) => apiFetch(`/waitlist/admin/${id}`, { method: 'DELETE' }),
+  },
   stats: {
     get: async () => {
       return apiFetch('/profiles/me/stats');

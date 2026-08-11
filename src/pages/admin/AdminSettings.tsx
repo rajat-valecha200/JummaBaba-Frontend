@@ -59,7 +59,8 @@ export default function AdminSettings() {
     },
     escrow_confirmation_rate: 30.00,
     wallet_enabled: true,
-    trial_mode_enabled: true
+    trial_mode_enabled: true,
+    website_mode: 'normal'
   });
 
   useEffect(() => {
@@ -276,6 +277,43 @@ export default function AdminSettings() {
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     When enabled, a "Trial Mode" badge is displayed on the seller registration wizard and validations for business/bank details (GST, PAN, bank account, etc.) are bypassed to allow rapid onboarding.
                   </p>
+                </CardContent>
+              </Card>
+
+              {/* Website Mode Switch */}
+              <Card className="border-none shadow-2xl bg-white/50 backdrop-blur-xl overflow-hidden relative">
+                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-blue-500 to-indigo-600" />
+                <CardHeader className="border-b bg-muted/20 pb-4">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-5 w-5 text-indigo-600" />
+                    <div>
+                      <CardTitle className="text-lg font-black uppercase tracking-wider">Website Mode</CardTitle>
+                      <CardDescription>Control the public state of your platform</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {[
+                      { id: 'normal', name: 'Normal Site', desc: 'Marketplace is active.' },
+                      { id: 'maintenance', name: 'Maintenance', desc: 'System upgrade screen.' },
+                      { id: 'waitlist', name: 'Waitlist Landing', desc: 'Waitlist page for signups.' }
+                    ].map((mode) => (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => setGlobalConfig({ ...globalConfig, website_mode: mode.id as any })}
+                        className={`p-4 rounded-2xl border text-left transition-all ${
+                          (globalConfig.website_mode || 'normal') === mode.id 
+                            ? 'border-indigo-600 bg-indigo-50/50 shadow-sm' 
+                            : 'border-slate-200 hover:border-slate-300 bg-white/50'
+                        }`}
+                      >
+                        <div className="font-bold text-sm text-slate-800">{mode.name}</div>
+                        <div className="text-[10px] text-slate-500 font-medium mt-1 leading-relaxed">{mode.desc}</div>
+                      </button>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
 
