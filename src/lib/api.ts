@@ -1,5 +1,17 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+const cleanImagePath = (img: any) => {
+  if (typeof img !== 'string') return img;
+  if (img.startsWith('http')) return img;
+  let cleanPath = img;
+  if (cleanPath.startsWith('/api/')) {
+    cleanPath = cleanPath.substring(4);
+  } else if (cleanPath.startsWith('api/')) {
+    cleanPath = cleanPath.substring(3);
+  }
+  return `${API_BASE_URL}${cleanPath.startsWith('/') ? '' : '/'}${cleanPath}`;
+};
+
 const parseJsonField = (value: any, fallback: any) => {
   if (typeof value !== 'string') return value ?? fallback;
   try {
@@ -34,7 +46,7 @@ export const normalizeProduct = (product: any) => {
     sampleMOQ: Number(product.sample_moq ?? product.sampleMOQ ?? 1),
     minPrice: Number(product.min_price ?? product.minPrice ?? 0),
     images: Array.isArray(images) && images.length > 0 
-      ? images.map((img: any) => typeof img === 'string' && !img.startsWith('http') ? `${API_BASE_URL}${img.startsWith('/') ? '' : '/'}${img}` : img)
+      ? images.map(cleanImagePath)
       : ['https://images.unsplash.com/photo-1582234057117-9c9ae625b035?w=600'],
     rejectionReason: product.rejection_reason ?? product.rejectionReason,
     vendor: product.vendor ?? {
@@ -53,7 +65,7 @@ export const normalizeRfq = (rfq: any) => {
   return {
     ...rfq,
     product_images: Array.isArray(images) && images.length > 0 
-      ? images.map((img: any) => typeof img === 'string' && !img.startsWith('http') ? `${API_BASE_URL}${img.startsWith('/') ? '' : '/'}${img}` : img)
+      ? images.map(cleanImagePath)
       : ['https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=100'],
     shipping_details: shippingDetails,
     response_details: responseDetails,

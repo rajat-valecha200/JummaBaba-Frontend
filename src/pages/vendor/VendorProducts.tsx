@@ -77,6 +77,58 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { api, normalizeProduct } from '@/lib/api';
 
+const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<File> => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      resolve(file);
+      return;
+    }
+    if (file.size < 300 * 1024) {
+      resolve(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = (maxWidth / width) * height;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              resolve(file);
+            }
+          }, 'image/jpeg', quality);
+        } else {
+          resolve(file);
+        }
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+};
+
 interface PricingSlab {
   minQty: number;
   maxQty: number | null;
@@ -158,6 +210,7 @@ export default function VendorProducts() {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [previewProduct, setPreviewProduct] = useState<any | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [compressing, setCompressing] = useState(false);
 
   useEffect(() => {
     const fetchDependencies = async () => {
@@ -232,16 +285,24 @@ export default function VendorProducts() {
     setFormOpen(true);
   };
 
-  const handleImageSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    const newFiles = [...imageFiles, ...files].slice(0, 5);
-    setImageFiles(newFiles);
-    
-    const previewUrls = newFiles.map(file => URL.createObjectURL(file));
-    setFormData({
-      ...formData,
-      images: [...(editingProduct?.images || []), ...previewUrls].slice(0, 5)
-    });
+    setCompressing(true);
+    try {
+      const compressedFiles = await Promise.all(files.map(f => compressImage(f)));
+      const newFiles = [...imageFiles, ...compressedFiles].slice(0, 5);
+      setImageFiles(newFiles);
+      
+      const previewUrls = newFiles.map(file => URL.createObjectURL(file));
+      setFormData({
+        ...formData,
+        images: [...(editingProduct?.images || []), ...previewUrls].slice(0, 5)
+      });
+    } catch (err) {
+      console.error('Failed to compress images:', err);
+    } finally {
+      setCompressing(false);
+    }
   };
 
   const removeImage = (index: number) => {
@@ -325,6 +386,11 @@ export default function VendorProducts() {
   const handleSave = async () => {
     if (!formData.name || !formData.categoryId) {
       toast({ title: 'Please fill required fields', description: 'Product Name and Category are required', variant: 'destructive' });
+      return;
+    }
+
+    if (!formData.images || formData.images.length === 0) {
+      toast({ title: 'Images Required', description: 'Please upload at least one product image before publishing', variant: 'destructive' });
       return;
     }
 
@@ -1047,13 +1113,21 @@ export default function VendorProducts() {
                           ))}
                           {formData.images.length < 5 && (
                             <button 
+                              type="button"
+                              disabled={compressing}
                               onClick={() => fileInputRef.current?.click()}
-                              className="aspect-square rounded-2xl border-3 border-dashed border-primary/10 bg-primary/5 flex flex-col items-center justify-center hover:bg-primary/10 hover:border-primary/20 transition-all group"
+                              className="aspect-square rounded-2xl border-3 border-dashed border-primary/10 bg-primary/5 flex flex-col items-center justify-center hover:bg-primary/10 hover:border-primary/20 transition-all group disabled:opacity-50"
                             >
                               <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                                <Plus className="h-5 w-5 text-primary" />
+                                {compressing ? (
+                                  <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                                ) : (
+                                  <Plus className="h-5 w-5 text-primary" />
+                                )}
                               </div>
-                              <span className="text-[10px] font-black text-primary/40 uppercase mt-3 tracking-widest">Add Media</span>
+                              <span className="text-[10px] font-black text-primary/40 uppercase mt-3 tracking-widest">
+                                {compressing ? "Compressing..." : "Add Media"}
+                              </span>
                               <input 
                                 type="file" 
                                 ref={fileInputRef} 
