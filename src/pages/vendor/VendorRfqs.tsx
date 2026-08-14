@@ -72,6 +72,8 @@ interface Rfq {
   response?: RfqResponse;
   negotiation_group_id?: string;
   order_group_id?: string;
+  moderation_status?: string;
+  negotiation_step?: string;
 }
 
 function CatalogSlabDialogBanner({ rfq }: { rfq?: any }) {
@@ -256,7 +258,7 @@ export default function VendorRfqs() {
 
   const getStatusBadge = (rfq: any) => {
     const status = rfq.status as RfqStatus;
-    const moderationStatus = rfq.moderationStatus;
+    const moderationStatus = rfq.moderation_status;
     
     switch (status) {
       case 'closed':
@@ -438,7 +440,7 @@ export default function VendorRfqs() {
                           Quote
                         </Button>
                       )}
-                      {rfq.moderationStatus === 'quote_rejected' && (
+                      {rfq.moderation_status === 'quote_rejected' && (
                         <Button size="sm" variant="destructive" onClick={() => handleOpenResponse(rfq)}>
                           <Send className="h-4 w-4 mr-1" />
                           Revise
@@ -466,7 +468,7 @@ export default function VendorRfqs() {
             <div className="w-80 border-r border-border/50 bg-slate-50/50 p-8 hidden md:block">
               <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-8">Inquiry Progress</h3>
               {selectedRfq && (
-                <RfqTimeline steps={getRfqSteps(selectedRfq.status, selectedRfq.status === 'quoted' ? 'quote_pending' : selectedRfq.status)} />
+                <RfqTimeline steps={getRfqSteps(selectedRfq.status, selectedRfq.moderation_status)} />
               )}
             </div>
 
@@ -536,9 +538,9 @@ export default function VendorRfqs() {
                           <h4 className="font-medium mb-2 text-success">Your Response</h4>
                           <div className={cn(
                             "p-3 rounded-lg space-y-2",
-                            selectedRfq.moderationStatus === 'quote_rejected' ? "bg-destructive/5 border border-destructive/20" : "bg-success/5 border border-success/20"
+                            selectedRfq.moderation_status === 'quote_rejected' ? "bg-destructive/5 border border-destructive/20" : "bg-success/5 border border-success/20"
                           )}>
-                            {selectedRfq.moderationStatus === 'quote_rejected' && (
+                            {selectedRfq.moderation_status === 'quote_rejected' && (
                               <div className="mb-3 p-3 bg-destructive/10 rounded-lg border border-destructive/20">
                                 <p className="text-xs font-black uppercase text-destructive mb-1">Admin Rejection Reason</p>
                                 <p className="text-sm font-bold text-destructive">{selectedRfq.rejectionReason || 'Price revision required'}</p>
@@ -573,7 +575,7 @@ export default function VendorRfqs() {
                     Prepare Formal Quote
                   </Button>
                 )}
-                {selectedRfq?.moderationStatus === 'quote_rejected' && (
+                {selectedRfq?.moderation_status === 'quote_rejected' && (
                   <Button variant="destructive" onClick={() => { setDetailsOpen(false); handleOpenResponse(selectedRfq); }}>
                     <Send className="h-4 w-4 mr-2" />
                     Revise & Resubmit Quote

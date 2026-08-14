@@ -321,6 +321,59 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
 
   // Card designs using sleek glassmorphism and tailored dark/light HSL palettes
   switch (cardType) {
+    case 'rfq_forwarded_alert':
+      // This is the vendor's actual starting point for this RFQ — everything before it in the
+      // thread is the private pre-forward buyer<->admin conversation, which they never see, so
+      // this card carries the full sourcing specs itself rather than assuming prior context.
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-cyan-500/25 bg-cyan-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-cyan-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">New Sourcing Assignment</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Forwarded by Admin</p>
+            </div>
+          </div>
+
+          <div className="space-y-2.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Product Target:</span>
+              <span className="font-semibold text-foreground truncate max-w-[200px]">{metadata.product_name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Volume Required:</span>
+              <span className="font-semibold text-foreground">{metadata.quantity} {metadata.unit}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Target Price:</span>
+              <span className="font-bold text-cyan-600 dark:text-cyan-400">₹{Number(metadata.target_price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Delivery Site:</span>
+              <span className="font-semibold text-foreground truncate max-w-[200px]">{metadata.delivery_location}</span>
+            </div>
+            {metadata.description && (
+              <div className="mt-2 pt-2 border-t border-cyan-500/10">
+                <span className="text-[10px] uppercase text-muted-foreground tracking-wider block mb-1">Details & Requirements</span>
+                <p className="text-muted-foreground leading-relaxed italic">{metadata.description}</p>
+              </div>
+            )}
+          </div>
+
+          {userRole === 'vendor' && (
+            <div className="mt-4 pt-4 border-t border-cyan-500/20">
+              <Link to="/vendor/rfqs">
+                <Button className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all">
+                  Prepare Formal Quote →
+                </Button>
+              </Link>
+            </div>
+          )}
+        </div>
+      );
+
     case 'rfq_specs':
       return (
         <div className="w-full max-w-md my-2 rounded-2xl border border-cyan-500/25 bg-cyan-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">

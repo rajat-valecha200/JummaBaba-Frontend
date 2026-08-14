@@ -530,18 +530,57 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
           )}
 
-          {userRole !== 'buyer' && userRole !== 'vendor' && (
+          {userRole === 'admin' && (!metadata.moderation_status || metadata.moderation_status === 'quote_pending') && (
+            <div className="mt-4 pt-4 border-t border-emerald-500/20 flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 text-xs h-9 border-destructive/30 text-destructive hover:bg-destructive/5 font-semibold"
+                disabled={isActioning}
+                onClick={async () => {
+                  const reason = prompt('Reason for rejecting this quote:');
+                  if (!reason) return;
+                  setIsActioning(true);
+                  try {
+                    await api.rfqs.approveQuote(metadata.rfq_id, { status: 'rejected', rejection_reason: reason });
+                    onRefresh?.();
+                  } catch (err: any) {
+                    setErrorMsg(err.message || 'Failed to reject quote');
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
+              >
+                Reject Quote
+              </Button>
+              <Button
+                className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                disabled={isActioning}
+                onClick={async () => {
+                  setIsActioning(true);
+                  try {
+                    await api.rfqs.approveQuote(metadata.rfq_id, { status: 'approved' });
+                    onRefresh?.();
+                  } catch (err: any) {
+                    setErrorMsg(err.message || 'Failed to approve quote');
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
+              >
+                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Approve Quote'}
+              </Button>
+            </div>
+          )}
+          {userRole === 'admin' && metadata.moderation_status === 'quote_approved' && (
             <div className="mt-4 text-center">
               <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] py-1 border border-emerald-500/10">
-                Awaiting Buyer Decision
+                ✓ Approved — Awaiting Buyer Decision
               </Badge>
             </div>
           )}
           {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
         </div>
       );
-
-
 
     case 'order_init':
       return (

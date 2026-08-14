@@ -222,6 +222,14 @@ export default function ProductDetailPage() {
       navigate('/login');
       return;
     }
+    if (user.role === 'vendor') {
+      toast({
+        title: "You can't purchase as a vendor",
+        description: 'Please create a buyer profile to place orders.',
+        variant: 'destructive',
+      });
+      return;
+    }
     const initialQty = quantity || product.moq;
     const initialTier = getActiveTier(initialQty);
     setIsSampleRequest(false);
@@ -245,6 +253,14 @@ export default function ProductDetailPage() {
       navigate('/login');
       return;
     }
+    if (user.role === 'vendor') {
+      toast({
+        title: "You can't purchase as a vendor",
+        description: 'Please create a buyer profile to place orders.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setIsSampleRequest(true);
     setRfqForm({
       quantity: String(product.sampleMOQ || 1),
@@ -264,6 +280,14 @@ export default function ProductDetailPage() {
         variant: 'destructive',
       });
       navigate('/login');
+      return;
+    }
+    if (user.role === 'vendor') {
+      toast({
+        title: "You can't purchase as a vendor",
+        description: 'Please create a buyer profile to place orders.',
+        variant: 'destructive',
+      });
       return;
     }
 

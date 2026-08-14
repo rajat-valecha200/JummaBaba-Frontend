@@ -236,14 +236,15 @@ export default function CheckoutPage() {
     
     try {
       if (rfqId) {
-        // Accept quote endpoint converts RFQ to Order
+        // Accepting a quote generates the billing statement — the order itself is only placed
+        // once admin verifies the payment reference submitted on the next page.
         await api.rfqs.acceptQuote(rfqId);
 
         toast({
-          title: 'Order Placed',
-          description: 'Your negotiated order has been placed successfully!',
+          title: 'Billing Statement Generated',
+          description: 'Please complete payment and submit your transaction reference to place the order.',
         });
-        navigate(`/buyer/orders`);
+        navigate(`/buyer/rfq-payment/${rfqId}`);
       } else {
         setTimeout(() => {
           setIsProcessing(false);

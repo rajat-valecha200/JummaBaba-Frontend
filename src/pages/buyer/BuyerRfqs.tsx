@@ -184,7 +184,7 @@ export default function BuyerRfqs() {
       }
 
       const toastCopy = {
-        accept_quote: { title: 'Order Placed!', description: 'Your order has been sent to the supplier.' },
+        accept_quote: { title: 'Billing Statement Sent', description: 'Please complete payment and submit your transaction reference to place the order.' },
         reject_quote: { title: 'Quote Declined', description: 'The request has been closed.' },
         request_cancellation: { title: 'Cancellation Requested', description: 'Your request has been sent for admin review.' },
         confirm_delivery: { title: 'Delivery Confirmed', description: 'Thanks for confirming! Payment release to the supplier is now pending Admin review.' },
