@@ -23,8 +23,9 @@ jobs:
             # Navigate to the frontend directory on VPS
             cd /home/jummababa/frontend || cd /var/www/jummababa/frontend
 
-            # Pull the latest changes from the main branch
-            git pull origin main
+            # Force sync the latest changes from the main branch
+            git fetch origin
+            git reset --hard origin/main
 
             # Install dependencies and build
             npm install

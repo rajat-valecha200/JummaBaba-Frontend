@@ -161,7 +161,11 @@ export default function AdminRfqs() {
   const fetchRfqs = async () => {
     try {
       const data = await api.rfqs.list();
-      const normalizedData = data.map((r: any) => {
+      // Direct Orders (Buy Now) have their own accept/decline lifecycle handled entirely in
+      // chat — they never enter this negotiation-moderation queue, so they don't mix in here
+      // as confusing "stuck" RFQs.
+      const negotiationOnlyData = data.filter((r: any) => !r.is_direct_order);
+      const normalizedData = negotiationOnlyData.map((r: any) => {
         let details = typeof r.response_details === 'string' 
           ? JSON.parse(r.response_details) 
           : r.response_details || {};

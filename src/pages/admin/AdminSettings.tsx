@@ -20,7 +20,8 @@ import {
   Clock,
   Coins,
   Plus,
-  Trash2
+  Trash2,
+  ShoppingCart
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
@@ -60,7 +61,8 @@ export default function AdminSettings() {
     escrow_confirmation_rate: 30.00,
     wallet_enabled: true,
     trial_mode_enabled: true,
-    website_mode: 'normal'
+    website_mode: 'normal',
+    direct_order_admin_review_required: false
   });
 
   useEffect(() => {
@@ -279,6 +281,31 @@ export default function AdminSettings() {
                 <CardContent className="pt-6">
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     When enabled, a "Trial Mode" badge is displayed on the seller registration wizard and validations for business/bank details (GST, PAN, bank account, etc.) are bypassed to allow rapid onboarding.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Direct Order Admin Review Switch */}
+              <Card className="border-none shadow-2xl bg-white/50 backdrop-blur-xl overflow-hidden relative">
+                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-orange-500 to-amber-600" />
+                <CardHeader className="border-b bg-muted/20 pb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShoppingCart className="h-5 w-5 text-orange-600" />
+                      <div>
+                        <CardTitle className="text-lg font-black uppercase tracking-wider">Require Admin Review for Direct Orders</CardTitle>
+                        <CardDescription>Review/discount Buy Now orders before they reach the seller</CardDescription>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={!!globalConfig.direct_order_admin_review_required}
+                      onCheckedChange={(checked) => setGlobalConfig({...globalConfig, direct_order_admin_review_required: checked})}
+                    />
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    When OFF (default), a buyer's Direct/Buy Now order goes straight to the seller for Accept/Decline at the exact listed price. When ON, it comes to Admin first — you can optionally apply a discount — before it's forwarded to the seller.
                   </p>
                 </CardContent>
               </Card>

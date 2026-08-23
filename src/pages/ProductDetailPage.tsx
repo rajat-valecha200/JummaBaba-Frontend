@@ -55,7 +55,8 @@ import { api } from '@/lib/api';
 import { formatPrice, formatNumber, cn, PRODUCT_IMAGE_PLACEHOLDER } from '@/lib/utils';
 
 // Set to false for RFQ-Only sourcing mode (Hides direct Buy Now button)
-const SHOW_BUY_NOW_BUTTON = false;
+// Buy Now shows per-product, driven by the vendor's own "Accept Direct Orders" preference
+// (default on, see product.supplierAcceptsDirectOrders) — no longer a global kill switch.
 
 export default function ProductDetailPage() {
   const { slug } = useParams();
@@ -236,6 +237,10 @@ export default function ProductDetailPage() {
 
   const activeTier = getActiveTier(quantity || product.moq);
   const totalPrice = (quantity || product.moq) * (activeTier?.pricePerUnit || 0);
+  const checkoutGst = totalPrice * 0.18;
+  const checkoutTotal = totalPrice + checkoutGst;
+  // Vendor's own opt-out toggle — on by default, see normalizeProduct in lib/api.ts.
+  const showBuyNowButton = product.supplierAcceptsDirectOrders !== false;
 
   const handleOpenRfq = () => {
     if (!user) {
@@ -325,6 +330,15 @@ export default function ProductDetailPage() {
       return;
     }
 
+    if (!showBuyNowButton) {
+      toast({
+        title: 'Direct Order Unavailable',
+        description: 'This seller only accepts negotiated orders. Please use Get Instant Quote instead.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setCheckoutForm({
       address: '',
       city: '',
@@ -361,7 +375,7 @@ export default function ProductDetailPage() {
 
       toast({
         title: 'Order Placed!',
-        description: 'Your direct order has been received. Our team will contact you for payment/delivery.',
+        description: 'Your direct order has been sent to the seller for acceptance. You\'ll get a payment request once they accept.',
         action: (
           <div className="flex gap-2">
             <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
@@ -589,10 +603,27 @@ export default function ProductDetailPage() {
                       <p className="font-bold text-slate-900">{product.name}</p>
                       <Badge variant="outline" className="bg-white">{quantity} {product.unit}</Badge>
                     </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-primary/10">
-                      <span className="text-sm text-muted-foreground uppercase font-bold tracking-widest">Total Amount</span>
-                      <span className="text-lg font-black text-primary">{formatPrice(totalPrice)}</span>
+                  </div>
+
+                  {/* Full breakdown before ordering — this is a fixed, exact price (the active
+                      slab rate), no negotiation, so this total is what will actually be charged. */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Order Breakdown (Fixed Price)</p>
+                    <div className="flex justify-between text-slate-600">
+                      <span>{product.name} ({quantity} × {formatPrice(activeTier?.pricePerUnit || 0)})</span>
+                      <span className="font-semibold text-slate-800">{formatPrice(totalPrice)}</span>
                     </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>GST (18%)</span>
+                      <span className="font-semibold text-slate-800">{formatPrice(checkoutGst)}</span>
+                    </div>
+                    <div className="flex justify-between font-black text-sm border-t border-slate-200 pt-1.5 mt-1.5">
+                      <span className="text-slate-900">Total Payable</span>
+                      <span className="text-primary">{formatPrice(checkoutTotal)}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground pt-1">
+                      This is the final price — no negotiation. The seller will accept and you'll be billed exactly this amount.
+                    </p>
                   </div>
 
                   <div className="space-y-3">
@@ -670,7 +701,7 @@ export default function ProductDetailPage() {
                     />
                   </div>
 
-                  {SHOW_BUY_NOW_BUTTON ? (
+                  {showBuyNowButton ? (
                     <Button
                       onClick={handleBuyNow}
                       disabled={submittingRfq}
@@ -718,14 +749,14 @@ export default function ProductDetailPage() {
                 )}
               </div>
 
-              {SHOW_BUY_NOW_BUTTON && (
+              {showBuyNowButton && (
                 <div className="flex gap-3">
-                  <Button 
+                  <Button
                     onClick={handleOpenRfq}
                     className="w-full h-12 text-xs font-black uppercase tracking-widest bg-slate-900 hover:bg-slate-800 text-white shadow-xl shadow-slate-900/10 rounded-2xl flex items-center justify-center gap-2 border border-slate-800 transition-all hover:scale-[1.01]"
                   >
                     <FileText className="h-4 w-4 text-orange-400" />
-                    Request Bulk Quote
+                    Request Bulk Quote / Negotiate
                   </Button>
                 </div>
               )}

@@ -56,6 +56,10 @@ export const normalizeProduct = (product: any) => {
       companyName: product.business_name || product.supplier_name || 'Verified Supplier',
       isTopSupplier: product.is_top_supplier,
     },
+    // Direct Order (Buy Now) is on by default for every vendor unless they've explicitly opted
+    // out — undefined/null (e.g. product list endpoints that don't join this field) must not be
+    // read as "off".
+    supplierAcceptsDirectOrders: product.supplier_accepts_direct_orders !== false,
   };
 };
 
@@ -257,6 +261,13 @@ export const api = {
       apiFetch(`/rfqs/${id}/vendor-action`, { method: 'PATCH', body: JSON.stringify({ action, notes }) }),
     updateCancellation: (id: string, status: 'approved' | 'rejected', opts?: { fee?: number, liable_party?: 'buyer' | 'seller' | 'none', admin_notes?: string }) =>
       apiFetch(`/rfqs/${id}/cancellation`, { method: 'PATCH', body: JSON.stringify({ status, ...opts }) }),
+    // Direct Order (instant Buy Now, no negotiation)
+    forwardDirectOrder: (id: string, discountType?: 'percentage' | 'flat', discountValue?: number, discountAbsorbedBy?: 'seller' | 'platform' | 'split') =>
+      apiFetch(`/rfqs/${id}/direct-order/forward`, { method: 'POST', body: JSON.stringify({ discountType, discountValue, discountAbsorbedBy }) }),
+    acceptDirectOrder: (id: string) =>
+      apiFetch(`/rfqs/${id}/direct-order/accept`, { method: 'POST' }),
+    declineDirectOrder: (id: string, reason?: string) =>
+      apiFetch(`/rfqs/${id}/direct-order/decline`, { method: 'POST', body: JSON.stringify({ reason }) }),
   },
   messages: {
     send: (receiver_id: string | null, content: string, chat_group_id?: string | null, metadata?: any) => 

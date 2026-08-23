@@ -27,7 +27,9 @@ import {
   Package,
   Tag,
   Settings,
-  Eye
+  Eye,
+  ShoppingCart,
+  XCircle
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { OrderGroupSummaryPanel } from '@/components/orders/OrderGroupSummaryPanel';
@@ -294,6 +296,23 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
     }, 400);
     return () => clearTimeout(timer);
   }, [approveDiscountType, approveDiscountValue, approveDiscountAbsorbedBy]);
+
+  // Direct Order: the price is fixed (no negotiation, nothing for the vendor to type), so just
+  // show their read-only earnings estimate once, as soon as the Accept/Decline card renders.
+  useEffect(() => {
+    if (cardType !== 'direct_order_pending_accept' || userRole !== 'vendor') return;
+    setShowBreakdown(true);
+    setBreakdownLoading(true);
+    api.rfqs.getQuoteEstimate(
+      metadata.rfq_id,
+      Number(metadata.unit_price),
+      metadata.discountType || 'percentage',
+      Number(metadata.discountValue) || 0,
+      metadata.discountAbsorbedBy || 'seller'
+    ).then(setBreakdown)
+      .catch(() => setErrorMsg('Could not load your earnings estimate.'))
+      .finally(() => setBreakdownLoading(false));
+  }, [cardType]);
 
   useEffect(() => {
     if (cardType === 'rfq_specs' && userRole === 'admin') {
@@ -1768,6 +1787,276 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               ✓ Direct Connection Approved
             </Badge>
           )}
+        </div>
+      );
+
+    case 'direct_order_pending_review':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-orange-500/25 bg-orange-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-orange-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
+              <ShoppingCart className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Direct Order — Awaiting Admin Review</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Buy Now, Fixed Price</p>
+            </div>
+          </div>
+          <div className="space-y-2 text-xs mb-3">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Product:</span>
+              <span className="font-semibold text-foreground truncate max-w-[200px]">{metadata.product_name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Quantity:</span>
+              <span className="font-semibold text-foreground">{metadata.quantity} {metadata.unit}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Fixed Price/Unit:</span>
+              <span className="font-bold text-orange-600 dark:text-orange-400">₹{Number(metadata.unit_price).toLocaleString()}</span>
+            </div>
+            {metadata.supplier_name && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Seller:</span>
+                <span className="font-semibold text-foreground">{metadata.supplier_name}</span>
+              </div>
+            )}
+          </div>
+
+          {userRole === 'admin' && metadata.rfq_direct_order_status === 'pending_review' ? (
+            <div className="pt-3 border-t border-orange-500/20 space-y-2">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discount to buyer (optional)</label>
+                <div className="flex gap-1.5">
+                  <div className="flex rounded-lg border overflow-hidden shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setApproveDiscountType('percentage')}
+                      className={cn(
+                        "px-2.5 text-xs font-bold transition-colors",
+                        approveDiscountType === 'percentage' ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setApproveDiscountType('flat')}
+                      className={cn(
+                        "px-2.5 text-xs font-bold transition-colors border-l",
+                        approveDiscountType === 'flat' ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      ₹
+                    </button>
+                  </div>
+                  <Input
+                    type="number"
+                    min="0"
+                    max={approveDiscountType === 'percentage' ? 100 : undefined}
+                    step="0.5"
+                    placeholder={approveDiscountType === 'percentage' ? 'e.g. 10' : 'e.g. 50'}
+                    value={approveDiscountValue}
+                    onChange={(e) => {
+                      let v = e.target.value;
+                      if (approveDiscountType === 'percentage' && v !== '' && Number(v) > 100) v = '100';
+                      setApproveDiscountValue(v);
+                    }}
+                    className="h-8 text-xs flex-1"
+                  />
+                </div>
+              </div>
+
+              {Number(approveDiscountValue) > 0 && (
+                <div className="space-y-1 animate-in fade-in duration-150">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Who absorbs this discount?</label>
+                  <div className="flex rounded-lg border overflow-hidden">
+                    {([
+                      { id: 'seller', label: 'Seller' },
+                      { id: 'platform', label: 'Platform' },
+                      { id: 'split', label: '50-50' }
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setApproveDiscountAbsorbedBy(opt.id)}
+                        className={cn(
+                          "flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-colors",
+                          opt.id !== 'seller' && "border-l",
+                          approveDiscountAbsorbedBy === opt.id ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Button
+                className="w-full text-xs h-9 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                disabled={isActioning}
+                onClick={async () => {
+                  setIsActioning(true);
+                  try {
+                    await api.rfqs.forwardDirectOrder(metadata.rfq_id, approveDiscountType, Number(approveDiscountValue) || 0, approveDiscountAbsorbedBy);
+                    onRefresh?.();
+                  } catch (err: any) {
+                    setErrorMsg(err.message || 'Failed to forward this Direct Order');
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
+              >
+                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '⚡ Forward to Seller'}
+              </Button>
+            </div>
+          ) : (
+            <Badge className="w-full justify-center bg-orange-500/10 text-orange-600 border border-orange-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+              ✓ Forwarded to Seller
+            </Badge>
+          )}
+          {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
+        </div>
+      );
+
+    case 'direct_order_pending_accept':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-orange-500/25 bg-orange-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-orange-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
+              <ShoppingCart className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Direct Order — Buy Now</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Fixed Price, No Negotiation</p>
+            </div>
+          </div>
+          <div className="space-y-2 text-xs mb-3">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Product:</span>
+              <span className="font-semibold text-foreground truncate max-w-[200px]">{metadata.product_name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Quantity:</span>
+              <span className="font-semibold text-foreground">{metadata.quantity} {metadata.unit}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Fixed Price/Unit:</span>
+              <span className="font-bold text-orange-600 dark:text-orange-400">₹{Number(metadata.unit_price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Delivery Location:</span>
+              <span className="font-semibold text-foreground truncate max-w-[200px]">{metadata.delivery_location}</span>
+            </div>
+          </div>
+
+          {userRole === 'vendor' && showBreakdown && (
+            <div className="mb-3 p-3.5 rounded-xl bg-background/60 border border-orange-500/15 space-y-2">
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Your Earnings (Fixed)</p>
+              {breakdownLoading && !breakdown ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Calculating...</p>
+              ) : breakdown ? (
+                <>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Order Value</span>
+                    <span className="font-semibold text-foreground">₹{breakdown.rawOrderValue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-rose-500 font-semibold">
+                    <span>Platform Commission</span>
+                    <span>− ₹{breakdown.rawCommission.toLocaleString()}</span>
+                  </div>
+                  {breakdown.vendorDiscountShare > 0 && (
+                    <div className="flex justify-between text-xs text-rose-500 font-semibold">
+                      <span>Your Discount Share</span>
+                      <span>− ₹{breakdown.vendorDiscountShare.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xs pt-1.5 border-t border-dashed">
+                    <span className="font-bold text-foreground">You'll Earn</span>
+                    <span className="font-black text-emerald-600 dark:text-emerald-400">₹{breakdown.vendorNet.toLocaleString()}</span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-destructive">Could not load your earnings estimate.</p>
+              )}
+            </div>
+          )}
+
+          {userRole === 'vendor' && metadata.rfq_direct_order_status === 'pending_seller_accept' ? (
+            <div className="pt-3 border-t border-orange-500/20 flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 text-xs h-9 border-destructive/30 text-destructive hover:bg-destructive/5 font-semibold"
+                disabled={isActioning}
+                onClick={async () => {
+                  const reason = prompt('Reason for declining this order (optional):') || '';
+                  setIsActioning(true);
+                  try {
+                    await api.rfqs.declineDirectOrder(metadata.rfq_id, reason);
+                    onRefresh?.();
+                  } catch (err: any) {
+                    setErrorMsg(err.message || 'Failed to decline this order');
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
+              >
+                Decline
+              </Button>
+              <Button
+                className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                disabled={isActioning}
+                onClick={async () => {
+                  setIsActioning(true);
+                  try {
+                    await api.rfqs.acceptDirectOrder(metadata.rfq_id);
+                    onRefresh?.();
+                  } catch (err: any) {
+                    setErrorMsg(err.message || 'Failed to accept this order');
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
+              >
+                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✅ Accept Order'}
+              </Button>
+            </div>
+          ) : (
+            <Badge className={cn(
+              "w-full justify-center py-1 text-[10px] uppercase font-bold tracking-wider border",
+              metadata.rfq_direct_order_status === 'seller_declined'
+                ? "bg-destructive/10 text-destructive border-destructive/20"
+                : "bg-orange-500/10 text-orange-600 border-orange-500/20"
+            )}>
+              {metadata.rfq_direct_order_status === 'seller_declined' ? '✕ Declined by Seller' : userRole === 'vendor' ? '✓ Order Accepted' : 'Awaiting Seller Action'}
+            </Badge>
+          )}
+          {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
+        </div>
+      );
+
+    case 'direct_order_accepted':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 backdrop-blur-md p-4 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <p className="text-xs font-semibold text-foreground">
+              Seller accepted this Direct Order at ₹{Number(metadata.price).toLocaleString()} for {metadata.quantity} units. Payment request sent to buyer.
+            </p>
+          </div>
+        </div>
+      );
+
+    case 'direct_order_declined':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-destructive/25 bg-destructive/5 backdrop-blur-md p-4 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2">
+            <XCircle className="h-5 w-5 text-destructive shrink-0" />
+            <p className="text-xs font-semibold text-foreground">
+              Seller declined this Direct Order.{metadata.reason ? ` Reason: ${metadata.reason}` : ''}
+            </p>
+          </div>
         </div>
       );
 

@@ -40,7 +40,9 @@ import {
   Package,
   FileCheck,
   Tag,
-  Settings
+  Settings,
+  ShoppingCart,
+  XCircle
 } from 'lucide-react';
 import { playNotificationChime } from '@/lib/sound';
 import { Button } from '@/components/ui/button';
@@ -1615,6 +1617,195 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           <Badge className="w-full justify-center mt-4 bg-violet-500/10 text-violet-600 border border-violet-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
             {metadata.approved ? '✓ Approved by Admin' : 'Awaiting Admin Review'}
           </Badge>
+        </div>
+      );
+
+    case 'direct_order_pending_review':
+      // Buyer-only view here (this page is never rendered for admin) — informational, the
+      // actual discount/forward controls live on the admin chat page.
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-orange-500/25 bg-orange-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-orange-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
+              <ShoppingCart className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Direct Order — Awaiting Admin Review</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Buy Now, Fixed Price</p>
+            </div>
+          </div>
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Quantity:</span>
+              <span className="font-semibold text-foreground">{metadata.quantity} {metadata.unit}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Fixed Price/Unit:</span>
+              <span className="font-bold text-orange-600 dark:text-orange-400">₹{Number(metadata.unit_price).toLocaleString()}</span>
+            </div>
+          </div>
+          <Badge className="w-full justify-center mt-4 bg-orange-500/10 text-orange-600 border border-orange-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+            {metadata.rfq_direct_order_status === 'pending_review' ? 'Under Admin Review' : '✓ Forwarded to Seller'}
+          </Badge>
+        </div>
+      );
+
+    case 'direct_order_pending_accept': {
+      // Vendor's own read-only earnings preview at this fixed price — same estimate the
+      // negotiated-flow's "Estimated Breakdown at This Price" box uses above, just with no
+      // price input since there's nothing to negotiate here.
+      const [directBreakdown, setDirectBreakdown] = useState<any>(null);
+      const [directBreakdownLoading, setDirectBreakdownLoading] = useState(false);
+      useEffect(() => {
+        if (userRole !== 'vendor' || !metadata.rfq_id || !metadata.unit_price) return;
+        let cancelled = false;
+        setDirectBreakdownLoading(true);
+        api.rfqs.getQuoteEstimate(
+          metadata.rfq_id,
+          Number(metadata.unit_price),
+          metadata.discountType || 'percentage',
+          Number(metadata.discountValue) || 0,
+          metadata.discountAbsorbedBy || 'seller'
+        )
+          .then((result: any) => { if (!cancelled) setDirectBreakdown(result); })
+          .catch(() => { if (!cancelled) setDirectBreakdown(null); })
+          .finally(() => { if (!cancelled) setDirectBreakdownLoading(false); });
+        return () => { cancelled = true; };
+      }, [metadata.rfq_id, metadata.unit_price]);
+
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-orange-500/25 bg-orange-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-orange-500/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
+              <ShoppingCart className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground">Direct Order — Buy Now</h4>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Fixed Price, No Negotiation</p>
+            </div>
+          </div>
+          <div className="space-y-2 text-xs mb-3">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Quantity:</span>
+              <span className="font-semibold text-foreground">{metadata.quantity} {metadata.unit}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Fixed Price/Unit:</span>
+              <span className="font-bold text-orange-600 dark:text-orange-400">₹{Number(metadata.unit_price).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Delivery Location:</span>
+              <span className="font-semibold text-foreground truncate max-w-[200px]">{metadata.delivery_location}</span>
+            </div>
+          </div>
+
+          {userRole === 'vendor' && (directBreakdown || directBreakdownLoading) && (
+            <div className="mb-3 p-3 rounded-xl bg-background/60 border border-orange-500/15 space-y-1.5">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Your Earnings (Fixed)</p>
+              {directBreakdownLoading && !directBreakdown ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Calculating...</p>
+              ) : directBreakdown && (
+                <>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Order Value</span>
+                    <span className="font-semibold text-foreground">₹{directBreakdown.rawOrderValue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Platform Commission</span>
+                    <span className="font-semibold text-destructive">− ₹{directBreakdown.rawCommission.toLocaleString()}</span>
+                  </div>
+                  {directBreakdown.vendorDiscountShare > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Your Discount Share</span>
+                      <span className="font-semibold text-destructive">− ₹{directBreakdown.vendorDiscountShare.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm pt-0.5">
+                    <span className="font-bold text-foreground">You'll Earn</span>
+                    <span className="font-black text-emerald-600 dark:text-emerald-400">₹{directBreakdown.vendorNet.toLocaleString()}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {userRole === 'vendor' && metadata.rfq_direct_order_status === 'pending_seller_accept' ? (
+            <div className="pt-3 border-t border-orange-500/20 flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 border-destructive/30 text-destructive font-bold text-xs"
+                disabled={isActioning}
+                onClick={async () => {
+                  const reason = prompt('Reason for declining this order (optional):') || '';
+                  setIsActioning(true);
+                  try {
+                    await api.rfqs.declineDirectOrder(metadata.rfq_id, reason);
+                    onRefresh();
+                  } catch (err: any) {
+                    setErrorMsg(err.message || 'Failed to decline this order');
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
+              >
+                Decline
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                disabled={isActioning}
+                onClick={async () => {
+                  setIsActioning(true);
+                  try {
+                    await api.rfqs.acceptDirectOrder(metadata.rfq_id);
+                    onRefresh();
+                  } catch (err: any) {
+                    setErrorMsg(err.message || 'Failed to accept this order');
+                  } finally {
+                    setIsActioning(false);
+                  }
+                }}
+              >
+                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✅ Accept Order'}
+              </Button>
+            </div>
+          ) : (
+            <Badge className={cn(
+              "w-full justify-center py-1 text-[10px] uppercase font-bold tracking-wider border",
+              metadata.rfq_direct_order_status === 'seller_declined'
+                ? "bg-destructive/10 text-destructive border-destructive/20"
+                : "bg-orange-500/10 text-orange-600 border-orange-500/20"
+            )}>
+              {metadata.rfq_direct_order_status === 'seller_declined' ? '✕ Declined by Seller' : userRole === 'vendor' ? '✓ Order Accepted' : 'Awaiting Seller Action'}
+            </Badge>
+          )}
+          {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
+        </div>
+      );
+    }
+
+    case 'direct_order_accepted':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 backdrop-blur-md p-4 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <p className="text-xs font-semibold text-foreground">
+              Seller accepted this Direct Order at ₹{Number(metadata.price).toLocaleString()} for {metadata.quantity} units. Payment request sent to buyer.
+            </p>
+          </div>
+        </div>
+      );
+
+    case 'direct_order_declined':
+      return (
+        <div className="w-full max-w-md my-2 rounded-2xl border border-destructive/25 bg-destructive/5 backdrop-blur-md p-4 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2">
+            <XCircle className="h-5 w-5 text-destructive shrink-0" />
+            <p className="text-xs font-semibold text-foreground">
+              Seller declined this Direct Order.{metadata.reason ? ` Reason: ${metadata.reason}` : ''}
+            </p>
+          </div>
         </div>
       );
 

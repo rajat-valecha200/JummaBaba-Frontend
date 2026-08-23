@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Save, Upload, CheckCircle, Clock, Building, MapPin, Phone, Mail, Globe, FileText, Shield, Info, Lock, Loader2, Eye } from 'lucide-react';
+import { Save, Upload, CheckCircle, Clock, Building, MapPin, Phone, Mail, Globe, FileText, Shield, Info, Lock, Loader2, Eye, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -128,6 +129,11 @@ export default function VendorProfile() {
   const saveGuard = useRef(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  // Direct Order (instant Buy Now) opt-out — on by default, saved independently of the main
+  // profile form so flipping it never bounces the account back to 'pending' re-verification.
+  const [acceptsDirectOrders, setAcceptsDirectOrders] = useState(true);
+  const [savingDirectOrderPref, setSavingDirectOrderPref] = useState(false);
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -194,6 +200,7 @@ export default function VendorProfile() {
         } catch { /* ignore */ }
 
         setStats({ productCount, orderCount, memberSince });
+        setAcceptsDirectOrders(data.accepts_direct_orders !== false);
       } catch (error) {
         console.error('Failed to fetch profile:', error);
       } finally {
@@ -261,6 +268,25 @@ export default function VendorProfile() {
     }
   };
 
+  const handleToggleDirectOrders = async (checked: boolean) => {
+    setAcceptsDirectOrders(checked); // optimistic
+    setSavingDirectOrderPref(true);
+    try {
+      await api.profiles.update(user!.id, { accepts_direct_orders: checked });
+      toast({
+        title: checked ? 'Direct Orders Enabled' : 'Direct Orders Disabled',
+        description: checked
+          ? 'Buyers can now instantly buy your products at the listed price.'
+          : 'Your products no longer show a Buy Now button — buyers can still send you an RFQ to negotiate.',
+      });
+    } catch (error: any) {
+      setAcceptsDirectOrders(!checked); // revert
+      toast({ title: 'Failed to update', description: error.message, variant: 'destructive' });
+    } finally {
+      setSavingDirectOrderPref(false);
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
@@ -294,6 +320,28 @@ export default function VendorProfile() {
           All buyer communications are handled by JummaBaba Support. Your contact details are not shared directly with buyers.
         </AlertDescription>
       </Alert>
+
+      {/* Direct Order (Buy Now) preference */}
+      <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <ShoppingCart className="h-5 w-5 text-primary mt-0.5" />
+              <div>
+                <p className="font-bold text-slate-900">Accept Direct Orders</p>
+                <p className="text-sm text-muted-foreground">
+                  When on, buyers can instantly buy your products at the listed price via "Buy Now" — no negotiation. Turn off if you only want to receive negotiated RFQs.
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={acceptsDirectOrders}
+              disabled={savingDirectOrderPref}
+              onCheckedChange={handleToggleDirectOrders}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Trust Badges Overview */}
       <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
