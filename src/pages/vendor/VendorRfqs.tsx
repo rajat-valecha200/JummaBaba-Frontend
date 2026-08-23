@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Eye, Search, Filter, MessageSquare, Clock, CheckCircle, Send, Info, HelpCircle, Package, ArrowRight, Loader2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ExpandableText } from '@/components/ui/ExpandableText';
@@ -77,7 +77,7 @@ interface Rfq {
 }
 
 function CatalogSlabDialogBanner({ rfq }: { rfq?: any }) {
-  const [slabInfo, setSlabInfo] = useState<{ price: number; range?: string } | null>(null);
+  const [slabInfo, setSlabInfo] = useState<{ price: number; range?: string; isEstimate?: boolean } | null>(null);
 
   useEffect(() => {
     if (!rfq) return;
@@ -97,17 +97,22 @@ function CatalogSlabDialogBanner({ rfq }: { rfq?: any }) {
           
           if (Array.isArray(slabs) && slabs.length > 0) {
             const qNum = Number(rfq.quantity) || 0;
-            const match = slabs.find((s: any) => {
+            const exactMatch = slabs.find((s: any) => {
               const min = s.minQty;
               const max = s.maxQty;
               if (max === null || max === undefined) return qNum >= min;
               return qNum >= min && qNum <= max;
-            }) || slabs[0];
+            });
+            // Slabs are stored ascending by minQty — the last entry is the largest-quantity,
+            // cheapest tier, so that's the right fallback when the qty exceeds every published
+            // range (not slabs[0], which would silently quote the most expensive tier).
+            const match = exactMatch || slabs[slabs.length - 1];
 
             if (match && isMounted) {
               setSlabInfo({
                 price: Number(match.pricePerUnit),
-                range: `${match.minQty}${match.maxQty ? `-${match.maxQty}` : '+'} units`
+                range: `${match.minQty}${match.maxQty ? `-${match.maxQty}` : '+'} units`,
+                isEstimate: !exactMatch
               });
             }
           }
@@ -128,7 +133,7 @@ function CatalogSlabDialogBanner({ rfq }: { rfq?: any }) {
       <div className="flex items-center justify-between font-bold text-amber-900 dark:text-amber-200">
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-          Catalog Slab Rate {slabInfo?.range ? `(${slabInfo.range})` : ''}:
+          {slabInfo?.isEstimate ? 'Above Published Tiers — Best Rate' : 'Catalog Slab Rate'} {slabInfo?.range ? `(${slabInfo.range})` : ''}:
         </span>
         <span className="font-mono text-sm text-amber-700 dark:text-amber-300 font-extrabold">
           {slabInfo ? `₹${slabInfo.price.toLocaleString()}` : 'Loading slab rate...'}
@@ -146,6 +151,7 @@ function CatalogSlabDialogBanner({ rfq }: { rfq?: any }) {
 
 export default function VendorRfqs() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -182,7 +188,11 @@ export default function VendorRfqs() {
             deliveryLocation: r.delivery_location || r.deliveryLocation || 'N/A',
             description: r.description || '',
             createdAt: r.created_at,
-            targetPrice: Number(r.target_price) || null,
+            // Prefer admin-negotiated price/qty (set via Adjust/Modify Terms with the buyer,
+            // before this RFQ was ever forwarded) over the buyer's original, possibly-superseded
+            // ask — the vendor must quote against what was actually agreed.
+            quantity: r.negotiated_quantity ?? r.quantity,
+            targetPrice: Number(r.negotiated_price ?? r.target_price) || null,
             status: (r.vendor_status || r.status || 'pending') as RfqStatus,
             response: details.price ? {
               price: Number(details.price) || 0,
@@ -206,6 +216,26 @@ export default function VendorRfqs() {
   useEffect(() => {
     fetchRfqs();
   }, []);
+
+  // Deep link from the chat's "Prepare Formal Quote" button (?open=<rfqId>) — jump straight
+  // to that specific RFQ's quote dialog instead of dropping the vendor on the plain list,
+  // which is useless once a vendor has many pending RFQs sitting in the queue.
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || rfqs.length === 0) return;
+
+    const target = rfqs.find((r) => String(r.id) === String(openId));
+    if (target) {
+      handleOpenResponse(target);
+    } else {
+      toast({ variant: 'destructive', title: 'RFQ not found', description: "This RFQ isn't in your list — it may have been withdrawn or already handled." });
+    }
+
+    // Clear the param so refreshing/closing the dialog doesn't reopen it.
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    setSearchParams(next, { replace: true });
+  }, [rfqs, searchParams]);
 
   const filteredRfqs = rfqs.filter((r) => {
     const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
@@ -666,9 +696,10 @@ export default function VendorRfqs() {
           <DialogHeader className="sr-only">
             <DialogTitle>Submit Quote</DialogTitle>
           </DialogHeader>
-          <QuoteForm 
-            onSubmit={handleSubmitResponse} 
-            isLoading={loading} 
+          <QuoteForm
+            rfqId={selectedRfq?.id}
+            onSubmit={handleSubmitResponse}
+            isLoading={loading}
             initialPrice={selectedRfq?.targetPrice}
             initialQuantity={selectedRfq?.quantity}
           />

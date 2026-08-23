@@ -177,7 +177,7 @@ export default function InvoicePage() {
               </div>
               {bd.discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-600 font-medium">
-                  <span>Agreed Discount ({bd.discountPercentage}%):</span>
+                  <span>Agreed Discount ({bd.discountLabel}):</span>
                   <span>-{formatPrice(bd.discountAmount)}</span>
                 </div>
               )}

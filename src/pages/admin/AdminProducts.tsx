@@ -30,7 +30,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, PRODUCT_IMAGE_PLACEHOLDER } from '@/lib/utils';
 import { ProductPreviewDialog } from '@/components/admin/ProductPreviewDialog';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -94,7 +94,7 @@ export default function AdminProducts() {
         supplierName: p.supplier_name || 'System Vendor',
         categoryId: p.category_id,
         category: p.category_id || p.category,
-        image: p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600',
+        image: p.images?.[0] || PRODUCT_IMAGE_PLACEHOLDER,
         submittedAt: p.created_at,
         minPrice: p.pricing_slabs?.[0]?.pricePerUnit || p.minPrice || 0,
         pricingSlabs: typeof p.pricing_slabs === 'string' ? JSON.parse(p.pricing_slabs) : p.pricing_slabs || [],
@@ -298,7 +298,7 @@ export default function AdminProducts() {
                 <TableRow key={product.id}>
                   <TableCell className="w-[280px] max-w-[280px]">
                     <div className="flex items-center gap-3 min-w-0">
-                      <img src={product.image} alt={product.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                      <img src={product.image} alt={product.name} className="w-10 h-10 rounded-lg object-cover shrink-0" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }} />
                       <span className="font-medium truncate block max-w-[200px]" title={product.name}>{product.name}</span>
                     </div>
                   </TableCell>

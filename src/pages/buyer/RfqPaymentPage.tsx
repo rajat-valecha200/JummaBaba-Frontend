@@ -89,20 +89,27 @@ export default function RfqPaymentPage() {
     );
   }
 
-  // Cost breakdown comes from the Admin-issued payment request (adminSendPaymentRequest on the
-  // backend) — it's the authoritative math (real commission rate, real discount coupon, if any).
-  // We never recompute this client-side.
+  // Cost breakdown comes from the backend (initiateOrderPayment, or the older
+  // adminSendPaymentRequest flow) — it's the authoritative math (real commission rate, real
+  // discount if admin attached one). We never recompute this client-side.
   const breakdown = rfq.response_details?.payment_breakdown || {};
   const hasBreakdown = Object.keys(breakdown).length > 0;
 
   const price = Number(breakdown.price ?? rfq.target_price ?? rfq.negotiated_price ?? 0);
   const quantity = Number(breakdown.quantity ?? rfq.quantity ?? 0);
   const baseValue = Number(breakdown.baseAmount ?? price * quantity);
-  const discountPercent = Number(breakdown.discountPercentage || 0);
   const discountAmount = Number(breakdown.discountAmount || 0);
+  // discountType/discountValue (flat ₹ or %) is the current shape from admin's per-quote
+  // discount; discountPercentage is the older shape from adminSendPaymentRequest's coupon flow.
+  const discountLabel = breakdown.discountType === 'flat'
+    ? `₹${breakdown.discountValue} flat OFF`
+    : `${breakdown.discountValue ?? breakdown.discountPercentage ?? 0}% OFF`;
   const discountedBase = Number(breakdown.discountedBase ?? baseValue - discountAmount);
   const platformFee = Number(breakdown.platformFee || 0);
   const gst = Number(breakdown.gst || 0);
+  // GST rate is admin-configurable — derive the displayed % from the actual bill amounts
+  // instead of assuming a fixed rate, which would lie once admin changes it in Settings.
+  const gstRate = discountedBase > 0 ? Math.round((gst / discountedBase) * 100) : 18;
   const finalTotal = Number(breakdown.finalAmount ?? discountedBase + platformFee + gst);
 
   const currentStep = rfq.negotiation_step;
@@ -238,9 +245,9 @@ export default function RfqPaymentPage() {
                 <span className="font-bold">{formatPrice(baseValue)}</span>
               </div>
 
-              {discountPercent > 0 && (
+              {discountAmount > 0 && (
                 <div className="flex justify-between font-semibold text-emerald-600">
-                  <span>Coupon Discount ({discountPercent}% OFF):</span>
+                  <span>Discount ({discountLabel}):</span>
                   <span>-{formatPrice(discountAmount)}</span>
                 </div>
               )}
@@ -255,7 +262,7 @@ export default function RfqPaymentPage() {
               )}
 
               <div className="flex justify-between font-medium">
-                <span className="text-muted-foreground">GST Statutory Tax (18%):</span>
+                <span className="text-muted-foreground">GST Statutory Tax ({gstRate}%):</span>
                 <span>{formatPrice(gst)}</span>
               </div>
 
@@ -318,20 +325,21 @@ export default function RfqPaymentPage() {
         {/* RIGHT COLUMN (5 Cols - 40% Sticky Width): Coupon, Bank Details, QR Slot, UTR Submission */}
         <div className="lg:col-span-5 space-y-6">
 
-          {/* 1. Applied Coupon Panel (discount is issued by Admin with the billing statement, not entered here) */}
-          {discountPercent > 0 && (
+          {/* 1. Applied Discount Panel — this is an admin-attached per-order discount issued
+                 with the billing statement, not a buyer-entered coupon code. */}
+          {discountAmount > 0 && (
             <Card className="border-border/60 shadow-sm rounded-2xl overflow-hidden">
               <CardHeader className="bg-muted/30 pb-3 border-b border-border/40">
                 <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-bold text-sm">
-                  <Ticket className="h-4 w-4 text-indigo-600" /> Sourcing Coupon Applied
+                  <Ticket className="h-4 w-4 text-indigo-600" /> Discount Applied
                 </div>
               </CardHeader>
               <CardContent className="p-5">
                 <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-600 font-bold">
                   <span className="flex items-center gap-1.5">
-                    <Sparkles className="h-4 w-4" /> {rfq.response_details?.coupon_code || 'Discount'} Active
+                    <Sparkles className="h-4 w-4" /> {rfq.response_details?.coupon_code || 'Special Pricing'} Active
                   </span>
-                  <span>{discountPercent}% OFF</span>
+                  <span>{discountLabel}</span>
                 </div>
               </CardContent>
             </Card>

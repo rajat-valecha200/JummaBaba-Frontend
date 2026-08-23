@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useWishlist } from '@/contexts/WishlistContext';
 import { api, normalizeProduct } from '@/lib/api';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, PRODUCT_IMAGE_PLACEHOLDER } from '@/lib/utils';
 
 export default function BuyerWishlist() {
   const { wishlist, removeFromWishlist, clearWishlist } = useWishlist();
@@ -111,9 +111,10 @@ export default function BuyerWishlist() {
                   {/* Product Image */}
                   <Link to={`/product/${product.slug}`} className="sm:w-40 aspect-square sm:aspect-auto sm:h-40 flex-shrink-0">
                     <img
-                      src={product.images[0]}
+                      src={product.images[0] || PRODUCT_IMAGE_PLACEHOLDER}
                       alt={product.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }}
                     />
                   </Link>
 

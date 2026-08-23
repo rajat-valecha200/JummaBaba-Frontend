@@ -52,7 +52,7 @@ import { useWishlist } from '@/contexts/WishlistContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { api } from '@/lib/api';
-import { formatPrice, formatNumber, cn } from '@/lib/utils';
+import { formatPrice, formatNumber, cn, PRODUCT_IMAGE_PLACEHOLDER } from '@/lib/utils';
 
 // Set to false for RFQ-Only sourcing mode (Hides direct Buy Now button)
 const SHOW_BUY_NOW_BUTTON = false;
@@ -164,10 +164,32 @@ export default function ProductDetailPage() {
       navigate('/login');
       return;
     }
+    // The manual "Get Instant Quote" button on this page blocks vendors from opening the RFQ
+    // dialog at all — this deep-link path (Home page card → ?quote=1) never had that same
+    // check, so a vendor arriving this way would see the dialog open normally and only get
+    // blocked (or not) on submit instead of immediately, like every other entry point.
+    if (user.role === 'vendor') {
+      toast({
+        title: "You can't purchase as a vendor",
+        description: 'Please create a buyer profile to place orders.',
+        variant: 'destructive',
+      });
+      setSearchParams({}, { replace: true });
+      return;
+    }
 
     const initialQty = product.moq || 1;
     const slabs = product.pricingSlabs || [];
-    const tier = slabs.find((s: any) => initialQty >= s.minQty && (s.maxQty === null || initialQty <= s.maxQty)) || slabs[0];
+    // If quantity exceeds every published slab, fall back to the last (largest-quantity,
+    // cheapest) tier as the best available rate — never the first/most-expensive one, since
+    // ordering more should never suggest a worse price.
+    const tier = slabs.find((s: any) => initialQty >= s.minQty && (s.maxQty === null || initialQty <= s.maxQty)) || slabs[slabs.length - 1];
+    // Reset sample-request mode — this is always a normal RFQ, never a sample. Without this,
+    // if isSampleRequest was left `true` from a previous dialog on this same page (React
+    // Router reuses the component instance across /product/:slug navigations, so state isn't
+    // automatically reset), the description would get silently prefixed "[SAMPLE REQUEST]"
+    // and the dialog would show sample copy instead of a normal RFQ.
+    setIsSampleRequest(false);
     setRfqForm({
       quantity: String(initialQty),
       unit: product.unit,
@@ -203,10 +225,13 @@ export default function ProductDetailPage() {
   // Removed UnderConstructionModal logic for F-006
 
   const getActiveTier = (qty: number) => {
-    if (!product.pricingSlabs) return null;
+    if (!product.pricingSlabs || product.pricingSlabs.length === 0) return null;
+    // If quantity exceeds every published slab, fall back to the last (largest-quantity,
+    // cheapest) tier as the best available rate — never the first/most-expensive one, since
+    // ordering more should never suggest a worse price.
     return product.pricingSlabs.find(slab =>
       qty >= slab.minQty && (slab.maxQty === null || qty <= slab.maxQty)
-    ) || product.pricingSlabs[0];
+    ) || product.pricingSlabs[product.pricingSlabs.length - 1];
   };
 
   const activeTier = getActiveTier(quantity || product.moq);
@@ -360,8 +385,16 @@ export default function ProductDetailPage() {
   };
 
   const handleSubmitRfq = async () => {
-    if (!rfqForm.quantity || !rfqForm.deliveryLocation) {
-      toast({ title: 'Please fill required fields', variant: 'destructive' });
+    // Deep-linking here from a "Get Instant Quote" card (Home page → ?quote=1) pre-fills
+    // quantity/price so the dialog LOOKS ready to submit, but Delivery Location is always
+    // blank either way — a generic "fill required fields" toast here reads as a mysterious
+    // failure when the field that's actually missing isn't visually obvious. Name it.
+    if (!rfqForm.quantity) {
+      toast({ title: 'Quantity is required', variant: 'destructive' });
+      return;
+    }
+    if (!rfqForm.deliveryLocation) {
+      toast({ title: 'Delivery Location is required', description: 'Please enter where this order should be delivered.', variant: 'destructive' });
       return;
     }
 
@@ -424,9 +457,10 @@ export default function ProductDetailPage() {
           <div className="space-y-4">
             <div className="relative aspect-square bg-card rounded-lg border overflow-hidden group">
               <img
-                src={product.images[selectedImage]}
+                src={product.images[selectedImage] || PRODUCT_IMAGE_PLACEHOLDER}
                 alt={product.name}
                 className="w-full h-full object-cover"
+                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }}
               />
               <Button
                 variant="secondary"
@@ -442,9 +476,10 @@ export default function ProductDetailPage() {
             <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
               <DialogContent className="max-w-4xl p-0 bg-black/90 border-none flex items-center justify-center h-[80vh] overflow-hidden rounded-3xl">
                 <img
-                  src={product.images[selectedImage]}
+                  src={product.images[selectedImage] || PRODUCT_IMAGE_PLACEHOLDER}
                   alt={product.name}
                   className="max-w-full max-h-[75vh] object-contain rounded-2xl animate-in zoom-in-95 duration-200"
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }}
                 />
               </DialogContent>
             </Dialog>
@@ -460,6 +495,7 @@ export default function ProductDetailPage() {
                     src={image}
                     alt={`${product.name} ${index + 1}`}
                     className="w-full h-full object-cover"
+                    onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }}
                   />
                 </button>
               ))}
@@ -539,7 +575,7 @@ export default function ProductDetailPage() {
 
             {/* Checkout Dialog */}
             <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold">Complete Your Order</DialogTitle>
                   <DialogDescription>
@@ -697,7 +733,7 @@ export default function ProductDetailPage() {
 
             {/* RFQ Dialog */}
             <Dialog open={rfqOpen} onOpenChange={(open) => { setRfqOpen(open); if (!open) setIsSampleRequest(false); }}>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{isSampleRequest ? 'Request a Sample' : 'Request for Quotation'}</DialogTitle>
                   <DialogDescription>
@@ -726,14 +762,17 @@ export default function ProductDetailPage() {
                           const newQty = e.target.value;
                           const qNum = parseInt(newQty) || 0;
 
-                          // Find matching slab
+                          // Find matching slab. If quantity exceeds every published slab, fall
+                          // back to the last (largest-quantity, cheapest) tier — never the
+                          // first/most-expensive one, since ordering more should never suggest
+                          // a worse price.
                           const slabs = product?.pricingSlabs || [];
                           const matchedSlab = slabs.find((s: any) => {
                             const min = s.minQty;
                             const max = s.maxQty;
                             if (max === null || max === undefined) return qNum >= min;
                             return qNum >= min && qNum <= max;
-                          }) || slabs[0];
+                          }) || slabs[slabs.length - 1];
 
                           const autoPrice = matchedSlab ? String(matchedSlab.pricePerUnit) : rfqForm.targetPrice;
 
@@ -774,23 +813,62 @@ export default function ProductDetailPage() {
                     {(() => {
                       const qNum = parseInt(rfqForm.quantity) || 0;
                       const slabs = product?.pricingSlabs || [];
-                      const matchedSlab = slabs.find((s: any) => {
+                      const exactMatch = slabs.find((s: any) => {
                         const min = s.minQty;
                         const max = s.maxQty;
                         if (max === null || max === undefined) return qNum >= min;
                         return qNum >= min && qNum <= max;
-                      }) || slabs[0];
+                      });
+                      // Quantity exceeds every published slab — fall back to the last (largest,
+                      // cheapest) tier rather than the first, since ordering more should never
+                      // suggest a worse price, and say so rather than presenting it as an exact match.
+                      const matchedSlab = exactMatch || slabs[slabs.length - 1];
 
                       if (!matchedSlab) return null;
                       return (
                         <div className="mt-1.5 p-2 bg-orange-500/10 border border-orange-500/20 rounded-lg text-xs flex items-center justify-between text-orange-700 dark:text-orange-300 font-medium">
-                          <span>Auto-filled from Slab ({matchedSlab.minQty}{matchedSlab.maxQty ? `-${matchedSlab.maxQty}` : '+'} units)</span>
+                          <span>
+                            {exactMatch
+                              ? `Auto-filled from Slab (${matchedSlab.minQty}${matchedSlab.maxQty ? `-${matchedSlab.maxQty}` : '+'} units)`
+                              : `Above published tiers — using best available rate (${matchedSlab.minQty}${matchedSlab.maxQty ? `-${matchedSlab.maxQty}` : '+'} units)`}
+                          </span>
                           <span className="font-black font-mono">₹{matchedSlab.pricePerUnit}/{product.unit || 'unit'}</span>
                         </div>
                       );
                     })()}
                   </div>
                   )}
+
+                  {(() => {
+                    const estQty = parseInt(rfqForm.quantity) || 0;
+                    const estPrice = isSampleRequest
+                      ? Number(product.samplePrice || 0)
+                      : Number(rfqForm.targetPrice) || 0;
+                    if (!estQty || !estPrice) return null;
+                    const estBase = estQty * estPrice;
+                    const estGst = estBase * 0.18;
+                    const estTotal = estBase + estGst;
+                    return (
+                      <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Estimated Cost (Pre-Negotiation)</p>
+                        <div className="flex justify-between text-slate-600">
+                          <span>Product Base Cost ({estQty} × {formatPrice(estPrice)})</span>
+                          <span className="font-semibold text-slate-800">{formatPrice(estBase)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600">
+                          <span>GST (18%)</span>
+                          <span className="font-semibold text-slate-800">{formatPrice(estGst)}</span>
+                        </div>
+                        <div className="flex justify-between font-black text-sm border-t border-slate-200 pt-1.5 mt-1.5">
+                          <span className="text-slate-900">Estimated Total</span>
+                          <span className="text-b2b-orange">{formatPrice(estTotal)}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground pt-1">
+                          Final amount depends on the vendor's confirmed quote and will be shown on your billing statement before payment.
+                        </p>
+                      </div>
+                    );
+                  })()}
 
                   <div>
                     <Label htmlFor="rfqLocation">Delivery Location *</Label>

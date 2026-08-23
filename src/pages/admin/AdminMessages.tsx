@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
+import {
   Send,
-  Search, 
-  MoreVertical, 
+  Search,
+  MoreVertical,
   Check,
-  CheckCheck, 
+  CheckCheck,
   ArrowLeft,
   Shield,
   Clock,
@@ -26,7 +26,8 @@ import {
   AlertTriangle,
   Package,
   Tag,
-  Settings
+  Settings,
+  Eye
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { OrderGroupSummaryPanel } from '@/components/orders/OrderGroupSummaryPanel';
@@ -100,16 +101,16 @@ function CatalogSlabBadge({ metadata }: { metadata: any }) {
     const fetchSlab = async () => {
       try {
         const products = await api.products.list();
-        const found = products.find((p: any) => 
+        const found = products.find((p: any) =>
           (metadata.product_id && String(p.id) === String(metadata.product_id)) ||
           (metadata.product_name && p.name && p.name.toLowerCase().trim() === metadata.product_name.toLowerCase().trim())
         );
 
         if (found && isMounted) {
-          const slabs = typeof found.pricing_slabs === 'string' 
-            ? JSON.parse(found.pricing_slabs) 
+          const slabs = typeof found.pricing_slabs === 'string'
+            ? JSON.parse(found.pricing_slabs)
             : (found.pricing_slabs || found.pricingSlabs || []);
-          
+
           if (Array.isArray(slabs) && slabs.length > 0) {
             const qNum = Number(metadata.quantity) || 0;
             const match = slabs.find((s: any) => {
@@ -145,9 +146,9 @@ function CatalogSlabBadge({ metadata }: { metadata: any }) {
   );
 }
 
-function CatalogSlabDialogBanner({ metadata }: { metadata?: any }) {
+function CatalogSlabDialogBanner({ metadata, liveQuantity }: { metadata?: any; liveQuantity?: string | number }) {
   const meta = metadata || {};
-  const [slabInfo, setSlabInfo] = useState<{ price: number; range?: string } | null>(() => {
+  const [slabInfo, setSlabInfo] = useState<{ price: number; range?: string; isEstimate?: boolean } | null>(() => {
     if (meta.catalog_slab_price) {
       return { price: Number(meta.catalog_slab_price), range: meta.catalog_slab_range };
     }
@@ -155,7 +156,10 @@ function CatalogSlabDialogBanner({ metadata }: { metadata?: any }) {
   });
 
   useEffect(() => {
-    if (meta.catalog_slab_price) {
+    // liveQuantity (the "Adjusted Sourcing Volume" field admin is actively typing into) takes
+    // priority — this banner is meant to reflect what admin is CURRENTLY setting, not freeze on
+    // whatever quantity the RFQ started with when the dialog first opened.
+    if (meta.catalog_slab_price && !liveQuantity) {
       setSlabInfo({ price: Number(meta.catalog_slab_price), range: meta.catalog_slab_range });
       return;
     }
@@ -164,30 +168,35 @@ function CatalogSlabDialogBanner({ metadata }: { metadata?: any }) {
     const fetchSlab = async () => {
       try {
         const products = await api.products.list();
-        const found = products.find((p: any) => 
+        const found = products.find((p: any) =>
           (meta.product_id && String(p.id) === String(meta.product_id)) ||
           (meta.product_name && p.name && p.name.toLowerCase().trim() === meta.product_name.toLowerCase().trim()) ||
           (meta.productName && p.name && p.name.toLowerCase().trim() === meta.productName.toLowerCase().trim())
         );
 
         if (found && isMounted) {
-          const slabs = typeof found.pricing_slabs === 'string' 
-            ? JSON.parse(found.pricing_slabs) 
+          const slabs = typeof found.pricing_slabs === 'string'
+            ? JSON.parse(found.pricing_slabs)
             : (found.pricing_slabs || found.pricingSlabs || []);
-          
+
           if (Array.isArray(slabs) && slabs.length > 0) {
-            const qNum = Number(meta.quantity || meta.requested_quantity || meta.qty) || 0;
-            const match = slabs.find((s: any) => {
+            const qNum = Number(liveQuantity || meta.quantity || meta.requested_quantity || meta.qty) || 0;
+            const exactMatch = slabs.find((s: any) => {
               const min = s.minQty;
               const max = s.maxQty;
               if (max === null || max === undefined) return qNum >= min;
               return qNum >= min && qNum <= max;
-            }) || slabs[0];
+            });
+            // Slabs are ascending by minQty — the last entry is the largest-quantity, cheapest
+            // tier, so that's the right fallback when qty exceeds every published range (not
+            // slabs[0], which would quote the smallest/most expensive tier instead).
+            const match = exactMatch || slabs[slabs.length - 1];
 
             if (match && isMounted) {
               setSlabInfo({
                 price: Number(match.pricePerUnit),
-                range: `${match.minQty}${match.maxQty ? `-${match.maxQty}` : '+'} units`
+                range: `${match.minQty}${match.maxQty ? `-${match.maxQty}` : '+'} units`,
+                isEstimate: !exactMatch
               });
             }
           }
@@ -199,7 +208,7 @@ function CatalogSlabDialogBanner({ metadata }: { metadata?: any }) {
 
     fetchSlab();
     return () => { isMounted = false; };
-  }, [meta.product_id, meta.product_name, meta.productName, meta.quantity, meta.requested_quantity, meta.catalog_slab_price]);
+  }, [meta.product_id, meta.product_name, meta.productName, meta.quantity, meta.requested_quantity, meta.catalog_slab_price, liveQuantity]);
 
   const targetPrice = meta.target_price || meta.targetPrice || meta.linkedProductPrice;
 
@@ -208,7 +217,7 @@ function CatalogSlabDialogBanner({ metadata }: { metadata?: any }) {
       <div className="flex items-center justify-between font-bold text-amber-900 dark:text-amber-200">
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-          Catalog Slab Rate {slabInfo?.range ? `(${slabInfo.range})` : ''}:
+          {slabInfo?.isEstimate ? 'Above Published Tiers — Best Rate' : 'Catalog Slab Rate'} {slabInfo?.range ? `(${slabInfo.range})` : ''}:
         </span>
         <span className="font-mono text-sm text-amber-700 dark:text-amber-300 font-extrabold">
           {slabInfo ? `₹${slabInfo.price.toLocaleString()}` : 'Loading slab rate...'}
@@ -227,13 +236,64 @@ function CatalogSlabDialogBanner({ metadata }: { metadata?: any }) {
 function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegotiation, negotiationStep }: SourcingActionCardProps) {
   const metadata = message.metadata || {};
   const cardType = metadata.type;
-  
+
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>(metadata.supplier_id || '');
   const [isActioning, setIsActioning] = useState<boolean>(false);
   const [disputeNotes, setDisputeNotes] = useState<string>('');
   const [showDisputeInput, setShowDisputeInput] = useState<boolean>(false);
+  // Optional one-off discount admin can attach while approving this specific quote — applied to
+  // this RFQ's own bill once the buyer accepts. Not a reusable marketing coupon code. Admin may
+  // want to give a % off or just say "₹50 off" directly, so both are supported.
+  const [approveDiscountType, setApproveDiscountType] = useState<'percentage' | 'flat'>('percentage');
+  const [approveDiscountValue, setApproveDiscountValue] = useState<string>('');
+  // Who eats the discount — the seller's payout, the platform's own commission, or split
+  // evenly. Admin picks per-quote; there's no single fixed platform rule for this.
+  const [approveDiscountAbsorbedBy, setApproveDiscountAbsorbedBy] = useState<'seller' | 'platform' | 'split'>('seller');
   const [errorMsg, setErrorMsg] = useState<string>('');
+
+  // Money breakdown for admin reviewing a vendor's quote before approving it — buyer's total,
+  // platform commission, vendor's net — fetched lazily behind the eye button so it never fires
+  // for every message in the thread, only the one an admin is actually about to act on.
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [breakdown, setBreakdown] = useState<any>(null);
+
+  const toggleBreakdown = async () => {
+    if (showBreakdown) { setShowBreakdown(false); return; }
+    setShowBreakdown(true);
+    if (breakdown) return;
+    setBreakdownLoading(true);
+    try {
+      const result = await api.rfqs.getQuoteEstimate(metadata.rfq_id, Number(metadata.price));
+      setBreakdown(result);
+    } catch (err) {
+      setErrorMsg('Could not load the financial breakdown for this quote.');
+    } finally {
+      setBreakdownLoading(false);
+    }
+  };
+
+  // As admin types a discount (% or flat ₹) while about to approve, show the resulting numbers
+  // live — "how much will the buyer end up paying, how much does that leave the vendor and the
+  // platform" — instead of admin having to guess and only find out after sending it.
+  useEffect(() => {
+    if (cardType !== 'vendor_quote' || userRole !== 'admin') return;
+    if (!(!metadata.moderation_status || metadata.moderation_status === 'quote_pending')) return;
+    setShowBreakdown(true);
+    setBreakdownLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await api.rfqs.getQuoteEstimate(metadata.rfq_id, Number(metadata.price), approveDiscountType, Number(approveDiscountValue) || 0, approveDiscountAbsorbedBy);
+        setBreakdown(result);
+      } catch (err) {
+        setErrorMsg('Could not load the financial breakdown for this quote.');
+      } finally {
+        setBreakdownLoading(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [approveDiscountType, approveDiscountValue, approveDiscountAbsorbedBy]);
 
   useEffect(() => {
     if (cardType === 'rfq_specs' && userRole === 'admin') {
@@ -324,7 +384,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Moderated Sourcing Inquiry</p>
             </div>
           </div>
-          
+
           <div className="space-y-2.5 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Product Target:</span>
@@ -388,7 +448,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                     <span className="text-[10px] uppercase text-muted-foreground font-bold block mb-1">Target Supplier (Buyer Choice)</span>
                     <span className="font-semibold text-foreground">{metadata.supplier_name || 'Selected Vendor'}</span>
                   </div>
-                  <Button 
+                  <Button
                     onClick={handleForward}
                     className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
                     disabled={isActioning}
@@ -402,30 +462,30 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                   <label className="text-[10px] uppercase font-bold text-muted-foreground block">Select Verified Supplier to Forward</label>
                   {suppliers.length > 0 ? (
                     <div className="flex flex-col gap-2">
-                      <select 
-                      value={selectedSupplierId}
-                      onChange={(e) => setSelectedSupplierId(e.target.value)}
-                      className="w-full text-xs bg-muted border border-border rounded-lg h-9 px-2 focus:ring-1 focus:ring-cyan-500 font-medium"
-                    >
-                      {suppliers.map(s => (
-                        <option key={s.id} value={s.id}>{s.business_name || s.full_name}</option>
-                      ))}
-                    </select>
-                    <Button 
-                      onClick={handleForward}
-                      className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
-                      disabled={isActioning}
-                    >
-                      {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "⚡ Forward RFQ to Supplier"}
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-[10px] text-amber-500 italic">No approved suppliers found to forward to.</p>
-                )}
-              </>
-            )}
-          </div>
-        )}
+                      <select
+                        value={selectedSupplierId}
+                        onChange={(e) => setSelectedSupplierId(e.target.value)}
+                        className="w-full text-xs bg-muted border border-border rounded-lg h-9 px-2 focus:ring-1 focus:ring-cyan-500 font-medium"
+                      >
+                        {suppliers.map(s => (
+                          <option key={s.id} value={s.id}>{s.business_name || s.full_name}</option>
+                        ))}
+                      </select>
+                      <Button
+                        onClick={handleForward}
+                        className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                        disabled={isActioning}
+                      >
+                        {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "⚡ Forward RFQ to Supplier"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-amber-500 italic">No approved suppliers found to forward to.</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {userRole !== 'admin' && (
             <div className="mt-4 text-center space-y-2">
@@ -434,7 +494,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               </Badge>
               {userRole === 'vendor' && (!metadata.rfq_status || metadata.rfq_status === 'pending') && (
                 <div className="pt-2 border-t border-cyan-500/10">
-                  <Button 
+                  <Button
                     onClick={async () => {
                       try {
                         setIsActioning(true);
@@ -462,15 +522,89 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
     case 'vendor_quote':
       return (
         <div className="w-full max-w-md my-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center gap-2 border-b border-emerald-500/20 pb-3 mb-4">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="h-5 w-5" />
+          <div className="flex items-center justify-between gap-2 border-b border-emerald-500/20 pb-3 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-foreground">Official Commercial Quotation</h4>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Direct Vendor Quote</p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-bold text-sm text-foreground">Official Commercial Quotation</h4>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Direct Vendor Quote</p>
-            </div>
+            {userRole === 'admin' && (
+              <button
+                type="button"
+                onClick={toggleBreakdown}
+                title="View money breakdown — buyer pays, vendor gets, platform earns"
+                className={cn(
+                  "shrink-0 h-8 w-8 rounded-lg flex items-center justify-center transition-colors",
+                  showBreakdown ? "bg-emerald-600 text-white" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+                )}
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+            )}
           </div>
+
+          {userRole === 'admin' && showBreakdown && (
+            <div className="mb-4 p-3.5 rounded-xl bg-background/60 border border-emerald-500/15 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+              {/* Only show the full loading state before we have ANY data yet. Once numbers are
+                  on screen, keep showing them while a re-fetch (e.g. admin still typing a
+                  discount) is in flight instead of swapping the whole block out for a spinner
+                  and back on every keystroke — that's what was causing the visible flicker. */}
+              {breakdownLoading && !breakdown ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Calculating...</p>
+              ) : breakdown ? (
+                <>
+                  {breakdownLoading && (
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1.5 -mt-0.5 mb-1">
+                      <Loader2 className="h-2.5 w-2.5 animate-spin" /> Updating...
+                    </p>
+                  )}
+                  {/* Buyer's bill, top to bottom: order total, tax, then the discount coming
+                      off it, ending in what buyer actually pays. */}
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Order Total ({breakdown.quantity} units)</span>
+                    <span className="font-semibold text-foreground">₹{breakdown.rawOrderValue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">GST ({breakdown.gstRate}%)</span>
+                    <span className="font-semibold text-foreground">₹{breakdown.gst.toLocaleString()}</span>
+                  </div>
+                  {breakdown.discountAmount > 0 && (
+                    <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                      <span>Discount ({breakdown.discountType === 'flat' ? `₹${breakdown.discountValue} flat` : `${breakdown.discountValue}%`})</span>
+                      <span>− ₹{breakdown.discountAmount.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xs pb-2 border-b border-dashed">
+                    <span className="font-bold text-foreground">Buyer Pays (Total)</span>
+                    <span className="font-black text-foreground">₹{breakdown.buyerTotal.toLocaleString()}</span>
+                  </div>
+
+                  {/* Platform's and vendor's own split of that order — separate from what the
+                      buyer sees above. */}
+                  <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground pt-0.5">Platform & Vendor Split</p>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Platform Earns (Commission)</span>
+                    <span className="font-bold text-primary">₹{breakdown.commission.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Vendor Keeps</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{breakdown.vendorNet.toLocaleString()}</span>
+                  </div>
+                  {breakdown.discountAmount > 0 && (
+                    <p className="text-[10px] text-muted-foreground italic">
+                      Discount absorbed by: {breakdown.discountAbsorbedBy === 'platform' ? 'Platform (commission reduced)' : breakdown.discountAbsorbedBy === 'split' ? 'Split 50-50 between seller & platform' : "Seller (vendor's payout reduced)"}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-destructive">Could not load breakdown.</p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2.5 text-xs">
             <div className="flex justify-between">
@@ -491,7 +625,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
 
           {userRole === 'buyer' && (
             <div className="mt-4 pt-4 border-t border-emerald-500/20 flex gap-2">
-              <Button 
+              <Button
                 onClick={handleAcceptQuote}
                 className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
                 disabled={isActioning}
@@ -503,7 +637,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
 
           {userRole === 'vendor' && (
             <div className="mt-4 pt-4 border-t border-emerald-500/20">
-              <Button 
+              <Button
                 onClick={() => {
                   const cp = prompt('Propose Counter Price (₹):');
                   const cq = prompt('Propose Counter Quantity:');
@@ -531,44 +665,117 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           )}
 
           {userRole === 'admin' && (!metadata.moderation_status || metadata.moderation_status === 'quote_pending') && (
-            <div className="mt-4 pt-4 border-t border-emerald-500/20 flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1 text-xs h-9 border-destructive/30 text-destructive hover:bg-destructive/5 font-semibold"
-                disabled={isActioning}
-                onClick={async () => {
-                  const reason = prompt('Reason for rejecting this quote:');
-                  if (!reason) return;
-                  setIsActioning(true);
-                  try {
-                    await api.rfqs.approveQuote(metadata.rfq_id, { status: 'rejected', rejection_reason: reason });
-                    onRefresh?.();
-                  } catch (err: any) {
-                    setErrorMsg(err.message || 'Failed to reject quote');
-                  } finally {
-                    setIsActioning(false);
-                  }
-                }}
-              >
-                Reject Quote
-              </Button>
-              <Button
-                className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
-                disabled={isActioning}
-                onClick={async () => {
-                  setIsActioning(true);
-                  try {
-                    await api.rfqs.approveQuote(metadata.rfq_id, { status: 'approved' });
-                    onRefresh?.();
-                  } catch (err: any) {
-                    setErrorMsg(err.message || 'Failed to approve quote');
-                  } finally {
-                    setIsActioning(false);
-                  }
-                }}
-              >
-                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Approve Quote'}
-              </Button>
+            <div className="mt-4 pt-4 border-t border-emerald-500/20 space-y-2">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discount to buyer (optional)</label>
+                <div className="flex gap-1.5">
+                  <div className="flex rounded-lg border overflow-hidden shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setApproveDiscountType('percentage')}
+                      className={cn(
+                        "px-2.5 text-xs font-bold transition-colors",
+                        approveDiscountType === 'percentage' ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setApproveDiscountType('flat')}
+                      className={cn(
+                        "px-2.5 text-xs font-bold transition-colors border-l",
+                        approveDiscountType === 'flat' ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      ₹
+                    </button>
+                  </div>
+                  <Input
+                    type="number"
+                    min="0"
+                    max={approveDiscountType === 'percentage' ? 100 : undefined}
+                    step="0.5"
+                    placeholder={approveDiscountType === 'percentage' ? 'e.g. 10' : 'e.g. 50'}
+                    value={approveDiscountValue}
+                    onChange={(e) => {
+                      // The backend clamps a percentage discount to 100 too (so it's never
+                      // wrong even if this is somehow bypassed), but doing it here too means
+                      // admin never even sees a nonsense value like "500%" sitting in the field.
+                      let v = e.target.value;
+                      if (approveDiscountType === 'percentage' && v !== '' && Number(v) > 100) v = '100';
+                      setApproveDiscountValue(v);
+                    }}
+                    className="h-8 text-xs flex-1"
+                  />
+                </div>
+              </div>
+
+              {Number(approveDiscountValue) > 0 && (
+                <div className="space-y-1 animate-in fade-in duration-150">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Who absorbs this discount?</label>
+                  <div className="flex rounded-lg border overflow-hidden">
+                    {([
+                      { id: 'seller', label: 'Seller' },
+                      { id: 'platform', label: 'Platform' },
+                      { id: 'split', label: '50-50' }
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setApproveDiscountAbsorbedBy(opt.id)}
+                        className={cn(
+                          "flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-colors",
+                          opt.id !== 'seller' && "border-l",
+                          approveDiscountAbsorbedBy === opt.id ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 text-xs h-9 border-destructive/30 text-destructive hover:bg-destructive/5 font-semibold"
+                  disabled={isActioning}
+                  onClick={async () => {
+                    const reason = prompt('Reason for rejecting this quote:');
+                    if (!reason) return;
+                    setIsActioning(true);
+                    try {
+                      await api.rfqs.approveQuote(metadata.rfq_id, { status: 'rejected', rejection_reason: reason });
+                      onRefresh?.();
+                    } catch (err: any) {
+                      setErrorMsg(err.message || 'Failed to reject quote');
+                    } finally {
+                      setIsActioning(false);
+                    }
+                  }}
+                >
+                  Reject Quote
+                </Button>
+                <Button
+                  className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                  disabled={isActioning}
+                  onClick={async () => {
+                    setIsActioning(true);
+                    try {
+                      await api.rfqs.approveQuote(metadata.rfq_id, { status: 'approved', discountType: approveDiscountType, discountValue: Number(approveDiscountValue) || 0, discountAbsorbedBy: approveDiscountAbsorbedBy });
+                      onRefresh?.();
+                    } catch (err: any) {
+                      setErrorMsg(err.message || 'Failed to approve quote');
+                    } finally {
+                      setIsActioning(false);
+                    }
+                  }}
+                >
+                  {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Approve Quote'}
+                </Button>
+              </div>
             </div>
           )}
           {userRole === 'admin' && metadata.moderation_status === 'quote_approved' && (
@@ -609,14 +816,36 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </div>
 
           <div className="space-y-2.5 text-xs">
+            {/* Admin sees both sides — vendor's actual quoted price (what they agreed to
+                supply at) and what the buyer actually paid, which can differ if a discount
+                was attached (see discountAbsorbedBy). Falls back to the older single `amount`
+                field for messages sent before this split existed. */}
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Order Value:</span>
-              <span className="font-bold text-indigo-600 dark:text-indigo-400">₹{Number(metadata.amount).toLocaleString()}</span>
+              <span className="text-muted-foreground">Vendor's Order Value:</span>
+              <span className="font-bold text-indigo-600 dark:text-indigo-400">₹{Number(metadata.vendorAmount ?? metadata.amount).toLocaleString()}</span>
             </div>
+            {metadata.buyerAmount !== undefined && Number(metadata.buyerAmount) !== Number(metadata.vendorAmount) && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Buyer's Total Paid:</span>
+                <span className="font-semibold text-foreground">₹{Number(metadata.buyerAmount).toLocaleString()}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Quantity:</span>
               <span className="font-semibold text-foreground">{metadata.quantity} {metadata.unit}</span>
             </div>
+            {metadata.leadTime && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Vendor's Lead Time:</span>
+                <span className="font-semibold text-foreground">{metadata.leadTime}</span>
+              </div>
+            )}
+            {metadata.vendorNotes && (
+              <div className="mt-2 pt-2 border-t border-indigo-500/10">
+                <span className="text-[10px] uppercase text-muted-foreground tracking-wider block mb-1">Vendor's Terms</span>
+                <p className="text-muted-foreground leading-relaxed italic">"{metadata.vendorNotes}"</p>
+              </div>
+            )}
             {metadata.cancellation_deadline && (
               <div className="mt-2 pt-2 border-t border-indigo-500/10 text-[10px] text-muted-foreground">
                 <span className="font-semibold text-amber-500 block mb-0.5">⚠️ Cancellation Deadline</span>
@@ -638,7 +867,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             Order confirmed. Production, loading, and transit preparation are now in progress.
           </p>
           {userRole === 'vendor' && (
-            <Link to="/vendor/orders" className="block mt-2">
+            <Link to={`/vendor/orders?open=${metadata.rfq_id}`} className="block mt-2">
               <Button className="w-full text-xs h-8 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-sm font-semibold transition-all">
                 🚚 Dispatch & Add Shipping Details
               </Button>
@@ -669,6 +898,18 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <span className="text-muted-foreground">AWB/Tracking Number:</span>
               <span className="font-bold text-blue-600 dark:text-blue-400">{metadata.awb || 'N/A'}</span>
             </div>
+            {metadata.dispatchLocation && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Dispatched From:</span>
+                <span className="font-semibold text-foreground">{metadata.dispatchLocation}</span>
+              </div>
+            )}
+            {metadata.shippingNotes && (
+              <div className="mt-2 pt-2 border-t border-blue-500/10">
+                <span className="text-[10px] uppercase text-muted-foreground tracking-wider block mb-1">Shipping Notes</span>
+                <p className="text-muted-foreground leading-relaxed italic">"{metadata.shippingNotes}"</p>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -692,14 +933,14 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
 
           {userRole === 'buyer' && !showDisputeInput && (
             <div className="flex gap-2">
-              <Button 
+              <Button
                 onClick={handleConfirmDelivery}
                 className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
                 disabled={isActioning}
               >
                 {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "📦 Yes, Confirm Delivery"}
               </Button>
-              <Button 
+              <Button
                 onClick={() => setShowDisputeInput(true)}
                 variant="outline"
                 className="flex-1 text-xs h-9 border-destructive hover:bg-destructive/10 text-destructive rounded-lg shadow-sm font-semibold transition-all"
@@ -713,21 +954,21 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           {showDisputeInput && (
             <div className="space-y-3 pt-3 border-t border-yellow-500/10">
               <label className="text-[10px] uppercase font-bold text-destructive block">Dispute Reason / Concerns</label>
-              <textarea 
+              <textarea
                 value={disputeNotes}
                 onChange={(e) => setDisputeNotes(e.target.value)}
                 placeholder="Describe product damage, volume mismatch, or cargo delays..."
                 className="w-full text-xs p-2 bg-muted border border-border rounded-lg h-16 focus:ring-1 focus:ring-destructive resize-none"
               />
               <div className="flex gap-2">
-                <Button 
+                <Button
                   onClick={handleOpenDispute}
                   className="flex-1 text-xs h-9 bg-destructive hover:bg-destructive/90 text-white rounded-lg font-semibold transition-all"
                   disabled={isActioning}
                 >
                   {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Submit Dispute"}
                 </Button>
-                <Button 
+                <Button
                   onClick={() => { setShowDisputeInput(false); setErrorMsg(''); }}
                   variant="ghost"
                   className="text-xs h-9 rounded-lg"
@@ -804,7 +1045,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
       const baseTotalVal = Number(metadata.negotiated_price) * Number(metadata.quantity);
       const savings = baseTotalVal * (discountVal / 100);
       const finalTotalVal = baseTotalVal - savings;
-      
+
       return (
         <div className="w-full max-w-md my-2 rounded-2xl border border-b2b-orange/25 bg-b2b-orange/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center gap-2 border-b border-b2b-orange/20 pb-3 mb-4">
@@ -816,7 +1057,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Agreed Sourcing Deal</p>
             </div>
           </div>
-          
+
           <div className="space-y-2.5 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Price per Unit:</span>
@@ -868,7 +1109,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               </p>
             </div>
           </div>
-          
+
           <div className="space-y-2.5 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Adjusted Price per Unit:</span>
@@ -878,7 +1119,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <span className="text-muted-foreground">Adjusted Quantity:</span>
               <span className="font-bold text-foreground">{metadata.quantity} units</span>
             </div>
-            
+
             {/* Financial Splits calculation breakdown inside chat card */}
             <div className="border-t border-slate-200/50 pt-2 space-y-1.5 text-[11px]">
               <div className="flex justify-between">
@@ -916,7 +1157,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 seller: 'seller_countered',
               };
               const cardStepIdx = STEP_ORDER.indexOf(sourceStep[metadata.source] || '');
-              
+
               let isSuperseded = (metadata.rfq_id && currentIdx > cardStepIdx && cardStepIdx >= 0) || metadata.active === false;
               if (userRole === 'vendor' && ['buyer_confirmed_admin', 'buyer_confirmed_seller_counter', 'forwarded_to_seller', 'seller_accepted_terms'].includes(negotiationStep || '')) {
                 isSuperseded = true;
@@ -935,7 +1176,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                     </Badge>
                   ) : (
                     <div className="flex flex-col gap-2 w-full">
-                      <Button 
+                      <Button
                         onClick={() => {
                           fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/buyer-confirm`, {
                             method: 'POST',
@@ -960,7 +1201,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 )}
                 {userRole === 'admin' && (metadata.source === 'seller' || metadata.source === 'vendor') && (
                   <div className="flex gap-2 w-full">
-                    <Button 
+                    <Button
                       onClick={() => {
                         setIsActioning(true);
                         fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${metadata.rfq_id}/admin-approve-counter`, {
@@ -982,7 +1223,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                     >
                       {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✓ Approve'}
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => {
                         const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.price, qty: metadata.quantity, product_id: metadata.product_id, product_name: metadata.product_name } });
                         window.dispatchEvent(event);
@@ -996,7 +1237,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 )}
                 {userRole === 'admin' && metadata.source === 'buyer' && (
                   <div className="flex gap-2">
-                    <Button 
+                    <Button
                       onClick={async () => {
                         setIsActioning(true);
                         try {
@@ -1023,7 +1264,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                     >
                       {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Approve Counter Terms'}
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => {
                         const event = new CustomEvent('triggerModifyTerms', { detail: { rfqId: metadata.rfq_id, price: metadata.price, qty: metadata.quantity, product_id: metadata.product_id, product_name: metadata.product_name } });
                         window.dispatchEvent(event);
@@ -1321,9 +1562,9 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
     case 'rfq_payment_request':
       const breakdown = metadata.breakdown || {};
       return (
-        <div className="w-full max-w-md my-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center gap-2 border-b border-indigo-500/20 pb-3 mb-4">
-            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+        <div className="w-full max-w-md my-2 rounded-2xl border border-primary/25 bg-primary/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-primary/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary">
               <FileText className="h-5 w-5" />
             </div>
             <div>
@@ -1331,7 +1572,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">JummaBaba Billing Invoice</p>
             </div>
           </div>
-          <div className="space-y-1.5 text-xs text-slate-700 bg-white/50 p-3 rounded-lg border border-indigo-500/10 mb-2">
+          <div className="space-y-1.5 text-xs text-foreground bg-background/60 p-3 rounded-lg border border-primary/10 mb-2">
             <div className="flex justify-between">
               <span>Agreed Price:</span>
               <span className="font-bold text-foreground">₹{Number(breakdown.price).toLocaleString()} / Unit</span>
@@ -1346,7 +1587,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
             {Number(breakdown.discountAmount) > 0 && (
               <div className="flex justify-between text-emerald-600 font-semibold">
-                <span>Discount ({breakdown.discountPercentage}% off):</span>
+                <span>Discount ({breakdown.discountType === 'flat' ? `₹${breakdown.discountValue} flat` : `${breakdown.discountValue ?? breakdown.discountPercentage}%`} off):</span>
                 <span>-₹{Number(breakdown.discountAmount).toLocaleString()}</span>
               </div>
             )}
@@ -1360,15 +1601,15 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               </div>
             )}
             <div className="flex justify-between text-[11px] text-muted-foreground">
-              <span>GST Tax (18%):</span>
+              <span>GST Tax {Number(breakdown.discountedBase || breakdown.baseAmount) > 0 ? `(${((Number(breakdown.gst) / Number(breakdown.discountedBase || breakdown.baseAmount)) * 100).toFixed(0)}%)` : ''}:</span>
               <span>₹{Number(breakdown.gst).toLocaleString()}</span>
             </div>
-            <div className="flex justify-between font-black border-t border-double pt-1.5 mt-1.5 text-indigo-600 text-sm">
+            <div className="flex justify-between font-black border-t border-double pt-1.5 mt-1.5 text-primary text-sm">
               <span>Total Buyer Payable:</span>
               <span>₹{Math.round(Number(breakdown.finalAmount)).toLocaleString()}</span>
             </div>
           </div>
-          <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+          <Badge className="w-full justify-center bg-primary/10 text-primary border border-primary/20 py-1 text-[10px] uppercase font-bold tracking-wider">
             Awaiting Buyer Payment
           </Badge>
         </div>
@@ -1541,10 +1782,10 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
       const toneClass = entry?.tone === 'danger'
         ? 'border-destructive/20 bg-destructive/5 text-destructive'
         : entry?.tone === 'warning'
-        ? 'border-amber-500/20 bg-amber-500/5 text-amber-700'
-        : entry?.tone === 'success'
-        ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-700'
-        : 'border-border bg-muted/40 text-foreground';
+          ? 'border-amber-500/20 bg-amber-500/5 text-amber-700'
+          : entry?.tone === 'success'
+            ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-700'
+            : 'border-border bg-muted/40 text-foreground';
       return (
         <div className={cn('rounded-xl border p-3 text-sm', toneClass)}>
           {entry ? (
@@ -1621,13 +1862,37 @@ export default function AdminMessages() {
   const [showNewChat, setShowNewChat] = useState<'vendor' | 'buyer' | null>(null);
   const [availableParticipants, setAvailableParticipants] = useState<any[]>([]);
   const [participantSearch, setParticipantSearch] = useState('');
-  
+
   // Custom Special Offer/Coupon states
   const [showOfferDialog, setShowOfferDialog] = useState(false);
   const [offerPrice, setOfferPrice] = useState('');
   const [offerQty, setOfferQty] = useState('');
-  const [offerDiscount, setOfferDiscount] = useState('');
+  const [offerDiscountType, setOfferDiscountType] = useState<'percentage' | 'flat'>('percentage');
+  const [offerDiscountValue, setOfferDiscountValue] = useState('');
+  const [offerDiscountAbsorbedBy, setOfferDiscountAbsorbedBy] = useState<'seller' | 'platform' | 'split'>('seller');
   const [isGeneratingOffer, setIsGeneratingOffer] = useState(false);
+  const [offerBreakdown, setOfferBreakdown] = useState<any>(null);
+  const [offerBreakdownLoading, setOfferBreakdownLoading] = useState(false);
+
+  // Live preview of this bill as admin adjusts the discount — same pattern as the quote-
+  // approval dialog, so both discount flows behave and look identical.
+  useEffect(() => {
+    if (!showOfferDialog || !selectedConversation?.rfqId) return;
+    const price = Number(selectedConversation.linkedProductPrice || 0);
+    if (!price) return;
+    setOfferBreakdownLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await api.rfqs.getQuoteEstimate(selectedConversation.rfqId!, price, offerDiscountType, Number(offerDiscountValue) || 0, offerDiscountAbsorbedBy);
+        setOfferBreakdown(result);
+      } catch (err) {
+        setOfferBreakdown(null);
+      } finally {
+        setOfferBreakdownLoading(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [showOfferDialog, selectedConversation?.rfqId, selectedConversation?.linkedProductPrice, offerDiscountType, offerDiscountValue, offerDiscountAbsorbedBy]);
 
   // Term adjustment dialog state
   const [showModifyDialog, setShowModifyDialog] = useState(false);
@@ -1671,37 +1936,31 @@ export default function AdminMessages() {
     if (!selectedConversation?.rfqId) return;
     try {
       setIsGeneratingOffer(true);
-      const rfqId = selectedConversation.rfqId;
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/rfqs/${rfqId}/payment-request`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jb_token')}`
-        },
-        body: JSON.stringify({
-          discountPercentage: Number(offerDiscount) || 0
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to send payment request');
-      }
+      await api.rfqs.sendPaymentRequest(selectedConversation.rfqId, offerDiscountType, Number(offerDiscountValue) || 0, offerDiscountAbsorbedBy);
 
       setShowOfferDialog(false);
       setOfferPrice('');
       setOfferQty('');
-      setOfferDiscount('');
+      setOfferDiscountType('percentage');
+      setOfferDiscountValue('');
+      setOfferDiscountAbsorbedBy('seller');
+      setOfferBreakdown(null);
       fetchConversations();
       fetchMessages();
     } catch (e: any) {
       console.error(e);
+      toast({ title: 'Failed to send payment request', description: e.message, variant: 'destructive' });
     } finally {
       setIsGeneratingOffer(false);
     }
   };
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+  // Set whenever a (different) conversation is opened; consumed by fetchMessages once that
+  // conversation's history actually lands, so the chat opens scrolled to the latest message
+  // instead of the top, and doesn't re-jump on every 3s poll while admin is reading history.
+  const shouldScrollToBottomRef = useRef(false);
+
   const playNotificationSound = useCallback(() => {
     /* 
     try {
@@ -1736,9 +1995,11 @@ export default function AdminMessages() {
         directChatActive: c.direct_chat_active,
         linkedProductPrice: Number(c.target_price || 0),
         linkedProductQty: Number(c.quantity || 0),
+        linkedProductId: c.product_id || undefined,
+        linkedProductName: c.is_group ? (c.participant_company !== 'Marketplace Sourcing' ? c.participant_company : undefined) : undefined,
         negotiationStep: c.negotiation_step
       }));
-      
+
       // Play sound if unread count increased globally
       const totalUnreadNow = mapped.reduce((sum, c) => sum + c.unreadCount, 0);
       setConversations(prev => {
@@ -1787,12 +2048,19 @@ export default function AdminMessages() {
         senderName: m.sender_name,
         senderRole: m.sender_role
       }));
-      
+
       setSelectedConversation(prev => {
         if (!prev || prev.id !== selectedConversation.id) return prev;
         if (JSON.stringify(prev.messages) === JSON.stringify(mappedMessages)) return prev;
         return { ...prev, messages: mappedMessages };
       });
+
+      if (shouldScrollToBottomRef.current) {
+        shouldScrollToBottomRef.current = false;
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        });
+      }
 
       // If there are unread messages from the other user, mark them as read
       const hasUnread = history.some((m: any) => m.sender_id !== user.id && !m.is_read);
@@ -1826,21 +2094,33 @@ export default function AdminMessages() {
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
+  // Deep-links from a notification/message ("chatGroupId=X" in the URL) should only ever
+  // auto-open that conversation ONCE — the URL itself never changes again after that (clicking
+  // a different conversation, or "Go to Order Group", updates React state directly, not the
+  // browser URL). Without this guard, the conversations list refreshing on its own 10s poll
+  // re-ran this effect, saw the URL still said "open X", and forcibly snapped the admin back to
+  // X every time — even after they'd deliberately navigated to a different chat (e.g. from the
+  // RFQ negotiation chat to its Order Group).
+  const processedDeepLinkRef = useRef<string | null>(null);
   useEffect(() => {
     if (conversations.length === 0) return;
     const params = new URLSearchParams(location.search);
     const chatGroupId = params.get('chatGroupId') || params.get('groupId');
     const rfqId = params.get('rfqId');
+    const key = chatGroupId ? `group:${chatGroupId}` : (rfqId ? `rfq:${rfqId}` : null);
+    if (!key || processedDeepLinkRef.current === key) return;
 
     if (chatGroupId) {
       const found = conversations.find(c => c.id === chatGroupId);
-      if (found && (!selectedConversation || selectedConversation.id !== found.id)) {
-        openConversation(found);
+      if (found) {
+        processedDeepLinkRef.current = key;
+        if (!selectedConversation || selectedConversation.id !== found.id) openConversation(found);
       }
     } else if (rfqId) {
       const found = conversations.find(c => c.rfqId === rfqId);
-      if (found && (!selectedConversation || selectedConversation.id !== found.id)) {
-        openConversation(found);
+      if (found) {
+        processedDeepLinkRef.current = key;
+        if (!selectedConversation || selectedConversation.id !== found.id) openConversation(found);
       }
     }
   }, [conversations, selectedConversation?.id, location.search]);
@@ -1864,6 +2144,7 @@ export default function AdminMessages() {
 
   useEffect(() => {
     if (selectedConversation?.id) {
+      shouldScrollToBottomRef.current = true;
       fetchMessages();
       const interval = setInterval(fetchMessages, 3000); // 3s for active chat
       return () => clearInterval(interval);
@@ -1872,7 +2153,7 @@ export default function AdminMessages() {
 
   useEffect(() => {
     if (selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && selectedConversation?.rfqId) {
-      const fetchOrderRfq = () => api.rfqs.get(selectedConversation.rfqId!).then(setOrderRfq).catch(() => {});
+      const fetchOrderRfq = () => api.rfqs.get(selectedConversation.rfqId!).then(setOrderRfq).catch(() => { });
       fetchOrderRfq();
       const interval = setInterval(fetchOrderRfq, 15000); // settlement status can change over time
       return () => clearInterval(interval);
@@ -1921,8 +2202,8 @@ export default function AdminMessages() {
 
   const filteredConversations = conversations.filter(c => {
     const matchesSearch = c.participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         c.participantCompany.toLowerCase().includes(searchQuery.toLowerCase());
-    
+      c.participantCompany.toLowerCase().includes(searchQuery.toLowerCase());
+
     if (activeTab === 'all') return matchesSearch;
     if (activeTab === 'buyers') return matchesSearch && c.participantType === 'buyer';
     if (activeTab === 'vendors') return matchesSearch && c.participantType === 'vendor';
@@ -1961,7 +2242,7 @@ export default function AdminMessages() {
   const openConversation = async (conv: Conversation) => {
     setSelectedConversation(conv);
     // Locally zero out count for immediate feedback
-    setConversations(prev => prev.map(c => 
+    setConversations(prev => prev.map(c =>
       c.id === conv.id ? { ...c, unreadCount: 0 } : c
     ));
     try {
@@ -1994,7 +2275,7 @@ export default function AdminMessages() {
 
   const handleForwardToVendor = (conv: Conversation) => {
     if (conv.participantType !== 'buyer' || !conv.linkedVendorId) return;
-    
+
     // Find the linked vendor conversation
     const vendorConv = conversations.find(c => c.id === conv.linkedVendorId);
     if (vendorConv) {
@@ -2005,380 +2286,389 @@ export default function AdminMessages() {
   return (
     <div className="h-full flex bg-background overflow-hidden">
       {/* Conversation List */}
-        <div className={cn(
-          "w-full md:w-80 lg:w-96 border-r border-border flex flex-col bg-card",
-          selectedConversation && "hidden md:flex"
-        )}>
-          {/* Tabs */}
-          <div className="p-3 border-b border-border">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-              <TabsList className="w-full bg-muted">
-                <TabsTrigger value="all" className="flex-1 gap-1.5 data-[state=active]:bg-b2b-orange data-[state=active]:text-white">
-                  <MessageSquare className="h-4 w-4" />
-                  All
-                  {totalUnread > 0 && (
-                    <Badge variant="secondary" className="h-5 px-1.5 text-xs bg-background">
-                      {totalUnread}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="buyers" className="flex-1 gap-1.5 data-[state=active]:bg-b2b-orange data-[state=active]:text-white">
-                  <User className="h-4 w-4" />
-                  Buyers
-                  {buyerUnread > 0 && (
-                    <Badge variant="secondary" className="h-5 px-1.5 text-xs bg-background">
-                      {buyerUnread}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="vendors" className="flex-1 gap-1.5 data-[state=active]:bg-b2b-orange data-[state=active]:text-white">
-                  <Store className="h-4 w-4" />
-                  Vendors
-                  {vendorUnread > 0 && (
-                    <Badge variant="secondary" className="h-5 px-1.5 text-xs bg-background">
-                      {vendorUnread}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+      <div className={cn(
+        "w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-border flex flex-col bg-card",
+        selectedConversation && "hidden md:flex"
+      )}>
+        {/* Tabs */}
+        <div className="p-3 border-b border-border">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+            <TabsList className="w-full bg-muted">
+              <TabsTrigger value="all" className="flex-1 gap-1.5 data-[state=active]:bg-b2b-orange data-[state=active]:text-white">
+                <MessageSquare className="h-4 w-4" />
+                All
+                {totalUnread > 0 && (
+                  <Badge variant="secondary" className="h-5 px-1.5 text-xs bg-background">
+                    {totalUnread}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="buyers" className="flex-1 gap-1.5 data-[state=active]:bg-b2b-orange data-[state=active]:text-white">
+                <User className="h-4 w-4" />
+                Buyers
+                {buyerUnread > 0 && (
+                  <Badge variant="secondary" className="h-5 px-1.5 text-xs bg-background">
+                    {buyerUnread}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="vendors" className="flex-1 gap-1.5 data-[state=active]:bg-b2b-orange data-[state=active]:text-white">
+                <Store className="h-4 w-4" />
+                Vendors
+                {vendorUnread > 0 && (
+                  <Badge variant="secondary" className="h-5 px-1.5 text-xs bg-background">
+                    {vendorUnread}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
 
-          {/* Search & Actions */}
-          <div className="p-3 border-b border-border space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 bg-muted border-border"
-                />
-              </div>
-              <div className="flex items-center gap-1">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="icon" className="bg-b2b-orange hover:bg-b2b-orange/90 h-10 w-10 shrink-0">
-                      <Plus className="h-5 w-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56 bg-card border-border">
-                    <DropdownMenuLabel>Start New Chat</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setShowNewChat('vendor')}>
-                      <Store className="h-4 w-4 mr-2" /> New Vendor Chat
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setShowNewChat('buyer')}>
-                      <User className="h-4 w-4 mr-2" /> New Buyer Chat
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+        {/* Search & Actions */}
+        <div className="p-3 border-b border-border space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 bg-muted border-border"
+              />
             </div>
-          </div>
-
-          {/* New Chat Dialog */}
-          <Dialog open={!!showNewChat} onOpenChange={() => setShowNewChat(null)}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Start Conversation with {showNewChat === 'vendor' ? 'Vendor' : 'Buyer'}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    placeholder={`Search ${showNewChat}s...`} 
-                    className="pl-9"
-                    value={participantSearch}
-                    onChange={(e) => setParticipantSearch(e.target.value)}
-                  />
-                </div>
-                <ScrollArea className="h-[300px] pr-4">
-                  <div className="space-y-2">
-                    {availableParticipants
-                      .filter(p => p.full_name.toLowerCase().includes(participantSearch.toLowerCase()) || 
-                                  p.business_name?.toLowerCase().includes(participantSearch.toLowerCase()))
-                      .map(p => (
-                        <button
-                          key={p.id}
-                          className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border"
-                          onClick={() => handleStartChat(p)}
-                        >
-                          <Avatar className="h-10 w-10">
-                            <AvatarFallback>{p.full_name[0]}</AvatarFallback>
-                          </Avatar>
-                          <div className="text-left flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-sm font-semibold truncate">{p.full_name}</p>
-                              {p.is_online && (
-                                <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse shrink-0" title="Online" />
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">{p.business_name || p.email}</p>
-                          </div>
-                        </button>
-                      ))}
-                    {availableParticipants.length === 0 && (
-                      <p className="text-center text-sm text-muted-foreground py-10">No {showNewChat}s found</p>
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* Conversations */}
-          <div className="flex-1 overflow-y-auto">
-            {loading ? (
-               <div className="p-8 text-center animate-pulse">
-                <div className="h-12 w-12 bg-muted rounded-full mx-auto mb-3" />
-                <div className="h-4 w-32 bg-muted mx-auto" />
-              </div>
-            ) : filteredConversations.length === 0 ? (
-              <div className="p-10 text-center flex flex-col items-center justify-center h-full">
-                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
-                </div>
-                <h3 className="font-semibold text-foreground">No conversations yet</h3>
-                <p className="text-sm text-muted-foreground mt-1 px-6 text-center">
-                  Click the <Plus className="h-3 w-3 inline" /> button to start a new chat with a vendor or buyer.
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {filteredConversations.map(conv => (
-                  <div
-                    key={conv.id}
-                    onClick={() => openConversation(conv)}
-                    className={cn(
-                      "w-full p-3 text-left hover:bg-muted/50 transition-colors cursor-pointer",
-                      selectedConversation?.id === conv.id && "bg-muted"
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="relative">
-                        <Avatar className="h-12 w-12 border-2 border-border">
-                          <AvatarImage src={conv.participantAvatar} />
-                          <AvatarFallback className={cn(
-                            "font-semibold",
-                            conv.isGroup 
-                              ? (conv.groupType === 'order_group' ? "bg-purple-500/20 text-purple-500 border border-purple-200" : "bg-teal-500/20 text-teal-500 border border-teal-200")
-                              : (conv.participantType === 'buyer' ? "bg-blue-500/20 text-blue-400" : "bg-b2b-orange/20 text-b2b-orange")
-                          )}>
-                            {conv.isGroup ? (
-                              conv.groupType === 'order_group' ? <Users className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />
-                            ) : (
-                              conv.participantName.split(' ').map(n => n[0]).join('').slice(0, 2)
-                            )}
-                          </AvatarFallback>
-                        </Avatar>
-                        {conv.isOnline && (
-                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-sky-500 border-2 border-card rounded-full" />
-                        )}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                            <p 
-                              className="font-semibold text-sm truncate text-foreground flex-shrink min-w-0"
-                              title={conv.participantName}
-                            >
-                              {conv.participantName}
-                            </p>
-                            {conv.isOnline && (
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" title="Online" />
-                            )}
-                            {conv.isVerified && (
-                              <Shield className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
-                            )}
-                            {conv.isGroup && (
-                              <Badge variant="outline" className={cn(
-                                "text-[9px] font-bold px-1.5 py-0 rounded flex-shrink-0 uppercase tracking-wider",
-                                conv.groupType === 'negotiation'
-                                  ? "border-cyan-500/30 bg-cyan-500/5 text-cyan-600 dark:text-cyan-400"
-                                  : "border-indigo-500/30 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400"
-                              )}>
-                                {conv.groupType === 'negotiation' ? 'Negotiation' : 'Order Chat'}
-                              </Badge>
-                            )}
-                          </div>
-                          <span className={cn(
-                            "text-xs flex-shrink-0",
-                            conv.unreadCount > 0 ? "text-emerald-600 font-medium" : "text-muted-foreground"
-                          )}>
-                            {conv.lastMessageTime}
-                          </span>
-                        </div>
-
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
-                          {conv.participantCompany}
-                        </p>
-
-                        <div className="flex items-center justify-between gap-2 mt-1">
-                          <p className="text-xs text-muted-foreground truncate">
-                            {conv.lastMessage}
-                          </p>
-                          {conv.unreadCount > 0 && selectedConversation?.id !== conv.id && (
-                            <Badge className="bg-emerald-600 text-white h-5 px-1.5 text-xs flex-shrink-0">
-                              {conv.unreadCount}
-                            </Badge>
-                          )}
-                        </div>
-
-                        {/* Linked Product/Vendor Info for Buyers */}
-                        {conv.participantType === 'buyer' && conv.linkedProductName && (
-                          <div className="mt-1.5 flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5">
-                            <CornerDownRight className="h-3 w-3" />
-                            <span className="truncate">{conv.linkedProductName}</span>
-                            <span className="text-muted-foreground/50">→</span>
-                            <span className="truncate text-b2b-orange">{conv.linkedVendorName}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="flex items-center gap-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" className="bg-b2b-orange hover:bg-b2b-orange/90 h-10 w-10 shrink-0">
+                    <Plus className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-card border-border">
+                  <DropdownMenuLabel>Start New Chat</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowNewChat('vendor')}>
+                    <Store className="h-4 w-4 mr-2" /> New Vendor Chat
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowNewChat('buyer')}>
+                    <User className="h-4 w-4 mr-2" /> New Buyer Chat
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
 
-        {/* Chat Area */}
-        <div className={cn(
-          "flex-1 flex flex-col bg-background",
-          !selectedConversation && "hidden md:flex"
-        )}>
-          {selectedConversation ? (
-            <>
-              {/* Chat Header */}
-              <div className="p-3 border-b border-border bg-card flex items-center gap-3">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="flex-shrink-0"
-                  onClick={() => setSelectedConversation(null)}
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-
-                <div className="relative">
-                  <Avatar className="h-10 w-10 border-2 border-border">
-                    <AvatarImage src={selectedConversation.participantAvatar} />
-                    <AvatarFallback className={cn(
-                      "font-semibold",
-                      selectedConversation.isGroup 
-                        ? (selectedConversation.groupType === 'order_group' ? "bg-purple-500/20 text-purple-500 border border-purple-200" : "bg-teal-500/20 text-teal-500 border border-teal-200")
-                        : (selectedConversation.participantType === 'buyer' ? "bg-blue-500/20 text-blue-400" : "bg-b2b-orange/20 text-b2b-orange")
-                    )}>
-                      {selectedConversation.isGroup ? (
-                        selectedConversation.groupType === 'order_group' ? <Users className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />
-                      ) : (
-                        selectedConversation.participantName.split(' ').map(n => n[0]).join('').slice(0, 2)
-                      )}
-                    </AvatarFallback>
-                  </Avatar>
-                  {selectedConversation.isOnline && !selectedConversation.isGroup && (
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-sky-500 border-2 border-card rounded-full" />
+        {/* New Chat Dialog */}
+        <Dialog open={!!showNewChat} onOpenChange={() => setShowNewChat(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Start Conversation with {showNewChat === 'vendor' ? 'Vendor' : 'Buyer'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={`Search ${showNewChat}s...`}
+                  className="pl-9"
+                  value={participantSearch}
+                  onChange={(e) => setParticipantSearch(e.target.value)}
+                />
+              </div>
+              <ScrollArea className="h-[300px] pr-4">
+                <div className="space-y-2">
+                  {availableParticipants
+                    .filter(p => p.full_name.toLowerCase().includes(participantSearch.toLowerCase()) ||
+                      p.business_name?.toLowerCase().includes(participantSearch.toLowerCase()))
+                    .map(p => (
+                      <button
+                        key={p.id}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border"
+                        onClick={() => handleStartChat(p)}
+                      >
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback>{p.full_name[0]}</AvatarFallback>
+                        </Avatar>
+                        <div className="text-left flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-semibold truncate">{p.full_name}</p>
+                            {p.is_online && (
+                              <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse shrink-0" title="Online" />
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">{p.business_name || p.email}</p>
+                        </div>
+                      </button>
+                    ))}
+                  {availableParticipants.length === 0 && (
+                    <p className="text-center text-sm text-muted-foreground py-10">No {showNewChat}s found</p>
                   )}
                 </div>
+              </ScrollArea>
+            </div>
+          </DialogContent>
+        </Dialog>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground truncate">
-                      {selectedConversation.participantName}
-                    </span>
-                    {selectedConversation.isVerified && (
-                      <Shield className="h-4 w-4 text-b2b-orange" />
-                    )}
-                    <Badge variant="outline" className={cn(
-                      "text-xs",
-                      selectedConversation.isGroup 
-                        ? (selectedConversation.groupType === 'order_group' ? "border-purple-500 text-purple-500 bg-purple-50/50" : "border-teal-500 text-teal-500 bg-teal-50/50")
-                        : (selectedConversation.participantType === 'buyer' ? "border-blue-500 text-blue-400" : "border-b2b-orange text-b2b-orange")
-                    )}>
-                      {selectedConversation.isGroup ? (selectedConversation.groupType === 'order_group' ? 'Order Group' : 'Negotiation') : (selectedConversation.participantType === 'buyer' ? 'Buyer' : 'Vendor')}
-                    </Badge>
+        {/* Conversations */}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="p-8 text-center animate-pulse">
+              <div className="h-12 w-12 bg-muted rounded-full mx-auto mb-3" />
+              <div className="h-4 w-32 bg-muted mx-auto" />
+            </div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="p-10 text-center flex flex-col items-center justify-center h-full">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
+              </div>
+              <h3 className="font-semibold text-foreground">No conversations yet</h3>
+              <p className="text-sm text-muted-foreground mt-1 px-6 text-center">
+                Click the <Plus className="h-3 w-3 inline" /> button to start a new chat with a vendor or buyer.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {filteredConversations.map(conv => (
+                <div
+                  key={conv.id}
+                  onClick={() => openConversation(conv)}
+                  className={cn(
+                    "w-full p-3 text-left hover:bg-muted/50 transition-colors cursor-pointer",
+                    selectedConversation?.id === conv.id && "bg-muted"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="relative">
+                      <Avatar className="h-12 w-12 border-2 border-border">
+                        <AvatarImage src={conv.participantAvatar} />
+                        <AvatarFallback className={cn(
+                          "font-semibold",
+                          conv.isGroup
+                            ? (conv.groupType === 'order_group' ? "bg-purple-500/20 text-purple-500 border border-purple-200" : "bg-teal-500/20 text-teal-500 border border-teal-200")
+                            : (conv.participantType === 'buyer' ? "bg-blue-500/20 text-blue-400" : "bg-b2b-orange/20 text-b2b-orange")
+                        )}>
+                          {conv.isGroup ? (
+                            conv.groupType === 'order_group' ? <Users className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />
+                          ) : (
+                            conv.participantName.split(' ').map(n => n[0]).join('').slice(0, 2)
+                          )}
+                        </AvatarFallback>
+                      </Avatar>
+                      {conv.isOnline && (
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-sky-500 border-2 border-card rounded-full" />
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                          <p
+                            className="font-semibold text-sm truncate text-foreground flex-shrink min-w-0"
+                            title={conv.participantName}
+                          >
+                            {conv.participantName}
+                          </p>
+                          {conv.isOnline && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" title="Online" />
+                          )}
+                          {conv.isVerified && (
+                            <Shield className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+                          )}
+                          {conv.isGroup && (
+                            <Badge variant="outline" className={cn(
+                              "text-[9px] font-bold px-1.5 py-0 rounded flex-shrink-0 uppercase tracking-wider",
+                              conv.groupType === 'negotiation'
+                                ? "border-cyan-500/30 bg-cyan-500/5 text-cyan-600 dark:text-cyan-400"
+                                : "border-indigo-500/30 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400"
+                            )}>
+                              {conv.groupType === 'negotiation' ? 'Negotiation' : 'Order Chat'}
+                            </Badge>
+                          )}
+                        </div>
+                        <span className={cn(
+                          "text-xs flex-shrink-0",
+                          conv.unreadCount > 0 ? "text-emerald-600 font-medium" : "text-muted-foreground"
+                        )}>
+                          {conv.lastMessageTime}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {conv.participantCompany}
+                      </p>
+
+                      <div className="flex items-center justify-between gap-2 mt-1">
+                        <p className="text-xs text-muted-foreground truncate">
+                          {conv.lastMessage}
+                        </p>
+                        {conv.unreadCount > 0 && selectedConversation?.id !== conv.id && (
+                          <Badge className="bg-emerald-600 text-white h-5 px-1.5 text-xs flex-shrink-0">
+                            {conv.unreadCount}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Linked Product/Vendor Info for Buyers */}
+                      {conv.participantType === 'buyer' && conv.linkedProductName && (
+                        <div className="mt-1.5 flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5">
+                          <CornerDownRight className="h-3 w-3" />
+                          <span className="truncate">{conv.linkedProductName}</span>
+                          <span className="text-muted-foreground/50">→</span>
+                          <span className="truncate text-b2b-orange">{conv.linkedVendorName}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {selectedConversation.participantCompany}
-                    {selectedConversation.isOnline && !selectedConversation.isGroup && ' • Online'}
-                  </p>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
-                {/* Action buttons for buyer conversations */}
-                {selectedConversation.participantType === 'buyer' && selectedConversation.linkedVendorId && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="border-b2b-orange text-b2b-orange hover:bg-b2b-orange hover:text-white"
-                        onClick={() => handleForwardToVendor(selectedConversation)}
-                      >
-                        <CornerDownRight className="h-4 w-4 mr-1.5" />
-                        View Vendor Chat
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      Open conversation with {selectedConversation.linkedVendorName}
-                    </TooltipContent>
-                  </Tooltip>
+      {/* Chat Area */}
+      {/* min-w-0 is required here, not just on the header row inside it — this is itself a
+            flex item in the outer [Conversation List] + [Chat Area] row (see the container a
+            few lines up). Without it, a long unwrapped title anywhere inside forces THIS whole
+            column to its content's width first, which then squeezes/hides the conversation
+            list sidebar before any inner truncate ever gets a chance to matter. */}
+      <div className={cn(
+        "flex-1 flex flex-col bg-background min-w-0",
+        !selectedConversation && "hidden md:flex"
+      )}>
+        {selectedConversation ? (
+          <>
+            {/* Chat Header */}
+            <div className="p-3 border-b border-border bg-card flex items-center gap-3 min-w-0 overflow-hidden">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="flex-shrink-0"
+                onClick={() => setSelectedConversation(null)}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+
+              <div className="relative flex-shrink-0">
+                <Avatar className="h-10 w-10 border-2 border-border">
+                  <AvatarImage src={selectedConversation.participantAvatar} />
+                  <AvatarFallback className={cn(
+                    "font-semibold",
+                    selectedConversation.isGroup
+                      ? (selectedConversation.groupType === 'order_group' ? "bg-purple-500/20 text-purple-500 border border-purple-200" : "bg-teal-500/20 text-teal-500 border border-teal-200")
+                      : (selectedConversation.participantType === 'buyer' ? "bg-blue-500/20 text-blue-400" : "bg-b2b-orange/20 text-b2b-orange")
+                  )}>
+                    {selectedConversation.isGroup ? (
+                      selectedConversation.groupType === 'order_group' ? <Users className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />
+                    ) : (
+                      selectedConversation.participantName.split(' ').map(n => n[0]).join('').slice(0, 2)
+                    )}
+                  </AvatarFallback>
+                </Avatar>
+                {selectedConversation.isOnline && !selectedConversation.isGroup && (
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-sky-500 border-2 border-card rounded-full" />
                 )}
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="h-5 w-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-card border-border">
-                    <DropdownMenuItem>View Profile</DropdownMenuItem>
-                    <DropdownMenuItem>Mark as Resolved</DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive">
-                      Archive Conversation
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
 
-              {/* Linked Product Banner for Buyer Chats */}
-              {selectedConversation.participantType === 'buyer' && selectedConversation.linkedProductName && (
+              {/* min-w-0 has to be on every nested flex level down to the truncated text —
+                    a long RFQ/product-name-derived title (participantName) was otherwise
+                    forcing this whole row (and the page under it) wider than the viewport
+                    instead of actually truncating with an ellipsis. */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-semibold text-foreground truncate min-w-0">
+                    {selectedConversation.participantName}
+                  </span>
+                  {selectedConversation.isVerified && (
+                    <Shield className="h-4 w-4 text-b2b-orange flex-shrink-0" />
+                  )}
+                  <Badge variant="outline" className={cn(
+                    "text-xs flex-shrink-0",
+                    selectedConversation.isGroup
+                      ? (selectedConversation.groupType === 'order_group' ? "border-purple-500 text-purple-500 bg-purple-50/50" : "border-teal-500 text-teal-500 bg-teal-50/50")
+                      : (selectedConversation.participantType === 'buyer' ? "border-blue-500 text-blue-400" : "border-b2b-orange text-b2b-orange")
+                  )}>
+                    {selectedConversation.isGroup ? (selectedConversation.groupType === 'order_group' ? 'Order Group' : 'Negotiation') : (selectedConversation.participantType === 'buyer' ? 'Buyer' : 'Vendor')}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground truncate min-w-0">
+                  {selectedConversation.participantCompany}
+                  {selectedConversation.isOnline && !selectedConversation.isGroup && ' • Online'}
+                </p>
+              </div>
+
+              {/* Action buttons for buyer conversations */}
+              {selectedConversation.participantType === 'buyer' && selectedConversation.linkedVendorId && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-b2b-orange text-b2b-orange hover:bg-b2b-orange hover:text-white"
+                      onClick={() => handleForwardToVendor(selectedConversation)}
+                    >
+                      <CornerDownRight className="h-4 w-4 mr-1.5" />
+                      View Vendor Chat
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Open conversation with {selectedConversation.linkedVendorName}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-card border-border">
+                  <DropdownMenuItem>View Profile</DropdownMenuItem>
+                  <DropdownMenuItem>Mark as Resolved</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-destructive">
+                    Archive Conversation
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Linked Product Banner for Buyer Chats */}
+            {/* {selectedConversation.participantType === 'buyer' && selectedConversation.linkedProductName && (
                 <div className="px-4 py-2 bg-muted/50 border-b border-border flex items-center gap-2 text-sm">
                   <span className="text-muted-foreground">Product Inquiry:</span>
                   <span className="font-medium text-foreground">{selectedConversation.linkedProductName}</span>
                   <span className="text-muted-foreground">→</span>
                   <span className="text-b2b-orange font-medium">{selectedConversation.linkedVendorName}</span>
                 </div>
-              )}
+              )} */}
 
-              {/* Order Summary Panel (financial breakdown, all roles) */}
-              {selectedConversation.isGroup && selectedConversation.groupType === 'order_group' && orderRfq && (
-                <OrderGroupSummaryPanel rfq={orderRfq} role="admin" onSettled={() => api.rfqs.get(orderRfq.id).then(setOrderRfq)} />
-              )}
+            {/* Order Summary Panel (financial breakdown, all roles) */}
+            {selectedConversation.isGroup && selectedConversation.groupType === 'order_group' && orderRfq && (
+              <OrderGroupSummaryPanel rfq={orderRfq} role="admin" onSettled={() => api.rfqs.get(orderRfq.id).then(setOrderRfq)} />
+            )}
 
-              {/* Spectator Intervention Banner & Admin Negotiation Controls */}
-              {selectedConversation.isGroup && selectedConversation.groupType === 'negotiation' && (
-                <div className="px-4 py-3 border-b flex flex-col gap-3 bg-slate-50/80">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">🛠️</span>
-                      <div className="text-left">
-                        <p className="text-xs font-bold uppercase tracking-wider text-slate-800">Admin Negotiation Control Panel</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          Current Step: <span className="font-extrabold text-indigo-600 uppercase tracking-widest text-[9px]">{selectedConversation.negotiationStep || 'rfq_submitted'}</span>
-                        </p>
-                      </div>
+            {/* Spectator Intervention Banner & Admin Negotiation Controls */}
+            {selectedConversation.isGroup && selectedConversation.groupType === 'negotiation' && (
+              <div className="px-4 py-3 border-b flex flex-col gap-3 bg-slate-50/80">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🛠️</span>
+                    <div className="text-left">
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-800">Admin Negotiation Control Panel</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Current Step: <span className="font-extrabold text-indigo-600 uppercase tracking-widest text-[9px]">{selectedConversation.negotiationStep || 'rfq_submitted'}</span>
+                      </p>
                     </div>
-                    
-                    <div className="flex gap-2">
-                      {/* Only show Modify Terms during active negotiation */}
-                      {!['buyer_confirmed_admin', 'buyer_confirmed_seller_counter', 'forwarded_to_seller',
-                        'seller_accepted_terms', 'payment_pending', 'payment_submitted', 'payment_confirmed_escrow'
-                      ].includes(selectedConversation.negotiationStep || '') && (
-                        <Button 
+                  </div>
+
+                  <div className="flex gap-2">
+                    {/* Only show Modify Terms during active negotiation */}
+                    {!['buyer_confirmed_admin', 'buyer_confirmed_seller_counter', 'forwarded_to_seller',
+                      'seller_accepted_terms', 'payment_pending', 'payment_submitted', 'payment_confirmed_escrow'
+                    ].includes(selectedConversation.negotiationStep || '') && (
+                        <Button
                           size="sm"
                           variant="outline"
                           className="text-[10px] uppercase font-bold tracking-wider"
@@ -2386,6 +2676,19 @@ export default function AdminMessages() {
                             setModifyRfqId(selectedConversation.rfqId);
                             setModifyPrice(String(selectedConversation.linkedProductPrice || ''));
                             setModifyQty(String(selectedConversation.linkedProductQty || ''));
+                            // Without this, the dialog's CatalogSlabDialogBanner fell back to
+                            // `selectedConversation` directly, which has no product_id/
+                            // product_name/quantity fields under those exact names — its slab
+                            // lookup could never match anything, so "Loading slab rate..."
+                            // never resolved (it wasn't actually still loading, it had already
+                            // failed silently).
+                            setModifyMetadata({
+                              rfqId: selectedConversation.rfqId,
+                              product_id: selectedConversation.linkedProductId,
+                              product_name: selectedConversation.linkedProductName,
+                              quantity: selectedConversation.linkedProductQty,
+                              target_price: selectedConversation.linkedProductPrice
+                            });
                             setShowModifyDialog(true);
                           }}
                         >
@@ -2393,394 +2696,491 @@ export default function AdminMessages() {
                         </Button>
                       )}
 
-                      <Button 
-                        size="sm"
-                        variant={selectedConversation.directChatActive ? 'destructive' : 'default'}
-                        className="text-[10px] uppercase font-bold tracking-wider"
-                        onClick={async () => {
-                          const nextActive = !selectedConversation.directChatActive;
-                          try {
-                            await api.rfqs.toggleDirectChat(selectedConversation.rfqId!, nextActive);
-                            toast({ title: nextActive ? 'Direct Connection Enabled' : 'Direct Connection Disabled', description: nextActive ? 'Buyer & Vendor can now chat directly.' : 'Mediator mode re-engaged.' });
-                            await fetchConversations();
-                            await fetchMessages();
-                          } catch (err: any) {
-                            toast({ title: 'Failed to toggle direct connection', description: err.message, variant: 'destructive' });
-                          }
-                        }}
-                      >
-                        {selectedConversation.directChatActive ? 'Disable Direct Connection' : 'Enable Direct Connection'}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Dynamic Workflow Actions based on negotiationStep */}
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200/60 justify-end">
-                    {(selectedConversation.negotiationStep === 'buyer_confirmed_admin' || selectedConversation.negotiationStep === 'buyer_confirmed_seller_counter') && (
-                      <Button
-                        size="sm"
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase tracking-wider"
-                        onClick={async () => {
-                          try {
-                            await api.rfqs.forwardToSeller(selectedConversation.rfqId!);
-                            toast({ title: 'Sent to Seller', description: 'RFQ finalized terms successfully forwarded to vendor.' });
-                            await fetchConversations();
-                            await fetchMessages();
-                          } catch (err: any) {
-                            toast({ title: 'Failed to forward', description: err.message, variant: 'destructive' });
-                          }
-                        }}
-                      >
-                        Forward Finalized Terms to Seller →
-                      </Button>
-                    )}
-
-                    {selectedConversation.negotiationStep === 'seller_countered' && (
-                      <Button
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider"
-                        onClick={async () => {
-                          try {
-                            await api.rfqs.adminApproveCounter(selectedConversation.rfqId!);
-                            toast({ title: 'Approved', description: 'Seller counter terms approved and buyer alert dispatched.' });
-                            await fetchConversations();
-                            await fetchMessages();
-                          } catch (err: any) {
-                            toast({ title: 'Failed to approve', description: err.message, variant: 'destructive' });
-                          }
-                        }}
-                      >
-                        ⚡ Approve Seller Counter
-                      </Button>
-                    )}
-
-                    {selectedConversation.negotiationStep === 'seller_accepted_terms' && (
-                      <Button
-                        size="sm"
-                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] uppercase tracking-wider"
-                        onClick={() => setShowOfferDialog(true)}
-                      >
-                        ✉️ Send Payment Request & Coupon
-                      </Button>
-                    )}
-
-                    {selectedConversation.negotiationStep === 'payment_submitted' && (
-                      <Button
-                        size="sm"
-                        className="bg-success hover:bg-success/90 text-white font-bold text-[10px] uppercase tracking-wider"
-                        onClick={async () => {
-                          try {
-                            await api.rfqs.adminConfirmPayment(selectedConversation.rfqId!);
-                            toast({ title: 'Payment Confirmed', description: 'Payment verified. Multi-party Order group initialized.' });
-                            await fetchConversations();
-                            await fetchMessages();
-                          } catch (err: any) {
-                            toast({ title: 'Failed to confirm payment', description: err.message, variant: 'destructive' });
-                          }
-                        }}
-                      >
-                        ✅ Confirm Payment Received
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant={selectedConversation.directChatActive ? 'destructive' : 'default'}
+                      className="text-[10px] uppercase font-bold tracking-wider"
+                      onClick={async () => {
+                        const nextActive = !selectedConversation.directChatActive;
+                        try {
+                          await api.rfqs.toggleDirectChat(selectedConversation.rfqId!, nextActive);
+                          toast({ title: nextActive ? 'Direct Connection Enabled' : 'Direct Connection Disabled', description: nextActive ? 'Buyer & Vendor can now chat directly.' : 'Mediator mode re-engaged.' });
+                          await fetchConversations();
+                          await fetchMessages();
+                        } catch (err: any) {
+                          toast({ title: 'Failed to toggle direct connection', description: err.message, variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      {selectedConversation.directChatActive ? 'Disable Direct Connection' : 'Enable Direct Connection'}
+                    </Button>
                   </div>
                 </div>
-              )}
 
-              {selectedConversation.isGroup && selectedConversation.groupType === 'order_group' && (
-                <div className={cn(
-                  "px-4 py-3 border-b flex items-center justify-between transition-all duration-300",
-                  selectedConversation.canIntervene 
-                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700" 
-                    : "bg-amber-500/10 border-amber-500/20 text-amber-700"
-                )}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">
-                      {selectedConversation.canIntervene ? '⚡' : '👁️'}
-                    </span>
-                    <div className="text-left">
-                      <p className="text-xs font-black uppercase tracking-widest leading-none">
-                        {selectedConversation.canIntervene ? 'Active Intervention Mode' : 'Passive Spectator Mode'}
-                      </p>
-                      <p className="text-[10px] font-bold opacity-80 mt-0.5">
-                        {selectedConversation.canIntervene 
-                          ? 'You have active typing privileges. Your responses are visible to all members.' 
-                          : 'You are observing this conversation between the Buyer and Seller.'}
-                      </p>
-                    </div>
-                  </div>
-                  <Button 
-                    size="sm"
-                    className={cn(
-                      "font-black text-[10px] uppercase tracking-widest px-4 shadow-sm transition-all duration-200",
-                      selectedConversation.canIntervene
-                        ? "bg-zinc-800 text-white hover:bg-zinc-900"
-                        : "bg-amber-500 text-white hover:bg-amber-600"
-                    )}
-                    onClick={handleToggleIntervention}
-                  >
-                    {selectedConversation.canIntervene ? 'Exit Intervention' : '⚡ Intervene'}
-                  </Button>
+                {/* Dynamic Workflow Actions based on negotiationStep */}
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200/60 justify-end">
+                  {(selectedConversation.negotiationStep === 'buyer_confirmed_admin' || selectedConversation.negotiationStep === 'buyer_confirmed_seller_counter') && (
+                    <Button
+                      size="sm"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase tracking-wider"
+                      onClick={async () => {
+                        try {
+                          await api.rfqs.forwardToSeller(selectedConversation.rfqId!);
+                          toast({ title: 'Sent to Seller', description: 'RFQ finalized terms successfully forwarded to vendor.' });
+                          await fetchConversations();
+                          await fetchMessages();
+                        } catch (err: any) {
+                          toast({ title: 'Failed to forward', description: err.message, variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      Forward Finalized Terms to Seller →
+                    </Button>
+                  )}
+
+                  {selectedConversation.negotiationStep === 'seller_countered' && (
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider"
+                      onClick={async () => {
+                        try {
+                          await api.rfqs.adminApproveCounter(selectedConversation.rfqId!);
+                          toast({ title: 'Approved', description: 'Seller counter terms approved and buyer alert dispatched.' });
+                          await fetchConversations();
+                          await fetchMessages();
+                        } catch (err: any) {
+                          toast({ title: 'Failed to approve', description: err.message, variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      ⚡ Approve Seller Counter
+                    </Button>
+                  )}
+
+                  {selectedConversation.negotiationStep === 'seller_accepted_terms' && (
+                    <Button
+                      size="sm"
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] uppercase tracking-wider"
+                      onClick={() => setShowOfferDialog(true)}
+                    >
+                      ✉️ Send Payment Request & Coupon
+                    </Button>
+                  )}
+
+                  {selectedConversation.negotiationStep === 'payment_submitted' && (
+                    <Button
+                      size="sm"
+                      className="bg-success hover:bg-success/90 text-white font-bold text-[10px] uppercase tracking-wider"
+                      onClick={async () => {
+                        try {
+                          await api.rfqs.adminConfirmPayment(selectedConversation.rfqId!);
+                          toast({ title: 'Payment Confirmed', description: 'Payment verified. Multi-party Order group initialized.' });
+                          await fetchConversations();
+                          await fetchMessages();
+                        } catch (err: any) {
+                          toast({ title: 'Failed to confirm payment', description: err.message, variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      ✅ Confirm Payment Received
+                    </Button>
+                  )}
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Messages */}
-              <ScrollArea className="flex-1 p-4">
-                <div className="space-y-4">
-                  {selectedConversation.messages.map(msg => {
-                    const isAdmin = msg.senderId === 'admin';
-                    const isSystem = msg.senderId === 'system';
-                    
-                    if (isSystem) {
-                      return (
-                        <div key={msg.id} className="flex justify-center my-2 max-w-full">
-                          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-800 rounded-2xl px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest select-none text-center whitespace-pre-wrap max-w-[85%]">
-                            {msg.text}
-                          </div>
+            {selectedConversation.isGroup && selectedConversation.groupType === 'order_group' && (
+              <div className={cn(
+                "px-4 py-3 border-b flex items-center justify-between transition-all duration-300",
+                selectedConversation.canIntervene
+                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700"
+                  : "bg-amber-500/10 border-amber-500/20 text-amber-700"
+              )}>
+                <div className="flex items-center gap-2">
+                  <span className="text-base">
+                    {selectedConversation.canIntervene ? '⚡' : '👁️'}
+                  </span>
+                  <div className="text-left">
+                    <p className="text-xs font-black uppercase tracking-widest leading-none">
+                      {selectedConversation.canIntervene ? 'Active Intervention Mode' : 'Passive Spectator Mode'}
+                    </p>
+                    <p className="text-[10px] font-bold opacity-80 mt-0.5">
+                      {selectedConversation.canIntervene
+                        ? 'You have active typing privileges. Your responses are visible to all members.'
+                        : 'You are observing this conversation between the Buyer and Seller.'}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className={cn(
+                    "font-black text-[10px] uppercase tracking-widest px-4 shadow-sm transition-all duration-200",
+                    selectedConversation.canIntervene
+                      ? "bg-zinc-800 text-white hover:bg-zinc-900"
+                      : "bg-amber-500 text-white hover:bg-amber-600"
+                  )}
+                  onClick={handleToggleIntervention}
+                >
+                  {selectedConversation.canIntervene ? 'Exit Intervention' : '⚡ Intervene'}
+                </Button>
+              </div>
+            )}
+
+            {/* Messages */}
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4">
+                {selectedConversation.messages.map(msg => {
+                  const isAdmin = msg.senderId === 'admin';
+                  const isSystem = msg.senderId === 'system';
+
+                  // A message with a real metadata.type (rfq_terms_confirmed, etc.) always gets
+                  // the rich actionable card, even when it was sent with no human sender
+                  // (sender_id null → isSystem true) — most of these workflow-transition
+                  // messages ARE sent that way. Checking isSystem first was silently downgrading
+                  // them to a plain announcement pill with no button, e.g. "Forward Order
+                  // Details to Seller" never had a chance to render even though the card for it
+                  // already existed below. Only a truly generic system message (no type at all)
+                  // falls back to the plain pill.
+                  if (isSystem && !(msg.metadata && msg.metadata.type)) {
+                    return (
+                      <div key={msg.id} className="flex justify-center my-2 max-w-full">
+                        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-800 rounded-2xl px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest select-none text-center whitespace-pre-wrap max-w-[85%]">
+                          {msg.text}
                         </div>
-                      );
-                    }
+                      </div>
+                    );
+                  }
 
-                    if (msg.metadata && msg.metadata.type) {
-                      const isCentered = ['order_init', 'order_confirmed', 'delivery_completed'].includes(msg.metadata.type);
-                      return (
-                        <div
-                          key={msg.id}
-                          className={cn(
-                            "w-full flex mb-2",
-                            isCentered ? "justify-center" : (isAdmin ? "justify-end" : "justify-start")
-                          )}
-                        >
-                          <SourcingActionCard 
-                            message={msg} 
-                            userRole="admin" 
-                            onRefresh={async () => { await fetchConversations(); await fetchMessages(); }}
-                            negotiationStep={selectedConversation.negotiationStep}
-                          />
-                        </div>
-                      );
-                    }
-
+                  if (msg.metadata && msg.metadata.type) {
+                    const isCentered = ['order_init', 'order_confirmed', 'delivery_completed'].includes(msg.metadata.type);
                     return (
                       <div
                         key={msg.id}
                         className={cn(
-                          "flex",
-                          isAdmin ? "justify-end" : "justify-start"
+                          "w-full flex mb-2",
+                          isCentered ? "justify-center" : (isAdmin ? "justify-end" : "justify-start")
                         )}
                       >
-                        <div className={cn(
-                          "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm",
-                          isAdmin 
-                            ? "bg-b2b-orange text-white rounded-br-md" 
-                            : "bg-card text-foreground rounded-bl-md border border-border"
-                        )}>
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                            {msg.text}
-                          </p>
-                          <div className={cn(
-                            "flex items-center justify-end gap-1.5 mt-1.5",
-                            isAdmin ? "text-white/70" : "text-muted-foreground"
-                          )}>
-                            <span className="text-[10px]">{msg.timestamp}</span>
-                            {isAdmin && <MessageStatus status={msg.status} />}
-                          </div>
-                        </div>
+                        <SourcingActionCard
+                          message={msg}
+                          userRole="admin"
+                          onRefresh={async () => { await fetchConversations(); await fetchMessages(); }}
+                          negotiationStep={selectedConversation.negotiationStep}
+                        />
                       </div>
                     );
-                  })}
-                  <div ref={messagesEndRef} />
-                </div>
-              </ScrollArea>
+                  }
 
-              {/* Message Input */}
-              <div className="p-3 border-t border-border bg-card">
-                <div className="flex items-center gap-2">
-                  {selectedConversation?.groupType === 'negotiation' && (
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={() => setShowOfferDialog(true)}
-                      className="border-b2b-orange text-b2b-orange hover:bg-b2b-orange/10 shrink-0"
-                      title="Create negotiated offer coupon"
-                    >
-                      <Tag className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Input
-                    placeholder={selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && !selectedConversation?.canIntervene ? "Spectating conversation... Toggle Intervention to type" : "Type a message as Admin..."}
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                    className="flex-1 bg-muted border-border"
-                    disabled={!!(selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && !selectedConversation?.canIntervene)}
-                  />
-                  <Button 
-                    onClick={handleSendMessage}
-                    disabled={!messageInput.trim() || !!(selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && !selectedConversation?.canIntervene)}
-                    className="bg-b2b-orange hover:bg-b2b-orange/90"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                {/* Special Offer Coupon Dialog */}
-                 <Dialog open={showOfferDialog} onOpenChange={setShowOfferDialog}>
-                   <DialogContent className="max-w-md">
-                     <DialogHeader>
-                       <DialogTitle>Send Sourcing Statement & Payment Request</DialogTitle>
-                     </DialogHeader>
-                     <div className="space-y-4 py-4 text-sm">
-                       <p className="text-xs text-muted-foreground">
-                         This will generate the final invoice billing statement and payment request for the Buyer. You can optionally apply a discount coupon percentage below.
-                       </p>
-                       <div className="bg-slate-50 p-3 rounded-lg border space-y-1.5 text-xs text-slate-700">
-                         <div className="flex justify-between">
-                           <span>Agreed Price:</span>
-                           <span className="font-bold">₹{Number(selectedConversation?.linkedProductPrice || 0).toLocaleString()}</span>
-                         </div>
-                         <div className="flex justify-between">
-                           <span>Agreed Quantity:</span>
-                           <span className="font-bold">{selectedConversation?.linkedProductQty || 0} units</span>
-                         </div>
-                         <div className="flex justify-between border-t pt-1.5 font-bold text-slate-900">
-                           <span>Base Sourcing Value:</span>
-                           <span>₹{(Number(selectedConversation?.linkedProductPrice || 0) * Number(selectedConversation?.linkedProductQty || 0)).toLocaleString()}</span>
-                         </div>
-                       </div>
-                       
-                       <div className="space-y-2">
-                         <label className="font-semibold text-xs">Apply Discount Coupon Percentage (%)</label>
-                         <Input 
-                           type="number" 
-                           placeholder="e.g. 10 (Optional)" 
-                           value={offerDiscount}
-                           onChange={(e) => setOfferDiscount(e.target.value)}
-                         />
-                       </div>
-
-                       <div className="bg-slate-50 p-3 rounded-lg border space-y-1 text-xs text-indigo-600">
-                         <div className="flex justify-between">
-                           <span>Discount Applied:</span>
-                           <span>{offerDiscount ? `${offerDiscount}%` : '0%'}</span>
-                         </div>
-                         <div className="flex justify-between font-bold">
-                           <span>Total Buyer Payable (Incl GST 18% + platform fee):</span>
-                           <span>
-                             ₹{Math.round(
-                               (Number(selectedConversation?.linkedProductPrice || 0) * Number(selectedConversation?.linkedProductQty || 0) * (1 - (Number(offerDiscount) || 0) / 100)) * 1.18 + 
-                               (Number(selectedConversation?.linkedProductPrice || 0) * Number(selectedConversation?.linkedProductQty || 0) * (1 - (Number(offerDiscount) || 0) / 100)) * 0.10
-                             ).toLocaleString()}
-                           </span>
-                         </div>
-                       </div>
-
-                       <Button 
-                         onClick={handleGenerateOffer}
-                         disabled={isGeneratingOffer}
-                         className="w-full bg-b2b-orange hover:bg-b2b-orange/90 text-white font-bold"
-                       >
-                         {isGeneratingOffer ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✉️ Send Statement & Request Payment'}
-                       </Button>
-                     </div>
-                   </DialogContent>
-                 </Dialog>
-
-                {/* Custom Sourcing Term Adjustment Dialog Popup */}
-                <Dialog open={showModifyDialog} onOpenChange={setShowModifyDialog}>
-                  <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Adjust Sourcing Proposal Terms</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4 text-sm">
-                      <CatalogSlabDialogBanner metadata={modifyMetadata || selectedConversation} />
-
-                      <div className="space-y-2">
-                        <label className="font-semibold text-xs">Adjusted Unit Sourcing Price (₹) *</label>
-                        <Input
-                          type="number"
-                          placeholder="e.g. 1000"
-                          value={modifyPrice}
-                          onChange={(e) => setModifyPrice(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="font-semibold text-xs">Adjusted Sourcing Volume *</label>
-                        <Input
-                          type="number"
-                          placeholder="e.g. 100"
-                          value={modifyQty}
-                          onChange={(e) => setModifyQty(e.target.value)}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="font-semibold text-xs text-slate-700 dark:text-slate-200">
-                          Modification Reason / Remark *
-                        </label>
-                        <Textarea
-                          placeholder="Explain why terms were adjusted (e.g. Volume discount applied, special delivery surcharge, tier pricing adjustment)..."
-                          value={modifyNotes}
-                          onChange={(e) => setModifyNotes(e.target.value)}
-                          rows={3}
-                          className="text-xs"
-                        />
-                      </div>
-
-                      {modifyPrice && modifyQty && (
-                        <div className="p-3 bg-muted rounded-xl text-xs space-y-1.5 border border-slate-200">
-                          <p className="font-bold border-b pb-1 text-slate-800">Financial Splits Calculation</p>
-                          <div className="flex justify-between">
-                            <span>Product Base Value:</span>
-                            <span className="font-bold">₹{(Number(modifyPrice) * Number(modifyQty)).toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between text-indigo-600">
-                            <span>Platform Fee Commission (10%):</span>
-                            <span className="font-bold">- ₹{(Number(modifyPrice) * Number(modifyQty) * 0.10).toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between text-emerald-600 font-bold">
-                            <span>Expected Vendor Settlement (90%):</span>
-                            <span>₹{(Number(modifyPrice) * Number(modifyQty) * 0.90).toLocaleString()}</span>
-                          </div>
-                        </div>
+                  return (
+                    <div
+                      key={msg.id}
+                      className={cn(
+                        "flex",
+                        isAdmin ? "justify-end" : "justify-start"
                       )}
-
-                      <Button
-                        onClick={handleModifyTermsSubmit}
-                        disabled={isModifyingTerms || !modifyPrice || !modifyQty || !modifyNotes.trim()}
-                        className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold"
-                      >
-                        {isModifyingTerms ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Confirm & Apply Terms Adjustment'}
-                      </Button>
+                    >
+                      <div className={cn(
+                        "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm",
+                        isAdmin
+                          ? "bg-b2b-orange text-white rounded-br-md"
+                          : "bg-card text-foreground rounded-bl-md border border-border"
+                      )}>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {msg.text}
+                        </p>
+                        <div className={cn(
+                          "flex items-center justify-end gap-1.5 mt-1.5",
+                          isAdmin ? "text-white/70" : "text-muted-foreground"
+                        )}>
+                          <span className="text-[10px]">{msg.timestamp}</span>
+                          {isAdmin && <MessageStatus status={msg.status} />}
+                        </div>
+                      </div>
                     </div>
-                  </DialogContent>
-                </Dialog>
-                <p className="text-[10px] text-muted-foreground mt-2 text-center">
-                  {selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && !selectedConversation?.canIntervene ? (
-                    <span className="text-amber-500 font-bold uppercase tracking-widest text-[9px] animate-pulse">⚠️ Passive Spectator Mode Active</span>
-                  ) : (
-                    <>You are responding as <span className="font-medium"><span className="font-extrabold text-black">J</span>umma<span className="font-extrabold text-b2b-gst">B</span>aba<span className="text-b2b-orange">.com</span> Support</span></>
-                  )}
-                </p>
+                  );
+                })}
+                <div ref={messagesEndRef} />
               </div>
-            </>
-          ) : (
-            // Empty State
-            <div className="flex-1 flex items-center justify-center bg-muted/30">
-              <div className="text-center">
-                <div className="w-20 h-20 rounded-full bg-b2b-orange/10 flex items-center justify-center mx-auto mb-4">
-                  <MessageSquare className="h-10 w-10 text-b2b-orange" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">
-                  Unified Admin Inbox
-                </h3>
-                <p className="text-muted-foreground max-w-sm">
-                  Select a conversation to start mediating between buyers and vendors.
-                  All communications flow through JummaBaba Support.
-                </p>
+            </ScrollArea>
+
+            {/* Message Input */}
+            <div className="p-3 border-t border-border bg-card">
+              <div className="flex items-center gap-2">
+                {selectedConversation?.groupType === 'negotiation' && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowOfferDialog(true)}
+                    className="border-b2b-orange text-b2b-orange hover:bg-b2b-orange/10 shrink-0"
+                    title="Create negotiated offer coupon"
+                  >
+                    <Tag className="h-4 w-4" />
+                  </Button>
+                )}
+                <Input
+                  placeholder={selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && !selectedConversation?.canIntervene ? "Spectating conversation... Toggle Intervention to type" : "Type a message as Admin..."}
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                  className="flex-1 bg-muted border-border"
+                  disabled={!!(selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && !selectedConversation?.canIntervene)}
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={!messageInput.trim() || !!(selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && !selectedConversation?.canIntervene)}
+                  className="bg-b2b-orange hover:bg-b2b-orange/90"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
               </div>
+
+              {/* Special Offer Coupon Dialog */}
+              <Dialog open={showOfferDialog} onOpenChange={setShowOfferDialog}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Send Sourcing Statement & Payment Request</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4 text-sm">
+                    <p className="text-xs text-muted-foreground">
+                      This will generate the final invoice billing statement and payment request for the Buyer. You can optionally attach a discount below.
+                    </p>
+                    <div className="bg-slate-50 p-3 rounded-lg border space-y-1.5 text-xs text-slate-700">
+                      <div className="flex justify-between">
+                        <span>Agreed Price:</span>
+                        <span className="font-bold">₹{Number(selectedConversation?.linkedProductPrice || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Agreed Quantity:</span>
+                        <span className="font-bold">{selectedConversation?.linkedProductQty || 0} units</span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1.5 font-bold text-slate-900">
+                        <span>Base Sourcing Value:</span>
+                        <span>₹{(Number(selectedConversation?.linkedProductPrice || 0) * Number(selectedConversation?.linkedProductQty || 0)).toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-semibold text-xs">Discount (optional)</label>
+                      <div className="flex gap-1.5">
+                        <div className="flex rounded-lg border overflow-hidden shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setOfferDiscountType('percentage')}
+                            className={cn(
+                              "px-2.5 text-xs font-bold transition-colors",
+                              offerDiscountType === 'percentage' ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                            )}
+                          >
+                            %
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setOfferDiscountType('flat')}
+                            className={cn(
+                              "px-2.5 text-xs font-bold transition-colors border-l",
+                              offerDiscountType === 'flat' ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                            )}
+                          >
+                            ₹
+                          </button>
+                        </div>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={offerDiscountType === 'percentage' ? 100 : undefined}
+                          placeholder={offerDiscountType === 'percentage' ? 'e.g. 10' : 'e.g. 50'}
+                          value={offerDiscountValue}
+                          onChange={(e) => {
+                            let v = e.target.value;
+                            if (offerDiscountType === 'percentage' && v !== '' && Number(v) > 100) v = '100';
+                            setOfferDiscountValue(v);
+                          }}
+                          className="flex-1"
+                        />
+                      </div>
+                    </div>
+
+                    {Number(offerDiscountValue) > 0 && (
+                      <div className="space-y-1 animate-in fade-in duration-150">
+                        <label className="font-semibold text-xs">Who absorbs this discount?</label>
+                        <div className="flex rounded-lg border overflow-hidden">
+                          {([
+                            { id: 'seller', label: 'Seller' },
+                            { id: 'platform', label: 'Platform' },
+                            { id: 'split', label: '50-50' }
+                          ] as const).map((opt) => (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => setOfferDiscountAbsorbedBy(opt.id)}
+                              className={cn(
+                                "flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-colors",
+                                opt.id !== 'seller' && "border-l",
+                                offerDiscountAbsorbedBy === opt.id ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(offerBreakdown || offerBreakdownLoading) && (
+                      <div className="bg-slate-50 p-3 rounded-lg border space-y-1.5">
+                        {offerBreakdownLoading && !offerBreakdown ? (
+                          <p className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Calculating...</p>
+                        ) : offerBreakdown && (
+                          <>
+                            {/* Buyer's bill, top to bottom: what the order actually costs, tax,
+                                then the discount coming off it, ending in what buyer pays. */}
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Order Total ({offerBreakdown.quantity} units)</span>
+                              <span className="font-semibold text-slate-800">₹{offerBreakdown.rawOrderValue.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">GST ({offerBreakdown.gstRate}%)</span>
+                              <span className="font-semibold text-slate-800">₹{offerBreakdown.gst.toLocaleString()}</span>
+                            </div>
+                            {offerBreakdown.discountAmount > 0 && (
+                              <div className="flex justify-between text-xs text-emerald-600 font-semibold">
+                                <span>Coupon Discount ({offerBreakdown.discountType === 'flat' ? `₹${offerBreakdown.discountValue} flat` : `${offerBreakdown.discountValue}%`})</span>
+                                <span>− ₹{offerBreakdown.discountAmount.toLocaleString()}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between text-xs pb-1.5 border-b border-dashed">
+                              <span className="font-bold text-slate-900">Total Buyer Payable</span>
+                              <span className="font-black text-slate-900">₹{offerBreakdown.buyerTotal.toLocaleString()}</span>
+                            </div>
+
+                            {/* Platform's and vendor's own split of that order — separate from
+                                what the buyer sees above. */}
+                            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground pt-0.5">Platform & Vendor Split</p>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Platform Commission</span>
+                              <span className="font-semibold text-primary">₹{offerBreakdown.commission.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Vendor Net</span>
+                              <span className="font-semibold text-emerald-600">₹{offerBreakdown.vendorNet.toLocaleString()}</span>
+                            </div>
+                            {offerBreakdown.discountAmount > 0 && (
+                              <p className="text-[10px] text-muted-foreground italic">
+                                Discount absorbed by: {offerDiscountAbsorbedBy === 'platform' ? 'Platform (commission reduced)' : offerDiscountAbsorbedBy === 'split' ? 'Split 50-50' : "Seller (vendor's payout reduced)"}
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleGenerateOffer}
+                      disabled={isGeneratingOffer}
+                      className="w-full bg-b2b-orange hover:bg-b2b-orange/90 text-white font-bold"
+                    >
+                      {isGeneratingOffer ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : '✉️ Send Statement & Request Payment'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Custom Sourcing Term Adjustment Dialog Popup */}
+              <Dialog open={showModifyDialog} onOpenChange={setShowModifyDialog}>
+                <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Adjust Sourcing Proposal Terms</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4 text-sm">
+                    <CatalogSlabDialogBanner metadata={modifyMetadata || selectedConversation} liveQuantity={modifyQty} />
+
+                    <div className="space-y-2">
+                      <label className="font-semibold text-xs">Adjusted Unit Sourcing Price (₹) *</label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 1000"
+                        value={modifyPrice}
+                        onChange={(e) => setModifyPrice(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="font-semibold text-xs">Adjusted Sourcing Volume *</label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 100"
+                        value={modifyQty}
+                        onChange={(e) => setModifyQty(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="font-semibold text-xs text-slate-700 dark:text-slate-200">
+                        Modification Reason / Remark *
+                      </label>
+                      <Textarea
+                        placeholder="Explain why terms were adjusted (e.g. Volume discount applied, special delivery surcharge, tier pricing adjustment)..."
+                        value={modifyNotes}
+                        onChange={(e) => setModifyNotes(e.target.value)}
+                        rows={3}
+                        className="text-xs"
+                      />
+                    </div>
+
+                    {modifyPrice && modifyQty && (
+                      <div className="p-3 bg-muted rounded-xl text-xs space-y-1.5 border border-slate-200">
+                        <p className="font-bold border-b pb-1 text-slate-800">Financial Splits Calculation</p>
+                        <div className="flex justify-between">
+                          <span>Product Base Value:</span>
+                          <span className="font-bold">₹{(Number(modifyPrice) * Number(modifyQty)).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-indigo-600">
+                          <span>Platform Fee Commission (10%):</span>
+                          <span className="font-bold">- ₹{(Number(modifyPrice) * Number(modifyQty) * 0.10).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-emerald-600 font-bold">
+                          <span>Expected Vendor Settlement (90%):</span>
+                          <span>₹{(Number(modifyPrice) * Number(modifyQty) * 0.90).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleModifyTermsSubmit}
+                      disabled={isModifyingTerms || !modifyPrice || !modifyQty || !modifyNotes.trim()}
+                      className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold"
+                    >
+                      {isModifyingTerms ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Confirm & Apply Terms Adjustment'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                {selectedConversation?.isGroup && selectedConversation?.groupType === 'order_group' && !selectedConversation?.canIntervene ? (
+                  <span className="text-amber-500 font-bold uppercase tracking-widest text-[9px] animate-pulse">⚠️ Passive Spectator Mode Active</span>
+                ) : (
+                  <>You are responding as <span className="font-medium"><span className="font-extrabold text-black">J</span>umma<span className="font-extrabold text-b2b-gst">B</span>aba<span className="text-b2b-orange">.com</span> Support</span></>
+                )}
+              </p>
             </div>
-          )}
-        </div>
+          </>
+        ) : (
+          // Empty State
+          <div className="flex-1 flex items-center justify-center bg-muted/30">
+            <div className="text-center">
+              <div className="w-20 h-20 rounded-full bg-b2b-orange/10 flex items-center justify-center mx-auto mb-4">
+                <MessageSquare className="h-10 w-10 text-b2b-orange" />
+              </div>
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                Unified Admin Inbox
+              </h3>
+              <p className="text-muted-foreground max-w-sm">
+                Select a conversation to start mediating between buyers and vendors.
+                All communications flow through JummaBaba Support.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
+    </div>
   );
 }

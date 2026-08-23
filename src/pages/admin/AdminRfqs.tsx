@@ -46,7 +46,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { formatPrice, cn } from '@/lib/utils';
+import { formatPrice, cn, PRODUCT_IMAGE_PLACEHOLDER } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RfqTimeline, getRfqSteps } from '@/components/b2b/RfqTimeline';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -383,19 +383,22 @@ export default function AdminRfqs() {
   };
 
   const getModerationBadge = (status: string) => {
+    // whitespace-nowrap so these never wrap to two lines and stretch the row — a slightly
+    // wider badge beats a ragged, inconsistent row height every time.
+    const base = "font-bold px-2.5 py-1 rounded-full uppercase text-[10px] tracking-wide whitespace-nowrap";
     switch (status) {
       case 'pending_moderation':
-        return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest">New Inquiry</Badge>;
+        return <Badge className={cn(base, "bg-amber-500/10 text-amber-500 border-amber-500/20")}>New Inquiry</Badge>;
       case 'forwarded':
-        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest">Sent to Seller</Badge>;
+        return <Badge className={cn(base, "bg-blue-500/10 text-blue-500 border-blue-500/20")}>Sent to Seller</Badge>;
       case 'quote_pending':
-        return <Badge className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest animate-pulse">Quote Received</Badge>;
+        return <Badge className={cn(base, "bg-indigo-500/10 text-indigo-500 border-indigo-500/20 animate-pulse")}>Quote Received</Badge>;
       case 'quote_approved':
-        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest">Audit Passed</Badge>;
+        return <Badge className={cn(base, "bg-blue-500/10 text-blue-500 border-blue-500/20")}>Audit Passed</Badge>;
       case 'quote_rejected':
-        return <Badge variant="destructive" className="font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest">Rejected</Badge>;
+        return <Badge variant="destructive" className={base}>Rejected</Badge>;
       default:
-        return <Badge variant="secondary" className="font-bold px-3 py-1 rounded-full uppercase text-[10px] tracking-widest">{status}</Badge>;
+        return <Badge variant="secondary" className={base}>{status}</Badge>;
     }
   };
 
@@ -480,43 +483,57 @@ export default function AdminRfqs() {
               ) : (
                 filteredRfqs.map((rfq) => (
                   <TableRow key={rfq.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <img 
-                          src={rfq.product_images?.[0]} 
-                          className="w-10 h-10 rounded object-cover"
+                    <TableCell className="max-w-xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={rfq.product_images?.[0]}
+                          className="w-10 h-10 rounded object-cover flex-shrink-0"
                           alt={rfq.product_name}
-                          onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=100'; }}
+                          onError={(e) => { (e.target as HTMLImageElement).src = PRODUCT_IMAGE_PLACEHOLDER; }}
                         />
-                        <span className="font-medium">{rfq.product_name}</span>
+                        <span className="font-medium truncate min-w-0" title={rfq.product_name}>{rfq.product_name}</span>
                       </div>
                     </TableCell>
                     <TableCell>{rfq.buyer_name || 'Anonymous'}</TableCell>
                     <TableCell>{rfq.quantity} {rfq.unit}</TableCell>
                     <TableCell>
+                      {/* Always two lines, even before a quote exists — otherwise rows with a
+                          quote are visibly taller than rows without one and the table looks
+                          ragged going down the list. */}
                       <div className="space-y-1">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Target: {rfq.target_price ? formatPrice(rfq.target_price) : 'N/A'}</div>
-                        {rfq.response_details?.price && (
-                          <div className="text-sm font-black text-primary">Quote: {formatPrice(rfq.response_details.price)}</div>
-                        )}
+                        <div className={cn("text-sm font-black", rfq.response_details?.price ? "text-primary" : "text-slate-300")}>
+                          {rfq.response_details?.price ? `Quote: ${formatPrice(rfq.response_details.price)}` : 'Awaiting Quote'}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>{getModerationBadge(rfq.moderation_status)}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="ghost" onClick={() => { setSelectedRfq(rfq); setDetailsOpen(true); }}>
+                      <div className="flex justify-end items-center gap-1">
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setSelectedRfq(rfq); setDetailsOpen(true); }} title="View details">
                           <Eye className="h-4 w-4" />
                         </Button>
                         {rfq.moderation_status === 'pending_moderation' && (
-                          <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black uppercase tracking-widest shadow-lg shadow-orange-600/20 px-4" onClick={() => handleForward(rfq)} disabled={isForwarding}>
-                            {isForwarding ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4 mr-2" />}
-                            Forward
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-600/10"
+                            onClick={() => handleForward(rfq)}
+                            disabled={isForwarding}
+                            title="Forward to seller"
+                          >
+                            {isForwarding ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                           </Button>
                         )}
                         {rfq.moderation_status === 'quote_pending' && (
-                          <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black uppercase tracking-widest shadow-lg shadow-orange-600/20 px-4" onClick={() => { setSelectedRfq(rfq); setDetailsOpen(true); }}>
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                            Review Quote
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-600/10"
+                            onClick={() => { setSelectedRfq(rfq); setDetailsOpen(true); }}
+                            title="Review quote"
+                          >
+                            <CheckCircle className="h-4 w-4" />
                           </Button>
                         )}
                       </div>

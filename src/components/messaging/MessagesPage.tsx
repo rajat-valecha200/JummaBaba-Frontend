@@ -125,6 +125,7 @@ interface Conversation {
   rfqId?: string;
   canIntervene?: boolean;
   negotiationStep?: string;
+  moderationStatus?: string;
   directChatActive?: boolean;
 }
 
@@ -134,6 +135,7 @@ interface SourcingActionCardProps {
   onRefresh: () => void;
   triggerCounterNegotiation?: (rfqId: string, price: number, qty: number) => void;
   negotiationStep?: string;
+  moderationStatus?: string;
 }
 
 function CatalogSlabBadge({ metadata }: { metadata: any }) {
@@ -199,7 +201,7 @@ function CatalogSlabBadge({ metadata }: { metadata: any }) {
   );
 }
 
-function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegotiation, negotiationStep }: SourcingActionCardProps) {
+function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegotiation, negotiationStep, moderationStatus }: SourcingActionCardProps) {
   const metadata = message.metadata || {};
   const cardType = metadata.type;
 
@@ -364,11 +366,22 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
 
           {userRole === 'vendor' && (
             <div className="mt-4 pt-4 border-t border-cyan-500/20">
-              <Link to="/vendor/rfqs">
-                <Button className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all">
-                  Prepare Formal Quote →
-                </Button>
-              </Link>
+              {/* Once a quote has actually been submitted, this button has nothing left to do —
+                  showing it anyway just invites the vendor to click it again for no reason.
+                  Only show it while there's genuinely no quote in flight yet (freshly forwarded,
+                  or admin rejected the last one and a re-quote is needed). */}
+              {moderationStatus === 'forwarded' || moderationStatus === 'quote_rejected' || !moderationStatus ? (
+                <Link to={`/vendor/rfqs?open=${metadata.rfq_id}`}>
+                  <Button className="w-full text-xs h-9 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-sm font-semibold transition-all">
+                    {moderationStatus === 'quote_rejected' ? 'Revise & Resubmit Quote →' : 'Prepare Formal Quote →'}
+                  </Button>
+                </Link>
+              ) : (
+                <div className="w-full text-xs h-9 flex items-center justify-center gap-1.5 rounded-lg bg-muted/50 text-muted-foreground font-semibold">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {moderationStatus === 'quote_pending' ? 'Quote Submitted — Awaiting Admin Review' : 'Quote Submitted'}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -525,33 +538,60 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             )}
           </div>
 
-          {userRole === 'buyer' && metadata.rfq_status === 'responded' && metadata.moderation_status === 'quote_approved' && (
-            <div className="mt-4 pt-4 border-t border-emerald-500/20 flex gap-2">
-              <Button
-                onClick={handleAcceptQuote}
-                className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
-                disabled={isActioning}
-              >
-                {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "✅ Accept Quote"}
-              </Button>
-            </div>
-          )}
+          {(() => {
+            // The buyer already clicked Accept on this exact quote — a billing statement was
+            // generated and negotiation_step moved on. Neither rfq_status nor moderation_status
+            // change when that happens, so without this check the "Accept Quote" button on this
+            // (now-historical) message stays active in scrollback forever, looking clickable
+            // even though the deal has already moved to payment.
+            const alreadyAccepted = ['payment_pending', 'payment_submitted', 'payment_confirmed_escrow'].includes(metadata.rfq_negotiation_step);
 
-          {userRole === 'buyer' && metadata.rfq_status === 'responded' && metadata.moderation_status !== 'quote_approved' && (
-            <div className="mt-4 text-center">
-              <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] py-1 border border-amber-500/10">
-                Pending Admin Review
-              </Badge>
-            </div>
-          )}
+            if (userRole === 'buyer' && metadata.rfq_status === 'responded' && metadata.moderation_status === 'quote_approved' && !alreadyAccepted) {
+              return (
+                <div className="mt-4 pt-4 border-t border-emerald-500/20 flex gap-2">
+                  <Button
+                    onClick={handleAcceptQuote}
+                    className="flex-1 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm font-semibold transition-all"
+                    disabled={isActioning}
+                  >
+                    {isActioning ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "✅ Accept Quote"}
+                  </Button>
+                </div>
+              );
+            }
 
-          {(userRole !== 'buyer' || metadata.rfq_status !== 'responded') && (
-            <div className="mt-4 text-center">
-              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] py-1 border border-emerald-500/10">
-                {userRole === 'buyer' ? '✓ Order Placed' : 'Awaiting Buyer Decision'}
-              </Badge>
-            </div>
-          )}
+            if (userRole === 'buyer' && alreadyAccepted) {
+              return (
+                <div className="mt-4 text-center">
+                  <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] py-1 border border-emerald-500/10">
+                    ✓ Quote Accepted — Payment in Progress
+                  </Badge>
+                </div>
+              );
+            }
+
+            if (userRole === 'buyer' && metadata.rfq_status === 'responded' && metadata.moderation_status !== 'quote_approved') {
+              return (
+                <div className="mt-4 text-center">
+                  <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] py-1 border border-amber-500/10">
+                    Pending Admin Review
+                  </Badge>
+                </div>
+              );
+            }
+
+            if (userRole !== 'buyer' || metadata.rfq_status !== 'responded') {
+              return (
+                <div className="mt-4 text-center">
+                  <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] py-1 border border-emerald-500/10">
+                    Awaiting Buyer Decision
+                  </Badge>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
           {errorMsg && <p className="text-xs text-destructive mt-2 text-center">{errorMsg}</p>}
         </div>
       );
@@ -584,13 +624,33 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
 
           <div className="space-y-2.5 text-xs">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Order Value:</span>
-              <span className="font-bold text-indigo-600 dark:text-indigo-400">₹{Number(metadata.amount).toLocaleString()}</span>
+              {/* Vendor sees the price they actually quoted and agreed to supply at — any
+                  discount is a buyer-billing decision they weren't part of and may not even
+                  come out of their payout (see discountAbsorbedBy), so showing them a
+                  discounted figure here would look like their price got silently cut. Buyer
+                  and admin see what was actually paid. Falls back to the older `amount` field
+                  for messages sent before this split existed. */}
+              <span className="text-muted-foreground">{userRole === 'vendor' ? 'Order Value:' : 'Total Paid:'}</span>
+              <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                ₹{Number(userRole === 'vendor' ? (metadata.vendorAmount ?? metadata.amount) : (metadata.buyerAmount ?? metadata.amount)).toLocaleString()}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Quantity:</span>
               <span className="font-semibold text-foreground">{metadata.quantity} {metadata.unit}</span>
             </div>
+            {metadata.leadTime && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Vendor's Lead Time:</span>
+                <span className="font-semibold text-foreground">{metadata.leadTime}</span>
+              </div>
+            )}
+            {metadata.vendorNotes && (
+              <div className="mt-2 pt-2 border-t border-indigo-500/10">
+                <span className="text-[10px] uppercase text-muted-foreground tracking-wider block mb-1">Vendor's Terms</span>
+                <p className="text-muted-foreground leading-relaxed italic">"{metadata.vendorNotes}"</p>
+              </div>
+            )}
             {metadata.cancellation_deadline && (
               <div className="mt-2 pt-2 border-t border-indigo-500/10 text-[10px] text-muted-foreground">
                 <span className="font-semibold text-amber-500 block mb-0.5">⚠️ Cancellation Deadline</span>
@@ -632,7 +692,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </p>
           {userRole === 'vendor' && (
             metadata.rfq_status === 'confirmed' ? (
-              <Link to="/vendor/orders" className="block mt-2">
+              <Link to={`/vendor/orders?open=${metadata.rfq_id}`} className="block mt-2">
                 <Button className="w-full text-xs h-8 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-sm font-semibold transition-all">
                   🚚 Dispatch & Add Shipping Details
                 </Button>
@@ -668,6 +728,18 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <span className="text-muted-foreground">AWB/Tracking Number:</span>
               <span className="font-bold text-blue-600 dark:text-blue-400">{metadata.awb || 'N/A'}</span>
             </div>
+            {metadata.dispatchLocation && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Dispatched From:</span>
+                <span className="font-semibold text-foreground">{metadata.dispatchLocation}</span>
+              </div>
+            )}
+            {metadata.shippingNotes && (
+              <div className="mt-2 pt-2 border-t border-blue-500/10">
+                <span className="text-[10px] uppercase text-muted-foreground tracking-wider block mb-1">Shipping Notes</span>
+                <p className="text-muted-foreground leading-relaxed italic">"{metadata.shippingNotes}"</p>
+              </div>
+            )}
           </div>
 
           {userRole === 'vendor' && (
@@ -1166,7 +1238,24 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
         </div>
       );
 
-    case 'rfq_forwarded_to_seller':
+    case 'rfq_forwarded_to_seller': {
+      // Vendor is about to Accept or Counter these negotiated terms — they should see the same
+      // full money picture (cost, GST, platform's cut, their real take-home) before deciding,
+      // not just the raw price/qty. Same estimate the "Your Price" field in the formal quote
+      // form uses, just pre-filled to the terms already on the table here.
+      const [forwardedBreakdown, setForwardedBreakdown] = useState<any>(null);
+      const [forwardedBreakdownLoading, setForwardedBreakdownLoading] = useState(false);
+      useEffect(() => {
+        if (userRole !== 'vendor' || !metadata.rfq_id || !metadata.price) return;
+        let cancelled = false;
+        setForwardedBreakdownLoading(true);
+        api.rfqs.getQuoteEstimate(metadata.rfq_id, Number(metadata.price))
+          .then((result: any) => { if (!cancelled) setForwardedBreakdown(result); })
+          .catch(() => { if (!cancelled) setForwardedBreakdown(null); })
+          .finally(() => { if (!cancelled) setForwardedBreakdownLoading(false); });
+        return () => { cancelled = true; };
+      }, [metadata.rfq_id, metadata.price]);
+
       return (
         <div className="w-full max-w-md my-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center gap-2 border-b border-indigo-500/20 pb-3 mb-4">
@@ -1188,6 +1277,39 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <span className="font-bold">{metadata.quantity} units</span>
             </div>
           </div>
+
+          {userRole === 'vendor' && (forwardedBreakdown || forwardedBreakdownLoading) && (
+            <div className="mt-3 p-3 rounded-xl bg-background/60 border border-indigo-500/15 space-y-1.5">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Estimated Breakdown at This Price</p>
+              {forwardedBreakdownLoading && !forwardedBreakdown ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Calculating...</p>
+              ) : forwardedBreakdown && (
+                <>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Order Value ({forwardedBreakdown.quantity} units)</span>
+                    <span className="font-semibold text-foreground">₹{forwardedBreakdown.orderValue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">GST ({forwardedBreakdown.gstRate}%, buyer pays)</span>
+                    <span className="font-semibold text-foreground">₹{forwardedBreakdown.gst.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs pb-1.5 border-b border-dashed border-indigo-500/20">
+                    <span className="font-bold text-foreground">Buyer's Total Bill</span>
+                    <span className="font-black text-foreground">₹{forwardedBreakdown.buyerTotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Platform Commission</span>
+                    <span className="font-semibold text-destructive">− ₹{forwardedBreakdown.commission.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm pt-0.5">
+                    <span className="font-bold text-foreground">You'll Earn</span>
+                    <span className="font-black text-emerald-600 dark:text-emerald-400">₹{forwardedBreakdown.vendorNet.toLocaleString()}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="mt-4 pt-3 border-t border-indigo-500/20 flex gap-2">
             {userRole === 'vendor' && negotiationStep === 'forwarded_to_seller' ? (
               <>
@@ -1232,6 +1354,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </div>
         </div>
       );
+    }
 
     case 'rfq_seller_accepted':
       return (
@@ -1256,9 +1379,9 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
       const [paymentRef, setPaymentRef] = useState('');
 
       return (
-        <div className="w-full max-w-md my-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center gap-2 border-b border-indigo-500/20 pb-3 mb-4">
-            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+        <div className="w-full max-w-md my-2 rounded-2xl border border-primary/25 bg-primary/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 border-b border-primary/20 pb-3 mb-4">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary">
               <FileText className="h-5 w-5" />
             </div>
             <div>
@@ -1267,7 +1390,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
           </div>
 
-          <div className="space-y-1.5 text-xs text-slate-700 bg-white/50 p-3 rounded-lg border border-indigo-500/10 mb-4">
+          <div className="space-y-1.5 text-xs text-foreground bg-background/60 p-3 rounded-lg border border-primary/10 mb-4">
             <div className="flex justify-between">
               <span>Agreed Price:</span>
               <span className="font-bold text-foreground">₹{Number(breakdown.price).toLocaleString()} / Unit</span>
@@ -1282,7 +1405,9 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             </div>
             {Number(breakdown.discountAmount) > 0 && (
               <div className="flex justify-between text-emerald-600 font-semibold">
-                <span>Discount ({breakdown.discountPercentage}% off):</span>
+                {/* discountType/discountValue is the current shape (initiateOrderPayment); older
+                    bills sent via adminSendPaymentRequest still carry discountPercentage only. */}
+                <span>Discount ({breakdown.discountType === 'flat' ? `₹${breakdown.discountValue} flat` : `${breakdown.discountValue ?? breakdown.discountPercentage}%`} off):</span>
                 <span>-₹{Number(breakdown.discountAmount).toLocaleString()}</span>
               </div>
             )}
@@ -1296,10 +1421,13 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               </div>
             )}
             <div className="flex justify-between text-[11px] text-muted-foreground">
-              <span>GST Tax (18%):</span>
+              {/* GST rate is admin-configurable now — derive the displayed % from the actual
+                  amounts on this bill instead of a hardcoded "18%" that would lie once admin
+                  changes the rate in Settings. */}
+              <span>GST Tax {Number(breakdown.discountedBase || breakdown.baseAmount) > 0 ? `(${((Number(breakdown.gst) / Number(breakdown.discountedBase || breakdown.baseAmount)) * 100).toFixed(0)}%)` : ''}:</span>
               <span>₹{Number(breakdown.gst).toLocaleString()}</span>
             </div>
-            <div className="flex justify-between font-black border-t border-double pt-1.5 mt-1.5 text-indigo-600 text-sm">
+            <div className="flex justify-between font-black border-t border-double pt-1.5 mt-1.5 text-primary text-sm">
               <span>Total Buyer Payable:</span>
               <span>₹{Math.round(Number(breakdown.finalAmount)).toLocaleString()}</span>
             </div>
@@ -1308,11 +1436,11 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           {userRole === 'buyer' && metadata.rfq_negotiation_step === 'payment_pending' ? (
             <div className="space-y-3">
               <Link to={`/buyer/rfq-payment/${metadata.rfq_id}`}>
-                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 rounded-xl text-xs shadow-md shadow-indigo-600/20">
+                <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-10 rounded-xl text-xs shadow-md shadow-primary/20">
                   View & Confirm Payment Terms →
                 </Button>
               </Link>
-              <div className="relative border-t border-indigo-500/10 pt-2 text-center">
+              <div className="relative border-t border-primary/10 pt-2 text-center">
                 <span className="text-[10px] text-muted-foreground uppercase font-bold">Or quick submit UTR in chat:</span>
               </div>
               <div className="space-y-1">
@@ -1320,12 +1448,12 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                   placeholder="e.g. UTR128763524 / IMPS Ref"
                   value={paymentRef}
                   onChange={(e) => setPaymentRef(e.target.value)}
-                  className="bg-white border-indigo-500/20 text-xs h-9 rounded-lg"
+                  className="bg-background border-primary/20 text-xs h-9 rounded-lg"
                 />
               </div>
               <Button
                 variant="outline"
-                className="w-full border-indigo-500/30 text-indigo-600 font-bold h-9 rounded-lg text-xs"
+                className="w-full border-primary/30 text-primary font-bold h-9 rounded-lg text-xs"
                 onClick={async () => {
                   if (!paymentRef.trim()) {
                     alert('Please input a valid transfer reference UTR to confirm.');
@@ -1348,7 +1476,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               </Button>
             </div>
           ) : (
-            <Badge className="w-full justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
+            <Badge className="w-full justify-center bg-primary/10 text-primary border border-primary/20 py-1 text-[10px] uppercase font-bold tracking-wider">
               {userRole === 'buyer' ? '✓ Payment Reference Submitted' : 'Awaiting Buyer Payment'}
             </Badge>
           )}
@@ -1675,6 +1803,10 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // Set whenever a (different) conversation is opened; consumed by fetchMessages once that
+  // conversation's history actually lands, so the chat opens scrolled to the latest message
+  // instead of wherever the scroll happened to sit before (e.g. the top).
+  const shouldScrollToBottomRef = useRef(false);
 
   // Search and filter state
   const [isMessageSearchOpen, setIsMessageSearchOpen] = useState(false);
@@ -2001,7 +2133,8 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         directChatActive: c.direct_chat_active,
         linkedProductPrice: Number(c.target_price || 0),
         linkedProductQty: Number(c.quantity || 0),
-        negotiationStep: c.negotiation_step
+        negotiationStep: c.negotiation_step,
+        moderationStatus: c.moderation_status
       }));
 
       // Play sound if unread count increased globally
@@ -2041,11 +2174,13 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         const currentConv = dataRef.current?.find((c: any) => c.participant_id === selectedConversation.id);
         const nextStep = currentConv ? currentConv.negotiation_step : prev.negotiationStep;
         const nextDirect = currentConv ? !!currentConv.direct_chat_active : prev.directChatActive;
+        const nextModerationStatus = currentConv ? currentConv.moderation_status : prev.moderationStatus;
 
         if (
           JSON.stringify(prev.messages) === JSON.stringify(mappedMessages) &&
           prev.negotiationStep === nextStep &&
-          prev.directChatActive === nextDirect
+          prev.directChatActive === nextDirect &&
+          prev.moderationStatus === nextModerationStatus
         ) {
           return prev;
         }
@@ -2053,9 +2188,20 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
           ...prev,
           messages: mappedMessages,
           negotiationStep: nextStep,
-          directChatActive: nextDirect
+          directChatActive: nextDirect,
+          moderationStatus: nextModerationStatus
         };
       });
+
+      if (shouldScrollToBottomRef.current) {
+        shouldScrollToBottomRef.current = false;
+        // Wait a tick so the newly-rendered messages are actually in the DOM before jumping —
+        // an instant jump (not smooth) so opening a long thread doesn't visibly scroll through
+        // its entire history first.
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        });
+      }
 
       // If there are unread messages from other users, mark them as read
       const hasUnread = history.some((m: any) => m.sender_id !== user.id && !m.is_read);
@@ -2076,21 +2222,32 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
+  // Deep-links from a notification/message ("chatGroupId=X" in the URL) should only ever
+  // auto-open that conversation ONCE — the URL itself never changes again after that (clicking
+  // a different conversation updates React state directly, not the browser URL). Without this
+  // guard, the conversations list refreshing on its own poll re-ran this effect, saw the URL
+  // still said "open X", and forcibly snapped the user back to X every time — even after
+  // they'd deliberately navigated to a different chat.
+  const processedDeepLinkRef = useRef<string | null>(null);
   useEffect(() => {
     if (conversations.length > 0) {
       const params = new URLSearchParams(location.search);
       const chatGroupId = params.get('chatGroupId') || params.get('groupId');
       const rfqId = params.get('rfqId');
+      const key = chatGroupId ? `group:${chatGroupId}` : (rfqId ? `rfq:${rfqId}` : null);
+      if (!key || processedDeepLinkRef.current === key) return;
 
       if (chatGroupId) {
         const found = conversations.find(c => c.id === chatGroupId);
-        if (found && (!selectedConversation || selectedConversation.id !== found.id)) {
-          openConversation(found);
+        if (found) {
+          processedDeepLinkRef.current = key;
+          if (!selectedConversation || selectedConversation.id !== found.id) openConversation(found);
         }
       } else if (rfqId) {
         const found = conversations.find(c => c.rfqId === rfqId);
-        if (found && (!selectedConversation || selectedConversation.id !== found.id)) {
-          openConversation(found);
+        if (found) {
+          processedDeepLinkRef.current = key;
+          if (!selectedConversation || selectedConversation.id !== found.id) openConversation(found);
         }
       }
     }
@@ -2098,6 +2255,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
 
   useEffect(() => {
     if (selectedConversation?.id) {
+      shouldScrollToBottomRef.current = true;
       fetchMessages();
       const interval = setInterval(fetchMessages, 3000); // 3s for active chat
       return () => clearInterval(interval);
@@ -2679,7 +2837,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <p
-                        className="font-semibold truncate"
+                        className="font-semibold truncate min-w-0"
                         title={conv.participantName}
                       >
                         {conv.participantName}
@@ -2769,7 +2927,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
         {selectedConversation ? (
           <div className="flex flex-col h-full overflow-hidden">
             {/* WhatsApp-style Chat Header - Sticky */}
-            <div className="bg-card border-b px-2 md:px-4 py-2 flex items-center gap-2 md:gap-3 flex-shrink-0 z-20">
+            <div className="bg-card border-b px-2 md:px-4 py-2 flex items-center gap-2 md:gap-3 flex-shrink-0 z-20 min-w-0">
               {/* Back Button */}
               <Button
                 variant="ghost"
@@ -2808,8 +2966,8 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
 
               {/* Supplier Info */}
               <div className="flex-1 min-w-0" onClick={() => { }}>
-                <div className="flex items-center gap-1.5">
-                  <p className="font-semibold truncate">{selectedConversation.participantName}</p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="font-semibold truncate min-w-0">{selectedConversation.participantName}</p>
                   {selectedConversation.isVerified && !selectedConversation.isGroup && (
                     <Shield className="h-4 w-4 text-success flex-shrink-0" />
                   )}
@@ -3017,6 +3175,7 @@ export default function MessagesPage({ userType, rfqId }: MessagesPageProps) {
                             setCounterOpen(true);
                           }}
                           negotiationStep={selectedConversation.negotiationStep}
+                          moderationStatus={selectedConversation.moderationStatus}
                         />
                       </div>
                     );

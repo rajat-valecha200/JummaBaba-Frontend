@@ -70,30 +70,37 @@ interface TrustBadgesProps {
   gstVerified?: boolean;
   isTopSupplier?: boolean;
   isVerified?: boolean;
+  // ProductCard already shows a Verified/Not Verified badge as an overlay on the product image
+  // — showing this row's own verified/not-verified indicator too duplicated it on every card.
+  // Default true keeps existing behavior (supplier cards, supplier detail page) unchanged.
+  showVerifiedBadge?: boolean;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
 
-export function TrustBadges({ 
-  gstVerified, 
-  isTopSupplier, 
-  isVerified, 
+export function TrustBadges({
+  gstVerified,
+  isTopSupplier,
+  isVerified,
+  showVerifiedBadge = true,
   size = 'sm',
-  className 
+  className
 }: TrustBadgesProps) {
   return (
     <div className={cn('flex flex-wrap gap-1', className)}>
       {isTopSupplier && <TrustBadge type="top-supplier" size={size} />}
       {gstVerified && <TrustBadge type="gst" size={size} />}
-      {isVerified ? (
-        <TrustBadge type="verified" size={size} />
-      ) : (
-        <span className={cn(
-          'inline-flex items-center rounded-full border font-medium bg-muted text-muted-foreground',
-          size === 'sm' ? 'px-1.5 py-0.5 text-xs gap-0.5' : 'px-2 py-1 text-xs gap-1'
-        )}>
-          Not Verified
-        </span>
+      {showVerifiedBadge && (
+        isVerified ? (
+          <TrustBadge type="verified" size={size} />
+        ) : (
+          <span className={cn(
+            'inline-flex items-center rounded-full border font-medium bg-muted text-muted-foreground',
+            size === 'sm' ? 'px-1.5 py-0.5 text-xs gap-0.5' : 'px-2 py-1 text-xs gap-1'
+          )}>
+            Not Verified
+          </span>
+        )
       )}
     </div>
   );

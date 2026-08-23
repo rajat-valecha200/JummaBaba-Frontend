@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle, ArrowLeft, Upload, Info, AlertTriangle, Loader2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,6 +73,7 @@ const statusConfig: Record<OrderStatus, { label: string; icon: typeof Package; c
 
 export default function VendorOrders() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [dbOrders, setDbOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -130,6 +132,25 @@ export default function VendorOrders() {
 
   const [orders, setOrders] = useState<Order[]>([]); // For local state updates
   useEffect(() => { setOrders(dbOrders); }, [dbOrders]);
+
+  // Deep link from chat's "Dispatch & Add Shipping Details" (or similar) buttons (?open=<id>) —
+  // jump straight to that specific order instead of dropping the vendor on the plain list,
+  // which is useless once there are dozens of orders to sift through to find the right one.
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || orders.length === 0) return;
+
+    const target = orders.find((o) => String(o.id) === String(openId));
+    if (target) {
+      setSelectedOrder(target);
+    } else {
+      toast({ variant: 'destructive', title: 'Order not found', description: "This order isn't in your list — it may not be ready yet or was already handled." });
+    }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    setSearchParams(next, { replace: true });
+  }, [orders, searchParams]);
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');

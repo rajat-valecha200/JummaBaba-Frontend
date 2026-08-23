@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatsCard } from '@/components/b2b/StatsCard';
 import { SalesChart } from '@/components/b2b/SalesChart';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, PRODUCT_IMAGE_PLACEHOLDER } from '@/lib/utils';
 import { ProductPreviewDialog } from '@/components/admin/ProductPreviewDialog';
 import {
   Dialog,
@@ -244,7 +244,7 @@ export default function AdminDashboard() {
                 pendingProducts.slice(0, 5).map(p => (
                   <div key={p.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <img src={p.images?.[0]} alt={p.name} className="w-10 h-10 rounded-lg object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=100'; }} />
+                      <img src={p.images?.[0] || PRODUCT_IMAGE_PLACEHOLDER} alt={p.name} className="w-10 h-10 rounded-lg object-cover" onError={(e) => { (e.target as HTMLImageElement).src = PRODUCT_IMAGE_PLACEHOLDER; }} />
                       <div>
                         <p className="font-medium truncate max-w-[150px]">{p.name}</p>
                         <p className="text-sm text-muted-foreground">MOQ: {p.moq}</p>

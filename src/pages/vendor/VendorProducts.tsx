@@ -72,7 +72,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { ProductCard } from '@/components/b2b/ProductCard';
-import { formatPrice, cn } from '@/lib/utils';
+import { formatPrice, cn, PRODUCT_IMAGE_PLACEHOLDER } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { api, normalizeProduct } from '@/lib/api';
@@ -482,9 +482,20 @@ export default function VendorProducts() {
       deleteGuard.current = true;
       setDeleteSubmitting(true);
       api.products.remove(deleteId)
-        .then(() => {
-          setProductList(productList.filter(p => p.id !== deleteId));
-          toast({ title: 'Product deleted' });
+        .then((result: any) => {
+          if (result?.deactivated) {
+            // Had existing RFQs/orders attached, so it was moved to Draft instead of deleted —
+            // that's still hidden from buyers, just not gone from the seller's own list.
+            setProductList(productList.map(p => p.id === deleteId ? { ...p, status: 'draft' as ProductStatus } : p));
+            toast({
+              variant: 'success',
+              title: 'Removed from your store',
+              description: 'Buyers can no longer see this product. It has past orders, so we kept it as a Draft instead of deleting it — you\'ll find it there if you need it again.',
+            });
+          } else {
+            setProductList(productList.filter(p => p.id !== deleteId));
+            toast({ title: 'Product deleted' });
+          }
           setDeleteOpen(false);
           setDeleteId(null);
         })
@@ -668,7 +679,7 @@ export default function VendorProducts() {
                         <TableCell className="w-[320px] max-w-[320px] pl-6 py-5">
                           <div className="flex items-center gap-3.5 min-w-0">
                             <div className="relative w-12 h-12 shrink-0">
-                              <img src={product.images[0]} alt={product.name} className="w-full h-full rounded-2xl object-cover shadow-md border-2 border-white" />
+                              <img src={product.images[0] || PRODUCT_IMAGE_PLACEHOLDER} alt={product.name} className="w-full h-full rounded-2xl object-cover shadow-md border-2 border-white" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }} />
                               {product.images.length > 1 && (
                                 <div className="absolute -bottom-1 -right-1 bg-primary text-white shadow-lg rounded-lg px-1.5 py-0.5 border-2 border-white text-[9px] font-black">+{product.images.length - 1}</div>
                               )}
@@ -745,7 +756,7 @@ export default function VendorProducts() {
                 <div key={product.id} className="p-5 space-y-4 active:bg-slate-50 transition-colors">
                   <div className="flex gap-4">
                     <div className="relative w-16 h-16 shrink-0">
-                      <img src={product.images[0]} alt={product.name} className="w-full h-full rounded-xl object-cover shadow-sm" />
+                      <img src={product.images[0] || PRODUCT_IMAGE_PLACEHOLDER} alt={product.name} className="w-full h-full rounded-xl object-cover shadow-sm" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }} />
                       {product.images.length > 1 && (
                         <div className="absolute -top-1 -right-1 bg-primary text-white rounded-md px-1 py-0.5 text-[8px] font-black">+{product.images.length - 1}</div>
                       )}

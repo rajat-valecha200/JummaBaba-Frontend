@@ -1,3 +1,5 @@
+import { PRODUCT_IMAGE_PLACEHOLDER } from './utils';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const cleanImagePath = (img: any) => {
@@ -45,9 +47,9 @@ export const normalizeProduct = (product: any) => {
     samplePrice: Number(product.sample_price ?? product.samplePrice ?? 0),
     sampleMOQ: Number(product.sample_moq ?? product.sampleMOQ ?? 1),
     minPrice: Number(product.min_price ?? product.minPrice ?? 0),
-    images: Array.isArray(images) && images.length > 0 
+    images: Array.isArray(images) && images.length > 0
       ? images.map(cleanImagePath)
-      : ['https://images.unsplash.com/photo-1582234057117-9c9ae625b035?w=600'],
+      : [PRODUCT_IMAGE_PLACEHOLDER],
     rejectionReason: product.rejection_reason ?? product.rejectionReason,
     vendor: product.vendor ?? {
       id: product.supplier_id,
@@ -64,9 +66,9 @@ export const normalizeRfq = (rfq: any) => {
   
   return {
     ...rfq,
-    product_images: Array.isArray(images) && images.length > 0 
+    product_images: Array.isArray(images) && images.length > 0
       ? images.map(cleanImagePath)
-      : ['https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=100'],
+      : [PRODUCT_IMAGE_PLACEHOLDER],
     shipping_details: shippingDetails,
     response_details: responseDetails,
     supplierId: rfq.supplier_id ?? rfq.supplierId,
@@ -208,7 +210,9 @@ export const api = {
       apiFetch(`/rfqs/${id}/forward`, { method: 'POST', body: JSON.stringify({ supplier_id }) }),
     submitQuote: (id: string, quoteDetails: any) =>
       apiFetch(`/rfqs/${id}/quote`, { method: 'POST', body: JSON.stringify(quoteDetails) }),
-    approveQuote: (id: string, approval: { status: 'approved' | 'rejected', rejection_reason?: string, admin_notes?: string }) =>
+    getQuoteEstimate: (id: string, price: number, discountType?: 'percentage' | 'flat', discountValue?: number, discountAbsorbedBy?: 'seller' | 'platform' | 'split') =>
+      apiFetch(`/rfqs/${id}/quote-estimate?price=${price}${discountValue ? `&discountType=${discountType || 'percentage'}&discountValue=${discountValue}&discountAbsorbedBy=${discountAbsorbedBy || 'seller'}` : ''}`),
+    approveQuote: (id: string, approval: { status: 'approved' | 'rejected', rejection_reason?: string, admin_notes?: string, discountType?: 'percentage' | 'flat', discountValue?: number, discountAbsorbedBy?: 'seller' | 'platform' | 'split' }) =>
       apiFetch(`/rfqs/${id}/approve-quote`, { method: 'POST', body: JSON.stringify(approval) }),
     acceptQuote: (id: string) =>
       apiFetch(`/rfqs/${id}/accept`, { method: 'POST' }),
@@ -233,8 +237,8 @@ export const api = {
       apiFetch(`/rfqs/${id}/forward-to-seller`, { method: 'POST' }),
     sellerAccept: (id: string) =>
       apiFetch(`/rfqs/${id}/seller-accept`, { method: 'POST' }),
-    sendPaymentRequest: (id: string, discountPercentage?: number) =>
-      apiFetch(`/rfqs/${id}/payment-request`, { method: 'POST', body: JSON.stringify({ discountPercentage }) }),
+    sendPaymentRequest: (id: string, discountType?: 'percentage' | 'flat', discountValue?: number, discountAbsorbedBy?: 'seller' | 'platform' | 'split') =>
+      apiFetch(`/rfqs/${id}/payment-request`, { method: 'POST', body: JSON.stringify({ discountType, discountValue, discountAbsorbedBy }) }),
     buyerSubmitPayment: (id: string, paymentReference: string) =>
       apiFetch(`/rfqs/${id}/buyer-submit-payment`, { method: 'POST', body: JSON.stringify({ paymentReference }) }),
     adminConfirmPayment: (id: string) =>

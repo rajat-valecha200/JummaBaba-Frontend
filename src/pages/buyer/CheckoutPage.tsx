@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, PRODUCT_IMAGE_PLACEHOLDER } from '@/lib/utils';
 
 // Cart items are derived from the same source as BuyerCart (Hardened)
 
@@ -597,9 +597,10 @@ export default function CheckoutPage() {
                 {cartWithProducts.map(item => (
                   <div key={item.productId} className="flex gap-3">
                     <img
-                      src={item.product!.images[0]}
+                      src={item.product!.images[0] || PRODUCT_IMAGE_PLACEHOLDER}
                       alt={item.product!.name}
                       className="w-16 h-16 object-cover rounded"
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }}
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium line-clamp-2">{item.product!.name}</p>

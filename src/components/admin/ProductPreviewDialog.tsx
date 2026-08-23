@@ -7,7 +7,7 @@ import { ExpandableText } from '@/components/ui/ExpandableText';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProductCard } from '@/components/b2b/ProductCard';
 import { PricingSlabsTable } from '@/components/b2b/PricingSlabsTable';
-import { formatPrice, cn } from '@/lib/utils';
+import { formatPrice, cn, PRODUCT_IMAGE_PLACEHOLDER } from '@/lib/utils';
 
 interface ProductPreviewDialogProps {
   product: any;
@@ -48,7 +48,7 @@ export function ProductPreviewDialog({
     }
   };
 
-  const images = Array.isArray(product.images) && product.images.length > 0 ? product.images : [product.image || 'https://images.unsplash.com/photo-1582234057117-9c9ae625b035?w=600'];
+  const images = Array.isArray(product.images) && product.images.length > 0 ? product.images : [product.image || PRODUCT_IMAGE_PLACEHOLDER];
   const categoriesList = Array.isArray(categories) ? categories : [];
   const categoryName = categoriesList.find(c => String(c.id) === String(product.categoryId || product.category_id))?.name || 'Uncategorized';
   
@@ -119,13 +119,23 @@ export function ProductPreviewDialog({
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-3xl mx-auto flex justify-center">
               {previewMode === 'card' ? (
-                <div className="w-full max-w-[300px] sm:max-w-[320px] animate-in zoom-in-95 duration-300 py-12">
-                  <ProductCard 
-                    product={product} 
+                // This renders the real, live ProductCard (same component the actual storefront
+                // uses) purely so admin sees an accurate preview — but it still carries its real
+                // <Link to={`/product/${slug}`}> underneath. Without this guard, tapping it
+                // navigates the admin away to that product's real page, which 404s/errors for
+                // anything still `pending` (not approved yet, so it isn't publicly listed at
+                // all). onClickCapture intercepts the click before Link's own handler can act on
+                // it, so the card still looks and hovers normally — it just can't navigate.
+                <div
+                  className="w-full max-w-[300px] sm:max-w-[320px] animate-in zoom-in-95 duration-300 py-12"
+                  onClickCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                >
+                  <ProductCard
+                    product={product}
                     supplier={supplier || {
                       isTopSupplier: false,
                       companyName: product.supplierName || 'Verified Supplier'
-                    }} 
+                    }}
                   />
                 </div>
               ) : (
@@ -134,10 +144,11 @@ export function ProductPreviewDialog({
                     {/* Left Side: Images */}
                     <div className="md:col-span-5 p-6 sm:p-8 bg-slate-50/50 border-r border-slate-100">
                       <div className="aspect-square rounded-3xl overflow-hidden bg-white shadow-inner mb-4 border border-slate-100 relative group">
-                        <img 
-                          src={images[selectedImage]} 
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                          alt="Main Preview" 
+                        <img
+                          src={images[selectedImage]}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          alt="Main Preview"
+                          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }}
                         />
                         {images.length > 1 && (
                           <>
@@ -166,7 +177,7 @@ export function ProductPreviewDialog({
                               selectedImage === idx ? "border-primary shadow-md scale-95" : "border-transparent opacity-60 hover:opacity-100"
                             )}
                           >
-                            <img src={img} className="w-full h-full object-cover" alt={`Thumb ${idx}`} />
+                            <img src={img} className="w-full h-full object-cover" alt={`Thumb ${idx}`} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }} />
                           </button>
                         ))}
                       </div>

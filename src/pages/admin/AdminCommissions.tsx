@@ -1,4 +1,298 @@
 import { useState, useEffect } from 'react';
+import { Save, Percent, Plus, Trash2, Coins, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { api } from '@/lib/api';
+
+// This page used to be a fully separate, self-contained mockup (category-wise commission
+// overrides, order-value-range tiers) whose "Save Settings" button never actually called the
+// backend at all — it just showed a fake success toast. Admins reasonably found this page via
+// the sidebar's "Commissions" link, edited the rate, saved, and nothing ever changed anywhere,
+// because none of it was wired up and category-wise commission isn't a real backend concept.
+//
+// Per instruction: disable that mockup (kept below, commented out, in case the category-wise /
+// value-tiered version gets built for real later) and put the ACTUAL working commission control
+// — the same "Platform Commission & Payer Routing" card from Admin Settings → Safeguards & Fees
+// — directly on this page, so the sidebar link goes straight to something that works.
+
+const DEFAULT_COMMISSION_RULES = {
+  type: 'percentage' as 'percentage' | 'tiered',
+  rate: 5.0,
+  min_cap: 100,
+  payer_route: 'seller_deduct' as 'seller_deduct' | 'buyer_add' | 'split_both',
+  tiers: [] as { maxQty: number | null; ratePercent: number }[],
+};
+
+export default function AdminCommissions() {
+  const { toast } = useToast();
+  const [fetching, setFetching] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Full global_config is fetched and kept intact so saving this card back never clobbers
+  // unrelated settings (GST rate, cancellation window, wallet toggle, etc.) — same merge-safe
+  // approach as Admin Settings.
+  const [globalConfig, setGlobalConfig] = useState<any>({
+    commission_rules: DEFAULT_COMMISSION_RULES,
+  });
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const configData = await api.admin.getGlobalConfig();
+        if (configData && Object.keys(configData).length > 0) {
+          setGlobalConfig((prev: any) => ({
+            ...prev,
+            ...configData,
+            commission_rules: {
+              ...DEFAULT_COMMISSION_RULES,
+              ...(configData.commission_rules || {}),
+            },
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch commission config', err);
+        toast({ variant: 'destructive', title: 'Failed to load', description: 'Could not fetch the current commission settings.' });
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.admin.updateGlobalConfig(globalConfig);
+      toast({ variant: 'success', title: 'Commission Settings Saved', description: 'The platform-wide commission configuration is now live.' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Save Failed', description: err.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddTier = () => {
+    const currentTiers = globalConfig.commission_rules.tiers || [];
+    setGlobalConfig({
+      ...globalConfig,
+      commission_rules: { ...globalConfig.commission_rules, tiers: [...currentTiers, { maxQty: 500, ratePercent: 2.5 }] },
+    });
+  };
+
+  const handleRemoveTier = (index: number) => {
+    const updatedTiers = (globalConfig.commission_rules.tiers || []).filter((_: any, i: number) => i !== index);
+    setGlobalConfig({ ...globalConfig, commission_rules: { ...globalConfig.commission_rules, tiers: updatedTiers } });
+  };
+
+  const handleTierChange = (index: number, field: 'maxQty' | 'ratePercent', value: string) => {
+    const updatedTiers = (globalConfig.commission_rules.tiers || []).map((tier: any, i: number) =>
+      i === index ? { ...tier, [field]: value === '' ? null : Number(value) } : tier
+    );
+    setGlobalConfig({ ...globalConfig, commission_rules: { ...globalConfig.commission_rules, tiers: updatedTiers } });
+  };
+
+  if (fetching) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Commission Configuration</h1>
+          <p className="text-muted-foreground">Platform-wide commission rate charged on every order</p>
+        </div>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+          {saving ? 'Saving...' : 'Save Settings'}
+        </Button>
+      </div>
+
+      <Card className="border-none shadow-2xl bg-white/50 backdrop-blur-xl overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-indigo-500 to-purple-600" />
+        <CardHeader className="border-b bg-muted/20 pb-4">
+          <div className="flex items-center gap-2">
+            <Coins className="h-5 w-5 text-indigo-600" />
+            <div>
+              <CardTitle className="text-lg font-black uppercase tracking-wider">Platform Commission & Payer Routing</CardTitle>
+              <CardDescription>Dynamically allocate fees and volume tiers. Applies to every vendor unless they have a custom override set in their vendor profile.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-6">
+
+          {/* Payer Route */}
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Fee Distribution / Payer Route</Label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              {[
+                { id: 'seller_deduct', label: 'Seller Pays (Deduction)', desc: 'Fee is withheld from final vendor payout' },
+                { id: 'buyer_add', label: 'Buyer Pays (Addition)', desc: 'Appended as platform fee on buyer invoice' },
+                { id: 'split_both', label: 'Split equally (50-50)', desc: 'Split evenly between buyer and seller' }
+              ].map((route) => (
+                <button
+                  key={route.id}
+                  type="button"
+                  onClick={() => setGlobalConfig({
+                    ...globalConfig,
+                    commission_rules: { ...globalConfig.commission_rules, payer_route: route.id }
+                  })}
+                  className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                    globalConfig.commission_rules.payer_route === route.id
+                      ? 'border-indigo-600 bg-indigo-500/5 ring-1 ring-indigo-500'
+                      : 'hover:border-muted-foreground/30 bg-background/50'
+                  }`}
+                >
+                  <span className="text-xs font-black uppercase tracking-wider">{route.label}</span>
+                  <span className="text-[10px] text-muted-foreground font-medium mt-1 leading-tight">{route.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Assessment Type */}
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Commission Calculation Mode</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={globalConfig.commission_rules.type === 'percentage' ? 'default' : 'outline'}
+                className="font-bold text-xs uppercase tracking-wider"
+                onClick={() => setGlobalConfig({ ...globalConfig, commission_rules: { ...globalConfig.commission_rules, type: 'percentage' } })}
+              >
+                Flat Percentage
+              </Button>
+              <Button
+                type="button"
+                variant={globalConfig.commission_rules.type === 'tiered' ? 'default' : 'outline'}
+                className="font-bold text-xs uppercase tracking-wider"
+                onClick={() => setGlobalConfig({ ...globalConfig, commission_rules: { ...globalConfig.commission_rules, type: 'tiered' } })}
+              >
+                Tiered Volume Pricing
+              </Button>
+            </div>
+          </div>
+
+          {/* FLAT RATE DETAILS */}
+          {globalConfig.commission_rules.type === 'percentage' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-muted/20 rounded-xl border animate-in fade-in duration-300">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Flat Commission Rate (%)</Label>
+                <div className="relative">
+                  <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    step="0.1"
+                    className="pl-10 font-bold"
+                    value={globalConfig.commission_rules.rate}
+                    onChange={(e) => setGlobalConfig({
+                      ...globalConfig,
+                      commission_rules: { ...globalConfig.commission_rules, rate: parseFloat(e.target.value) || 0 }
+                    })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Minimum Cap Charge per Deal (₹)</Label>
+                <Input
+                  type="number"
+                  className="font-bold"
+                  value={globalConfig.commission_rules.min_cap}
+                  onChange={(e) => setGlobalConfig({
+                    ...globalConfig,
+                    commission_rules: { ...globalConfig.commission_rules, min_cap: parseFloat(e.target.value) || 0 }
+                  })}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* TIERED RATE DETAILS */}
+          {globalConfig.commission_rules.type === 'tiered' && (
+            <div className="space-y-4 p-4 bg-muted/20 rounded-xl border animate-in fade-in duration-300">
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Quantity-Based Tiers</Label>
+                <Button
+                  size="sm"
+                  onClick={handleAddTier}
+                  className="h-8 rounded-lg font-bold text-[10px] uppercase tracking-wider animate-in fade-in duration-200"
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Add Tier
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {(globalConfig.commission_rules.tiers || []).map((tier: any, index: number) => (
+                  <div key={index} className="flex items-center gap-3 bg-background/50 p-2.5 rounded-lg border border-dashed animate-in slide-in-from-top-2 duration-200">
+                    <span className="text-xs font-bold text-muted-foreground shrink-0 w-16">Tier #{index + 1}</span>
+
+                    <div className="flex-1 flex items-center gap-2">
+                      <span className="text-[10px] font-black text-muted-foreground uppercase shrink-0">Up to Qty:</span>
+                      <Input
+                        type="number"
+                        placeholder="Unlimited"
+                        className="h-8 text-xs font-bold"
+                        value={tier.maxQty || ''}
+                        onChange={(e) => handleTierChange(index, 'maxQty', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="flex-1 flex items-center gap-2">
+                      <span className="text-[10px] font-black text-muted-foreground uppercase shrink-0">Rate %:</span>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        className="h-8 text-xs font-bold"
+                        value={tier.ratePercent}
+                        onChange={(e) => handleTierChange(index, 'ratePercent', e.target.value)}
+                      />
+                    </div>
+
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="text-destructive h-8 w-8 hover:bg-destructive/10"
+                      onClick={() => handleRemoveTier(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                {(globalConfig.commission_rules.tiers || []).length === 0 && (
+                  <div className="text-center py-4 text-xs italic text-muted-foreground">
+                    No tiers added. Click 'Add Tier' to create quantity milestones.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+        </CardContent>
+      </Card>
+
+      <p className="text-xs text-muted-foreground text-center">
+        Need per-vendor rates instead? Set those from that vendor's card in <span className="font-semibold">Vendor Management</span>.
+      </p>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * DISABLED — old mockup, kept for reference in case category-wise commission
+ * and order-value-range tiers get built for real later. This never actually
+ * saved anything: "Save Settings" only showed a fake success toast, never
+ * called the backend, and category-wise commission has no backend support
+ * at all (no per-category resolution exists in billingService).
+ *
+import { useState, useEffect } from 'react';
 import { Save, Percent, Info, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,13 +324,13 @@ interface CategoryCommission {
   useGlobal: boolean;
 }
 
-export default function AdminCommissions() {
+function LegacyAdminCommissionsMockup() {
   const { toast } = useToast();
-  
+
   const [globalCommission, setGlobalCommission] = useState(5);
   const [minCommission, setMinCommission] = useState(100);
   const [enableTieredCommission, setEnableTieredCommission] = useState(false);
-  
+
   const [dbCategories, setDbCategories] = useState<any[]>([]);
   const [categoryCommissions, setCategoryCommissions] = useState<CategoryCommission[]>([]);
 
@@ -145,7 +439,6 @@ export default function AdminCommissions() {
         </div>
       </div>
 
-      {/* Global Settings */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -260,7 +553,6 @@ export default function AdminCommissions() {
         </CardContent>
       </Card>
 
-      {/* Category-wise Settings */}
       <Card>
         <CardHeader>
           <CardTitle>Category-wise Commission Rates</CardTitle>
@@ -315,7 +607,6 @@ export default function AdminCommissions() {
         </CardContent>
       </Card>
 
-      {/* Commission Summary */}
       <Card className="bg-primary/5 border-primary/20">
         <CardHeader>
           <CardTitle className="text-lg">Commission Summary</CardTitle>
@@ -344,3 +635,4 @@ export default function AdminCommissions() {
     </div>
   );
 }
+ * ──────────────────────────────────────────────────────────────────────── */

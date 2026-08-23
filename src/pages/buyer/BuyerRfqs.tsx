@@ -604,18 +604,26 @@ export default function BuyerRfqs() {
                         </div>
                         {selectedRfq.response_details?.payment_breakdown && (
                           <>
-                            {Number(selectedRfq.response_details.payment_breakdown.discountAmount) > 0 && (
-                              <div className="flex justify-between text-emerald-600 font-semibold">
-                                <span>Discount ({selectedRfq.response_details.payment_breakdown.discountPercentage}% off):</span>
-                                <span>-₹{Number(selectedRfq.response_details.payment_breakdown.discountAmount).toLocaleString()}</span>
-                              </div>
-                            )}
+                            {Number(selectedRfq.response_details.payment_breakdown.discountAmount) > 0 && (() => {
+                              const pb = selectedRfq.response_details.payment_breakdown;
+                              const label = pb.discountType === 'flat' ? `₹${pb.discountValue} flat` : `${pb.discountValue ?? pb.discountPercentage}%`;
+                              return (
+                                <div className="flex justify-between text-emerald-600 font-semibold">
+                                  <span>Discount ({label} off):</span>
+                                  <span>-₹{Number(pb.discountAmount).toLocaleString()}</span>
+                                </div>
+                              );
+                            })()}
                             <div className="flex justify-between text-[10px]">
                               <span>Platform Fee:</span>
                               <span>₹{Number(selectedRfq.response_details.payment_breakdown.platformFee).toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between text-[10px]">
-                              <span>GST Tax (18%):</span>
+                              <span>GST Tax {(() => {
+                                const pb = selectedRfq.response_details.payment_breakdown;
+                                const base = Number(pb.discountedBase || pb.baseAmount);
+                                return base > 0 ? `(${((Number(pb.gst) / base) * 100).toFixed(0)}%)` : '';
+                              })()}:</span>
                               <span>₹{Number(selectedRfq.response_details.payment_breakdown.gst).toLocaleString()}</span>
                             </div>
                           </>

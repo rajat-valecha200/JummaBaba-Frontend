@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, PRODUCT_IMAGE_PLACEHOLDER } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 
 // Global Cart Logic (Hardened)
@@ -98,9 +98,10 @@ export default function BuyerCart() {
                   {/* Product Image */}
                   <div className="sm:w-40 h-40 sm:h-auto bg-muted flex-shrink-0">
                     <img
-                      src={item.product!.images[0]}
+                      src={item.product!.images[0] || PRODUCT_IMAGE_PLACEHOLDER}
                       alt={item.product!.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }}
                     />
                   </div>
                   

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TrustBadges } from './TrustBadge';
-import { formatPrice, cn } from '@/lib/utils';
+import { formatPrice, cn, PRODUCT_IMAGE_PLACEHOLDER } from '@/lib/utils';
 import { useWishlist } from '@/contexts/WishlistContext';
 
 interface ProductCardProps {
@@ -37,9 +37,9 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
       <Link to={`/product/${product.slug}`} className="relative block overflow-hidden">
         <div className="aspect-[4/3] sm:aspect-square overflow-hidden bg-muted">
           <img
-            src={product.images?.[0] || product.image || 'https://images.unsplash.com/photo-1582234057117-9c9ae625b035?w=600'}
+            src={product.images?.[0] || product.image || PRODUCT_IMAGE_PLACEHOLDER}
             alt={product.name}
-            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1582234057117-9c9ae625b035?w=600'; }}
+            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }}
             className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out"
             loading="lazy"
           />
@@ -48,7 +48,7 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
         {/* Verification Badge */}
         <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
           {isApproved ? (
-            <Badge className="bg-success text-success-foreground border-none shadow-lg px-2 py-0.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
+            <Badge className="bg-blue-600 text-white border-none shadow-lg px-2 py-0.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
               <CheckCircle className="h-3 w-3" />
               Verified
             </Badge>
@@ -106,13 +106,18 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
           </div>
         </div>
 
-        {/* Supplier Badges */}
-        <div className="border-t border-border/50 pt-3 space-y-2 mb-3">
-          <TrustBadges
-            isTopSupplier={supplier?.isTopSupplier}
-            isVerified={isVerified}
-          />
-        </div>
+        {/* Supplier Badges — Verified/Not Verified already shows as the image overlay above, so
+            this row is skipped entirely (not just emptied) whenever there's no top-supplier
+            badge to show, to avoid leaving a bare divider line with nothing under it. */}
+        {supplier?.isTopSupplier && (
+          <div className="border-t border-border/50 pt-3 space-y-2 mb-3">
+            <TrustBadges
+              isTopSupplier={supplier?.isTopSupplier}
+              isVerified={isVerified}
+              showVerifiedBadge={false}
+            />
+          </div>
+        )}
 
         {/* CTA */}
         <Button

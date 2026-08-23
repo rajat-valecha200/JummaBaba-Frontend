@@ -89,7 +89,7 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Buyer Payment</p>
               <Row label={`Base (${bd.quantity} × ${formatPrice(bd.unitPrice)})`} value={formatPrice(bd.baseAmount)} />
               {bd.discountAmount > 0 && (
-                <Row label={`Coupon Discount (${bd.discountPercentage}%)`} value={`-${formatPrice(bd.discountAmount)}`} tone="emerald" />
+                <Row label={`Discount (${bd.discountLabel})`} value={`-${formatPrice(bd.discountAmount)}`} tone="emerald" />
               )}
               <Row label="GST (18%)" value={formatPrice(bd.gst)} />
               <Row label="Total Paid" value={formatPrice(bd.buyerTotalPaid)} bold />
@@ -100,7 +100,14 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
             <div className="bg-white dark:bg-slate-950 rounded-xl border border-border/50 p-3 space-y-1.5">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Vendor Payout</p>
               <Row label="Order Value" value={formatPrice(bd.baseAmount)} />
-              <Row label="Platform Commission" value={`-${formatPrice(bd.platformCommission)}`} tone="rose" />
+              {/* vendorCommissionDeduction (not platformCommission) is what's actually taken off
+                  the vendor's own order value — when the platform or a 50-50 split absorbed
+                  part of the discount, platformCommission is a smaller, different number and
+                  wouldn't reconcile with Net Payout below. */}
+              <Row label="Platform Commission" value={`-${formatPrice(bd.vendorCommissionDeduction)}`} tone="rose" />
+              {bd.vendorDiscountShare > 0 && (
+                <Row label="Discount Share" value={`-${formatPrice(bd.vendorDiscountShare)}`} tone="rose" />
+              )}
               <Row label="Net Payout" value={formatPrice(bd.vendorNetPayout)} bold />
               <p className="text-[10px] text-muted-foreground pt-1">
                 {bd.isSettled ? 'Released to your wallet.' : 'Released once Admin settles this order.'}

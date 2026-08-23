@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { ExpandableText } from '@/components/ui/ExpandableText';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -75,19 +76,26 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
   const [commissionRate, setCommissionRate] = useState<string>('');
   const [commissionMinCap, setCommissionMinCap] = useState<string>('');
   const [commissionPayerRoute, setCommissionPayerRoute] = useState<'seller_deduct' | 'buyer_add' | 'split_both'>('seller_deduct');
-  
+  // Whether this vendor has a real custom override at all. Only ON when vendor.commission_rules
+  // is actually set — NOT auto-enabled just because the form has some values in it, otherwise
+  // clicking "Apply Override Settings" would silently create a permanent per-vendor override for
+  // every vendor even when the admin never meant to override anything, which is exactly the bug
+  // that made the platform's global commission config silently never apply to any vendor.
+  const [commissionOverrideEnabled, setCommissionOverrideEnabled] = useState(false);
+
   const [isSavingOverrides, setIsSavingOverrides] = useState(false);
 
   useEffect(() => {
     if (vendor) {
       setOverrideCancellationDays(vendor.cancellation_window_days !== undefined && vendor.cancellation_window_days !== null ? String(vendor.cancellation_window_days) : '');
       setOverrideEscrowRate(vendor.escrow_confirmation_rate !== undefined && vendor.escrow_confirmation_rate !== null ? String(vendor.escrow_confirmation_rate) : '');
-      
-      const rules = vendor.commission_rules || {};
-      setCommissionType(rules.type || 'percentage');
-      setCommissionRate(rules.rate !== undefined && rules.rate !== null ? String(rules.rate) : '5');
-      setCommissionMinCap(rules.min_cap !== undefined && rules.min_cap !== null ? String(rules.min_cap) : '100');
-      setCommissionPayerRoute(rules.payer_route || 'seller_deduct');
+
+      const rules = vendor.commission_rules || null;
+      setCommissionOverrideEnabled(!!rules);
+      setCommissionType(rules?.type || 'percentage');
+      setCommissionRate(rules?.rate !== undefined && rules?.rate !== null ? String(rules.rate) : '5');
+      setCommissionMinCap(rules?.min_cap !== undefined && rules?.min_cap !== null ? String(rules.min_cap) : '100');
+      setCommissionPayerRoute(rules?.payer_route || 'seller_deduct');
     }
   }, [vendor]);
 
@@ -95,13 +103,13 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
     if (!vendor) return;
     setIsSavingOverrides(true);
     try {
-      const updatedRules = {
+      const updatedRules = commissionOverrideEnabled ? {
         type: commissionType,
         rate: commissionRate === '' ? null : parseFloat(commissionRate),
         min_cap: commissionMinCap === '' ? null : parseFloat(commissionMinCap),
         payer_route: commissionPayerRoute,
         tiers: vendor.commission_rules?.tiers || []
-      };
+      } : null;
 
       const updatePayload = {
         cancellation_window_days: overrideCancellationDays === '' ? null : parseInt(overrideCancellationDays, 10),
@@ -416,6 +424,18 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
                 </h4>
                 
                 <div className="space-y-4 p-4 bg-indigo-500/5 rounded-2xl border border-indigo-500/10">
+                  <div className="flex items-center justify-between p-3 bg-background rounded-xl border">
+                    <div className="space-y-0.5">
+                      <Label className="text-xs font-bold">Custom Commission for This Vendor</Label>
+                      <p className="text-[10px] text-muted-foreground">
+                        {commissionOverrideEnabled
+                          ? 'Overriding — this vendor ignores the platform default below.'
+                          : 'Off — this vendor follows the platform-wide commission set in Admin Settings.'}
+                      </p>
+                    </div>
+                    <Switch checked={commissionOverrideEnabled} onCheckedChange={setCommissionOverrideEnabled} />
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cancellation Window (Days)</Label>
@@ -440,92 +460,94 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
                     </div>
                   </div>
 
-                  <div className="space-y-3 pt-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">Vendor Payer Fee Route</Label>
-                    <div className="flex gap-2">
-                      {[
-                        { id: 'seller_deduct', label: 'Seller Deducts' },
-                        { id: 'buyer_add', label: 'Buyer Adds' },
-                        { id: 'split_both', label: 'Split both' }
-                      ].map((route) => (
+                  <div className={`space-y-6 transition-opacity ${!commissionOverrideEnabled ? 'opacity-40 pointer-events-none' : ''}`}>
+                    <div className="space-y-3 pt-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">Vendor Payer Fee Route</Label>
+                      <div className="flex gap-2">
+                        {[
+                          { id: 'seller_deduct', label: 'Seller Deducts' },
+                          { id: 'buyer_add', label: 'Buyer Adds' },
+                          { id: 'split_both', label: 'Split both' }
+                        ].map((route) => (
+                          <button
+                            key={route.id}
+                            type="button"
+                            onClick={() => setCommissionPayerRoute(route.id as any)}
+                            className={`flex-1 py-1.5 rounded-lg border text-center text-[10px] font-bold uppercase tracking-wider transition-all ${
+                              commissionPayerRoute === route.id
+                                ? 'border-indigo-600 bg-indigo-600/10 text-indigo-700 font-extrabold'
+                                : 'bg-background hover:bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {route.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 pt-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">Commission Structure</Label>
+                      <div className="flex gap-2">
                         <button
-                          key={route.id}
                           type="button"
-                          onClick={() => setCommissionPayerRoute(route.id as any)}
+                          onClick={() => setCommissionType('percentage')}
                           className={`flex-1 py-1.5 rounded-lg border text-center text-[10px] font-bold uppercase tracking-wider transition-all ${
-                            commissionPayerRoute === route.id
+                            commissionType === 'percentage'
                               ? 'border-indigo-600 bg-indigo-600/10 text-indigo-700 font-extrabold'
                               : 'bg-background hover:bg-muted text-muted-foreground'
                           }`}
                         >
-                          {route.label}
+                          Percentage
                         </button>
-                      ))}
+                        <button
+                          type="button"
+                          onClick={() => setCommissionType('tiered')}
+                          className={`flex-1 py-1.5 rounded-lg border text-center text-[10px] font-bold uppercase tracking-wider transition-all ${
+                            commissionType === 'tiered'
+                              ? 'border-indigo-600 bg-indigo-600/10 text-indigo-700 font-extrabold'
+                              : 'bg-background hover:bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          Tiered
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="space-y-3 pt-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">Commission Structure</Label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setCommissionType('percentage')}
-                        className={`flex-1 py-1.5 rounded-lg border text-center text-[10px] font-bold uppercase tracking-wider transition-all ${
-                          commissionType === 'percentage'
-                            ? 'border-indigo-600 bg-indigo-600/10 text-indigo-700 font-extrabold'
-                            : 'bg-background hover:bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        Percentage
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCommissionType('tiered')}
-                        className={`flex-1 py-1.5 rounded-lg border text-center text-[10px] font-bold uppercase tracking-wider transition-all ${
-                          commissionType === 'tiered'
-                            ? 'border-indigo-600 bg-indigo-600/10 text-indigo-700 font-extrabold'
-                            : 'bg-background hover:bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        Tiered
-                      </button>
-                    </div>
-                  </div>
-
-                  {commissionType === 'percentage' && (
-                    <div className="grid grid-cols-2 gap-4 pt-2 animate-in fade-in duration-200">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Percentage Rate (%)</Label>
-                        <div className="relative">
-                          <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input 
-                            type="number" 
-                            step="0.1" 
-                            className="pr-8 font-bold bg-background h-9 text-xs" 
-                            value={commissionRate}
-                            onChange={(e) => setCommissionRate(e.target.value)}
+                    {commissionType === 'percentage' && (
+                      <div className="grid grid-cols-2 gap-4 pt-2 animate-in fade-in duration-200">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Percentage Rate (%)</Label>
+                          <div className="relative">
+                            <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                              type="number"
+                              step="0.1"
+                              className="pr-8 font-bold bg-background h-9 text-xs"
+                              value={commissionRate}
+                              onChange={(e) => setCommissionRate(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Minimum Cap (₹)</Label>
+                          <Input
+                            type="number"
+                            className="font-bold bg-background h-9 text-xs"
+                            value={commissionMinCap}
+                            onChange={(e) => setCommissionMinCap(e.target.value)}
                           />
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Minimum Cap (₹)</Label>
-                        <Input 
-                          type="number" 
-                          className="font-bold bg-background h-9 text-xs" 
-                          value={commissionMinCap}
-                          onChange={(e) => setCommissionMinCap(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  )}
+                    )}
 
-                  {commissionType === 'tiered' && (
-                    <div className="p-3 bg-background border border-dashed rounded-xl mt-2 animate-in fade-in duration-200">
-                      <p className="text-[10px] text-muted-foreground leading-relaxed italic text-center">
-                        This vendor will follow the custom tiered quantity milestones configured in their vendor profile rules or falls back to system global tiers.
-                      </p>
-                    </div>
-                  )}
+                    {commissionType === 'tiered' && (
+                      <div className="p-3 bg-background border border-dashed rounded-xl mt-2 animate-in fade-in duration-200">
+                        <p className="text-[10px] text-muted-foreground leading-relaxed italic text-center">
+                          This vendor will follow the custom tiered quantity milestones configured in their vendor profile rules or falls back to system global tiers.
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
                   <Button 
                     type="button" 

@@ -33,7 +33,6 @@ export default function AdminSettings() {
   
   // Organization settings (settings table: admin_org_details)
   const [settings, setSettings] = useState({
-    commission: '5.0',
     gstNumber: '07AAAAA0000A1Z5',
     location: 'Gurugram, Haryana, India',
     supportEmail: 'support@jummababa.com',
@@ -46,6 +45,7 @@ export default function AdminSettings() {
   // Advanced configurations (settings table: global_config)
   const [globalConfig, setGlobalConfig] = useState({
     cancellation_window_days: 7,
+    gst_rate: 18,
     commission_rules: {
       type: 'percentage', // 'percentage' | 'tiered'
       rate: 5.0,
@@ -218,28 +218,31 @@ export default function AdminSettings() {
                 <CardContent className="pt-6 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Platform Commission (Legacy, %)</Label>
-                      <div className="relative">
-                        <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                          className="pl-10 font-bold" 
-                          value={settings.commission} 
-                          onChange={(e) => setSettings({...settings, commission: e.target.value})}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">GST Number (India)</Label>
                       <div className="relative">
                         <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                          className="pl-10 font-bold uppercase" 
-                          value={settings.gstNumber} 
+                        <Input
+                          className="pl-10 font-bold uppercase"
+                          value={settings.gstNumber}
                           onChange={(e) => setSettings({...settings, gstNumber: e.target.value})}
                         />
                       </div>
                     </div>
                   </div>
+                  {/* The old flat "Platform Commission" field that used to live here never actually
+                      fed into any commission math (only Safeguards & Fees → Platform Commission &
+                      Payer Routing does) — it was silently dead and only confused admins editing it
+                      expecting it to change anything. Removed; point here instead. */}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('safeguards')}
+                    className="w-full flex items-center gap-3 p-4 rounded-xl border border-dashed text-left hover:bg-muted/30 transition-colors"
+                  >
+                    <Percent className="h-4 w-4 text-indigo-600 flex-shrink-0" />
+                    <span className="text-xs text-muted-foreground">
+                      Looking to change the platform commission rate? That's under <span className="font-bold text-foreground">Safeguards & Fees → Platform Commission & Payer Routing</span>.
+                    </span>
+                  </button>
 
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Primary Business Location</Label>
@@ -453,6 +456,40 @@ export default function AdminSettings() {
                         The initial confirmation amount released to the seller upon order conversion to fund bulk raw materials (invisible to buyer).
                       </p>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Taxation */}
+              <Card className="border-none shadow-2xl bg-white/50 backdrop-blur-xl overflow-hidden relative">
+                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-emerald-500 to-teal-600" />
+                <CardHeader className="border-b bg-muted/20 pb-4">
+                  <div className="flex items-center gap-2">
+                    <Percent className="h-5 w-5 text-emerald-600" />
+                    <div>
+                      <CardTitle className="text-lg font-black uppercase tracking-wider">Taxation</CardTitle>
+                      <CardDescription>GST rate applied across invoices, billing statements, and buyer estimates</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="space-y-2 max-w-xs">
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">GST Rate (%)</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        className="font-bold"
+                        value={globalConfig.gst_rate}
+                        onChange={(e) => setGlobalConfig({ ...globalConfig, gst_rate: parseFloat(e.target.value) || 0 })}
+                      />
+                      <Badge className="bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 border-emerald-500/20">%</Badge>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground font-medium">
+                      Applied to every payment request, order invoice, and pre-negotiation buyer estimate. Standard is 18%.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
