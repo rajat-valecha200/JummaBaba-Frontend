@@ -281,7 +281,14 @@ export function Header() {
 
           <ul
             id="category-scroll-container"
-            className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-2 scroll-smooth w-full px-8 sm:px-12"
+            // min-w-0 is the fix: this <ul> is itself a flex item (parent div is `flex
+            // items-center`), and a flex item's default min-width is `auto` — it refuses to
+            // shrink below its content's intrinsic width no matter what `w-full`/`overflow-x-auto`
+            // say. With every category pill laid out unwrapped, that intrinsic width is 1400px+,
+            // which was blowing out the ENTIRE page's layout viewport site-wide on any screen
+            // narrower than that (this is what broke recent dialog work on mobile — nothing to
+            // do with the dialogs themselves, the whole page was already wider than the phone).
+            className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-2 scroll-smooth w-full min-w-0 px-8 sm:px-12"
           >
             {dbCategories.map(cat => (
               <li key={cat.id} className="flex-shrink-0">

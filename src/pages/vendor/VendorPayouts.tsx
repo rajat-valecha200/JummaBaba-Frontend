@@ -109,8 +109,11 @@ export default function VendorPayouts() {
           </div>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-secondary/10 rounded-lg">
-                <Calendar className="h-5 w-5 text-secondary" />
+              {/* --secondary is a near-white 96% lightness gray in this theme (meant to pair with
+                  the near-black --secondary-foreground, not itself as a foreground color) — this
+                  icon was rendering near-white on a near-white background: functionally invisible. */}
+              <div className="p-2 bg-indigo-500/10 rounded-lg">
+                <Calendar className="h-5 w-5 text-indigo-500" />
               </div>
               <div>
                 <div className="text-2xl font-bold">{new Date(stats.lastPayoutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>

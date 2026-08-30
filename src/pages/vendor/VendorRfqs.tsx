@@ -47,7 +47,8 @@ import { QuoteForm } from '@/components/b2b/QuoteForm';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Extended RFQ status flow
-type RfqStatus = 'pending' | 'quoted' | 'admin_approved' | 'sent_to_buyer' | 'closed';
+type RfqStatus = 'pending' | 'quoted' | 'admin_approved' | 'sent_to_buyer' | 'closed'
+  | 'ordered' | 'confirmed' | 'shipped' | 'delivered' | 'completed' | 'cancelled';
 
 interface RfqResponse {
   price: number;
@@ -301,10 +302,31 @@ export default function VendorRfqs() {
       case 'admin_approved':
       case 'sent_to_buyer':
         return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold uppercase text-[10px] tracking-widest"><CheckCircle className="h-3 w-3 mr-1" />Live Quote</Badge>;
+      // Once this RFQ becomes an order, `status` moves into this whole other set of values —
+      // none of which matched any case above, so it fell straight through to the default "New
+      // Lead" badge below, even for a fully completed order. Same underlying bug as the "Quote"
+      // button in the Actions column (also fixed) and the modal footer's "Prepare Formal Quote".
+      case 'ordered':
+      case 'confirmed':
+        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold uppercase text-[10px] tracking-widest"><CheckCircle className="h-3 w-3 mr-1" />Order Confirmed</Badge>;
+      case 'shipped':
+        return <Badge className="bg-violet-500/10 text-violet-500 border-violet-500/20 font-bold uppercase text-[10px] tracking-widest"><Package className="h-3 w-3 mr-1" />Shipped</Badge>;
+      case 'delivered':
+        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold uppercase text-[10px] tracking-widest"><CheckCircle className="h-3 w-3 mr-1" />Delivered</Badge>;
+      case 'completed':
+        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold uppercase text-[10px] tracking-widest"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>;
+      case 'cancelled':
+        return <Badge variant="destructive" className="font-bold uppercase text-[10px] tracking-widest">Cancelled</Badge>;
       default:
         return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-bold uppercase text-[10px] tracking-widest"><Clock className="h-3 w-3 mr-1" />New Lead</Badge>;
     }
   };
+
+  // True once this RFQ has become a real order (regardless of how it got there — normal quote
+  // flow or the negotiate-with-admin flow) — used to show a "Go to Order" link instead of
+  // stale RFQ-stage actions.
+  const isNowAnOrder = (rfq: any) =>
+    ['ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(rfq.status);
 
   const pendingCount = rfqs.filter(r => r.status === 'pending').length;
   const quotedCount = rfqs.filter(r => r.status === 'quoted').length;
@@ -440,10 +462,9 @@ export default function VendorRfqs() {
                     <p className="font-medium truncate max-w-[180px]">{rfq.productName}</p>
                   </TableCell>
                   <TableCell>
-                    <div>
-                      <p className="font-medium">{rfq.buyerName}</p>
-                      <p className="text-sm text-muted-foreground">{rfq.buyerEmail}</p>
-                    </div>
+                    {/* Buyer's email/phone are never shown to vendors — name + delivery
+                        address (its own column) only. All communication is admin-moderated. */}
+                    <p className="font-medium">{rfq.buyerName}</p>
                   </TableCell>
                   <TableCell>{rfq.quantity} {rfq.unit}</TableCell>
                   <TableCell>
@@ -464,7 +485,11 @@ export default function VendorRfqs() {
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      {rfq.status === 'pending' && (
+                      {/* Same fix as the detail modal's footer below — status stays 'pending'
+                          the whole way through the separate negotiation_step-driven flow too,
+                          so this kept showing (and staying clickable) even after the vendor had
+                          already accepted terms via that other flow. */}
+                      {rfq.status === 'pending' && !rfq.negotiation_step && (
                         <Button size="sm" onClick={() => handleOpenResponse(rfq)}>
                           <Send className="h-4 w-4 mr-1" />
                           Quote
@@ -474,6 +499,14 @@ export default function VendorRfqs() {
                         <Button size="sm" variant="destructive" onClick={() => handleOpenResponse(rfq)}>
                           <Send className="h-4 w-4 mr-1" />
                           Revise
+                        </Button>
+                      )}
+                      {isNowAnOrder(rfq) && (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link to={`/vendor/orders?open=${rfq.id}`}>
+                            <ArrowRight className="h-4 w-4 mr-1" />
+                            Order
+                          </Link>
                         </Button>
                       )}
                     </div>
@@ -553,10 +586,9 @@ export default function VendorRfqs() {
 
                     <div>
                       <h4 className="font-medium mb-2">Buyer Information</h4>
+                      {/* Email/phone never shown to vendor — admin-moderated communication only. */}
                       <div className="p-3 bg-muted/50 rounded-lg space-y-1">
                         <p className="font-medium">{selectedRfq.buyerName}</p>
-                        <p className="text-sm text-muted-foreground">{selectedRfq.buyerEmail}</p>
-                        <p className="text-sm text-muted-foreground">{selectedRfq.buyerPhone}</p>
                         <p className="text-sm text-muted-foreground">📍 {selectedRfq.deliveryLocation}</p>
                       </div>
                     </div>
@@ -599,7 +631,14 @@ export default function VendorRfqs() {
               </div>
 
               <DialogFooter className="p-6 border-t border-white/5 flex-col sm:flex-col items-stretch sm:justify-start sm:space-x-0 gap-3">
-                {selectedRfq?.status === 'pending' && (
+                {/* "Prepare Formal Quote" is the moderation_status-driven flow's own button —
+                    it only checked status === 'pending', which stays 'pending' the whole way
+                    through the SEPARATE negotiation_step-driven flow too (status only flips once
+                    payment is confirmed). So once an RFQ enters the negotiate-with-admin path
+                    (negotiation_step gets set), this button kept showing alongside — and was
+                    still clickable — even after the vendor had already accepted terms via that
+                    other flow, as if they still needed to submit a fresh quote. */}
+                {selectedRfq?.status === 'pending' && !selectedRfq?.negotiation_step && (
                   <Button onClick={() => { setDetailsOpen(false); handleOpenResponse(selectedRfq); }}>
                     <Send className="h-4 w-4 mr-2" />
                     Prepare Formal Quote
@@ -666,6 +705,13 @@ export default function VendorRfqs() {
                    <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 text-xs w-full text-center text-amber-700 font-bold">
                      ⚡ Counter proposal submitted. Awaiting Admin Review.
                    </div>
+                 )}
+                 {selectedRfq && isNowAnOrder(selectedRfq) && (
+                   <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold" asChild>
+                     <Link to={`/vendor/orders?open=${selectedRfq.id}`}>
+                       <ArrowRight className="h-4 w-4 mr-2" /> Go to Order
+                     </Link>
+                   </Button>
                  )}
                 <div className="flex flex-wrap gap-2 w-full">
                   {selectedRfq && (

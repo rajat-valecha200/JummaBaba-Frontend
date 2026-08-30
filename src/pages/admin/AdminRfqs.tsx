@@ -386,11 +386,24 @@ export default function AdminRfqs() {
     }
   };
 
-  const getModerationBadge = (status: string) => {
-    // whitespace-nowrap so these never wrap to two lines and stretch the row — a slightly
-    // wider badge beats a ragged, inconsistent row height every time.
+  // Takes the whole rfq now, not just moderation_status — moderation_status stays stuck at
+  // 'quote_approved' for the ENTIRE rest of an RFQ's life once it's approved (it's not
+  // re-purposed to track order progress), so an order that's been sitting completed for weeks
+  // still showed the exact same "Audit Passed" badge as one that was approved five minutes ago
+  // and hasn't even been paid for yet. rfq.status is checked first for anything past that point.
+  const getModerationBadge = (rfq: any) => {
     const base = "font-bold px-2.5 py-1 rounded-full uppercase text-[10px] tracking-wide whitespace-nowrap";
-    switch (status) {
+    switch (rfq.status) {
+      case 'shipped':
+        return <Badge className={cn(base, "bg-violet-500/10 text-violet-500 border-violet-500/20")}>Shipped</Badge>;
+      case 'delivered':
+        return <Badge className={cn(base, "bg-emerald-500/10 text-emerald-600 border-emerald-500/20")}>Delivered</Badge>;
+      case 'completed':
+        return <Badge className={cn(base, "bg-emerald-500/10 text-emerald-600 border-emerald-500/20")}>Completed</Badge>;
+      case 'cancelled':
+        return <Badge variant="destructive" className={base}>Cancelled</Badge>;
+    }
+    switch (rfq.moderation_status) {
       case 'pending_moderation':
         return <Badge className={cn(base, "bg-amber-500/10 text-amber-500 border-amber-500/20")}>New Inquiry</Badge>;
       case 'forwarded':
@@ -398,11 +411,13 @@ export default function AdminRfqs() {
       case 'quote_pending':
         return <Badge className={cn(base, "bg-indigo-500/10 text-indigo-500 border-indigo-500/20 animate-pulse")}>Quote Received</Badge>;
       case 'quote_approved':
-        return <Badge className={cn(base, "bg-blue-500/10 text-blue-500 border-blue-500/20")}>Audit Passed</Badge>;
+        return rfq.status === 'ordered' || rfq.status === 'confirmed'
+          ? <Badge className={cn(base, "bg-blue-500/10 text-blue-500 border-blue-500/20")}>Order Confirmed</Badge>
+          : <Badge className={cn(base, "bg-blue-500/10 text-blue-500 border-blue-500/20")}>Audit Passed</Badge>;
       case 'quote_rejected':
         return <Badge variant="destructive" className={base}>Rejected</Badge>;
       default:
-        return <Badge variant="secondary" className={base}>{status}</Badge>;
+        return <Badge variant="secondary" className={base}>{rfq.moderation_status}</Badge>;
     }
   };
 
@@ -506,12 +521,25 @@ export default function AdminRfqs() {
                           ragged going down the list. */}
                       <div className="space-y-1">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Target: {rfq.target_price ? formatPrice(rfq.target_price) : 'N/A'}</div>
-                        <div className={cn("text-sm font-black", rfq.response_details?.price ? "text-primary" : "text-slate-300")}>
-                          {rfq.response_details?.price ? `Quote: ${formatPrice(rfq.response_details.price)}` : 'Awaiting Quote'}
-                        </div>
+                        {(() => {
+                          // response_details.price only gets set by the vendor-submits-a-formal-
+                          // quote flow. An RFQ that instead went through admin Adjust/Modify Terms
+                          // → negotiate → seller accepts never has it — its real agreed price
+                          // lives in target_price (kept in sync by buyerConfirmTerms). So once
+                          // this RFQ has actually become an order, fall back to target_price
+                          // instead of showing "Awaiting Quote" forever on an already-completed
+                          // order that simply never went through the other flow.
+                          const isOrderStage = ['ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(rfq.status);
+                          const finalPrice = rfq.response_details?.price || (isOrderStage ? rfq.target_price : null);
+                          return (
+                            <div className={cn("text-sm font-black", finalPrice ? "text-primary" : "text-slate-300")}>
+                              {finalPrice ? `${isOrderStage ? 'Agreed' : 'Quote'}: ${formatPrice(finalPrice)}` : 'Awaiting Quote'}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </TableCell>
-                    <TableCell>{getModerationBadge(rfq.moderation_status)}</TableCell>
+                    <TableCell>{getModerationBadge(rfq)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-1">
                         <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setSelectedRfq(rfq); setDetailsOpen(true); }} title="View details">
@@ -540,6 +568,13 @@ export default function AdminRfqs() {
                             <CheckCircle className="h-4 w-4" />
                           </Button>
                         )}
+                        {['ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(rfq.status) && (
+                          <Button size="icon" variant="ghost" className="h-8 w-8" asChild title="Go to order">
+                            <Link to={`/admin/orders/${rfq.id}`}>
+                              <Package className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -564,7 +599,7 @@ export default function AdminRfqs() {
               <DialogHeader className="p-6 pb-4 border-b border-white/5">
                 <div className="flex items-center justify-between mb-2">
                   <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">Inquiry Moderation</DialogTitle>
-                  {selectedRfq && getModerationBadge(selectedRfq.moderation_status)}
+                  {selectedRfq && getModerationBadge(selectedRfq)}
                 </div>
                 <DialogDescription className="font-bold text-muted-foreground uppercase text-[10px] tracking-widest">
                   Reference ID: {selectedRfq?.id}
@@ -714,12 +749,16 @@ export default function AdminRfqs() {
                       </TabsContent>
                       
                       <TabsContent value="quote" className="space-y-4 pt-4">
-                        <div className="p-6 bg-accent/5 border border-accent/20 rounded-xl space-y-4">
+                        {/* --accent is a near-white 96% lightness gray in this theme (meant to
+                            pair with the near-black --accent-foreground, not itself as a
+                            foreground color) — this heading and badge were rendering near-white
+                            text on a near-white background: functionally invisible. */}
+                        <div className="p-6 bg-indigo-500/5 border border-indigo-500/20 rounded-xl space-y-4">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-accent font-bold">
+                            <div className="flex items-center gap-2 text-indigo-600 font-bold">
                               <FileText className="h-5 w-5" /> Seller Submission
                             </div>
-                            <Badge className="bg-accent/20 text-accent border-accent/30">
+                            <Badge className="bg-indigo-500/20 text-indigo-600 border-indigo-500/30">
                               {selectedRfq.moderation_status === 'quote_pending' ? 'Awaiting Approval' : 'Reviewed'}
                             </Badge>
                           </div>

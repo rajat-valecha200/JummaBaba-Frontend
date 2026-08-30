@@ -82,6 +82,7 @@ export default function ProductDetailPage() {
     unit: 'pieces',
     targetPrice: '',
     deliveryLocation: '',
+    phone: '',
     description: '',
   });
 
@@ -152,6 +153,73 @@ export default function ProductDetailPage() {
 
   const { user } = useAuth();
 
+  // Buyer's saved Address Book (built in BuyerProfile.tsx, but never actually used at order time
+  // until now) — letting them pick a saved address here instead of retyping it every single
+  // order, and it carries a phone number along so the RFQ flow (which never collected one before)
+  // no longer depends on the buyer's profile phone possibly being blank.
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>('');
+  // Distinguishes "still fetching" from "confirmed zero addresses" — a buyer must have at least
+  // one saved address before placing any RFQ or Direct Order (see handleOpenRfq/handleBuyNow),
+  // and we must not fire that block off a fetch that just hasn't resolved yet.
+  const [addressesLoaded, setAddressesLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!user || user.role !== 'buyer') return;
+    api.auth.getMe()
+      .then((data: any) => {
+        const addrs = data?.business_details?.addresses || [];
+        setSavedAddresses(addrs);
+        const def = addrs.find((a: any) => a.isDefault) || addrs[0];
+        if (def) setSelectedAddressId(def.id);
+      })
+      .catch(() => { /* treated as zero addresses below — buyer still gets a clear prompt */ })
+      .finally(() => setAddressesLoaded(true));
+  }, [user]);
+
+  const applyAddress = (addressId: string, target: 'rfq' | 'checkout') => {
+    setSelectedAddressId(addressId);
+    const addr = savedAddresses.find((a) => a.id === addressId);
+    if (!addr) return;
+    if (target === 'checkout') {
+      setCheckoutForm({ address: addr.address, city: addr.city, state: addr.state, phone: addr.phone || user?.phone || '' });
+    } else {
+      setRfqForm(prev => ({
+        ...prev,
+        deliveryLocation: [addr.address, addr.city, addr.state].filter(Boolean).join(', '),
+        phone: addr.phone || user?.phone || ''
+      }));
+    }
+  };
+
+  const defaultAddressFields = () => {
+    const addr = savedAddresses.find((a) => a.isDefault) || savedAddresses[0];
+    if (!addr) return { deliveryLocation: '', phone: user?.phone || '' };
+    return {
+      deliveryLocation: [addr.address, addr.city, addr.state].filter(Boolean).join(', '),
+      phone: addr.phone || user?.phone || ''
+    };
+  };
+
+  // A buyer with zero saved addresses must save one before placing any RFQ or order — returns
+  // false (and shows a toast pointing them to their profile) to block whichever handler called
+  // it. Only enforced once the address-book fetch has actually resolved, so a buyer who DOES
+  // have addresses saved never gets falsely blocked by a fetch that just hasn't finished yet.
+  const requireSavedAddress = () => {
+    if (!addressesLoaded || savedAddresses.length > 0) return true;
+    toast({
+      title: 'Save an address first',
+      description: 'Add a delivery address to your profile before placing an RFQ or order.',
+      variant: 'destructive',
+      action: (
+        <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
+          <Link to="/buyer/profile" target="_blank">Save Address</Link>
+        </Button>
+      )
+    });
+    return false;
+  };
+
   // Auto-open the RFQ dialog when arriving via a "Get Instant Quote" link (?quote=1)
   useEffect(() => {
     if (!product || searchParams.get('quote') !== '1') return;
@@ -178,6 +246,10 @@ export default function ProductDetailPage() {
       setSearchParams({}, { replace: true });
       return;
     }
+    if (!requireSavedAddress()) {
+      setSearchParams({}, { replace: true });
+      return;
+    }
 
     const initialQty = product.moq || 1;
     const slabs = product.pricingSlabs || [];
@@ -195,8 +267,8 @@ export default function ProductDetailPage() {
       quantity: String(initialQty),
       unit: product.unit,
       targetPrice: tier ? String(tier.pricePerUnit) : String(product.minPrice || ''),
-      deliveryLocation: '',
       description: '',
+      ...defaultAddressFields()
     });
     setRfqOpen(true);
     setSearchParams({}, { replace: true });
@@ -260,6 +332,7 @@ export default function ProductDetailPage() {
       });
       return;
     }
+    if (!requireSavedAddress()) return;
     const initialQty = quantity || product.moq;
     const initialTier = getActiveTier(initialQty);
     setIsSampleRequest(false);
@@ -267,8 +340,8 @@ export default function ProductDetailPage() {
       quantity: String(initialQty),
       unit: product.unit,
       targetPrice: initialTier ? String(initialTier.pricePerUnit) : String(product.minPrice || ''),
-      deliveryLocation: '',
       description: '',
+      ...defaultAddressFields()
     });
     setRfqOpen(true);
   };
@@ -291,13 +364,14 @@ export default function ProductDetailPage() {
       });
       return;
     }
+    if (!requireSavedAddress()) return;
     setIsSampleRequest(true);
     setRfqForm({
       quantity: String(product.sampleMOQ || 1),
       unit: product.unit,
       targetPrice: String(product.samplePrice || 0),
-      deliveryLocation: '',
       description: '',
+      ...defaultAddressFields(),
     });
     setRfqOpen(true);
   };
@@ -320,6 +394,7 @@ export default function ProductDetailPage() {
       });
       return;
     }
+    if (!requireSavedAddress()) return;
 
     if (quantity < product.moq) {
       toast({
@@ -339,12 +414,11 @@ export default function ProductDetailPage() {
       return;
     }
 
-    setCheckoutForm({
-      address: '',
-      city: '',
-      state: '',
-      phone: user.phone || '',
-    });
+    const defaultAddr = savedAddresses.find((a) => a.id === selectedAddressId) || savedAddresses.find((a) => a.isDefault) || savedAddresses[0];
+    setCheckoutForm(defaultAddr
+      ? { address: defaultAddr.address, city: defaultAddr.city, state: defaultAddr.state, phone: defaultAddr.phone || user.phone || '' }
+      : { address: '', city: '', state: '', phone: user.phone || '' });
+    if (defaultAddr) setSelectedAddressId(defaultAddr.id);
     setCheckoutOpen(true);
   };
 
@@ -364,13 +438,17 @@ export default function ProductDetailPage() {
         unit: product.unit,
         target_price: activeTier?.pricePerUnit || product.minPrice,
         delivery_location: fullAddress,
-        description: `FAST-TRACK ORDER: Direct purchase via Buy Now. Contact: ${checkoutForm.phone}`,
+        // Never embed the buyer's phone number in this free-text field — it renders verbatim in
+        // the vendor's chat card, and unlike the dedicated buyer_email/buyer_phone columns this
+        // text has no privacy gating at all. The buyer's contact info must never reach the
+        // vendor (see rfqService.js listRfqs) — only the delivery address does, above.
+        description: `FAST-TRACK ORDER: Direct purchase via Buy Now.`,
         is_direct_order: true,
-        share_buyer_details: true,
+        // share_buyer_details is admin-only now — a buyer's own order can no longer unlock their
+        // contact info to the vendor by setting this themselves.
         product_name: product.name,
         category_id: product.categoryId,
-        supplier_id: product.supplier_id,
-        buyer_phone: checkoutForm.phone
+        supplier_id: product.supplier_id
       });
 
       toast({
@@ -379,7 +457,11 @@ export default function ProductDetailPage() {
         action: (
           <div className="flex gap-2">
             <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
-              <Link to="/buyer/orders">Track Order</Link>
+              {/* Not yet an "order" until the seller accepts + payment is confirmed — /buyer/orders
+                  only lists rows that have actually reached that stage, so this used to 404-empty
+                  right after placing one. The dedicated Direct Orders tracking page shows it from
+                  the moment it's placed. */}
+              <Link to="/buyer/direct-orders">Track Order</Link>
             </Button>
             <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
               <Link to={`/buyer/messages?rfqId=${newRfq.id}`}>Open Chat</Link>
@@ -411,9 +493,20 @@ export default function ProductDetailPage() {
       toast({ title: 'Delivery Location is required', description: 'Please enter where this order should be delivered.', variant: 'destructive' });
       return;
     }
+    // Previously this flow never asked for a phone at all and silently relied on whatever was
+    // (or wasn't) already on the buyer's profile — meaning an order could go through with no
+    // way to actually reach the buyer for delivery. Required here now, same as Direct Order.
+    if (!rfqForm.phone) {
+      toast({ title: 'Contact Number is required', description: 'Needed so admin/logistics can reach you for delivery.', variant: 'destructive' });
+      return;
+    }
 
     setSubmittingRfq(true);
     try {
+      // Note: intentionally NOT syncing this back to the buyer's profile phone — profileService's
+      // generic field-update path resets a non-admin profile's status to 'pending' on ANY field
+      // change, which would be a surprising side effect of just placing an order. The phone
+      // collected here is used for this order's own delivery contact only.
       const description = isSampleRequest
         ? `[SAMPLE REQUEST]${rfqForm.description ? ` ${rfqForm.description}` : ''}`
         : rfqForm.description;
@@ -466,7 +559,9 @@ export default function ProductDetailPage() {
       </div>
 
       <div className="b2b-container py-6">
-        <div className="grid lg:grid-cols-2 gap-6 lg:gap-10">
+        {/* grid-cols-1 explicit for the same reason noted lower on this page — a bare `grid`
+            with only a `lg:` column count has no minmax(0,...) track below that breakpoint. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10">
           {/* Image Gallery */}
           <div className="space-y-4">
             <div className="relative aspect-square bg-card rounded-lg border overflow-hidden group">
@@ -589,29 +684,39 @@ export default function ProductDetailPage() {
 
             {/* Checkout Dialog */}
             <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
+              {/* Single scroll container (DialogContent itself) with the footer pinned via
+                  `sticky bottom-0` inside it — NOT a flex/flex-1/min-h-0 split into separate
+                  scroll regions. That approach depends on the flex container reliably reaching
+                  its max-height for flex-1 to size against, which mobile browsers get wrong
+                  constantly (address bar show/hide changes `vh` mid-session on iOS/Android).
+                  Sticky-inside-one-scroller doesn't have that dependency — it just works
+                  wherever the ancestor actually scrolls. */}
+              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
+                <DialogHeader className="px-6 pt-6 pb-2">
                   <DialogTitle className="text-xl font-bold">Complete Your Order</DialogTitle>
                   <DialogDescription>
                     Provide your shipping details to finalize the purchase.
                   </DialogDescription>
                 </DialogHeader>
-                
-                <div className="space-y-4 py-4">
+
+                <div className="space-y-4 py-4 px-6">
                   <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
-                    <div className="flex justify-between items-start mb-2">
-                      <p className="font-bold text-slate-900">{product.name}</p>
-                      <Badge variant="outline" className="bg-white">{quantity} {product.unit}</Badge>
+                    <div className="flex justify-between items-start mb-2 gap-2">
+                      <p className="font-bold text-slate-900 min-w-0 break-words">{product.name}</p>
+                      <Badge variant="outline" className="bg-white shrink-0">{quantity} {product.unit}</Badge>
                     </div>
                   </div>
 
                   {/* Full breakdown before ordering — this is a fixed, exact price (the active
-                      slab rate), no negotiation, so this total is what will actually be charged. */}
+                      slab rate), no negotiation, so this total is what will actually be charged.
+                      min-w-0 + break-words on every row here for the same reason as the
+                      Specifications section fix — a long product name in this flex row was
+                      forcing the whole dialog (and page) wider on mobile instead of wrapping. */}
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Order Breakdown (Fixed Price)</p>
-                    <div className="flex justify-between text-slate-600">
-                      <span>{product.name} ({quantity} × {formatPrice(activeTier?.pricePerUnit || 0)})</span>
-                      <span className="font-semibold text-slate-800">{formatPrice(totalPrice)}</span>
+                    <div className="flex justify-between gap-2 text-slate-600">
+                      <span className="min-w-0 break-words">{product.name} ({quantity} × {formatPrice(activeTier?.pricePerUnit || 0)})</span>
+                      <span className="font-semibold text-slate-800 shrink-0">{formatPrice(totalPrice)}</span>
                     </div>
                     <div className="flex justify-between text-slate-600">
                       <span>GST (18%)</span>
@@ -627,48 +732,72 @@ export default function ProductDetailPage() {
                   </div>
 
                   <div className="space-y-3">
+                    {savedAddresses.length > 0 ? (
+                      <div className="space-y-2">
+                        <Label>Saved Addresses</Label>
+                        <Select value={selectedAddressId} onValueChange={(v) => applyAddress(v, 'checkout')}>
+                          <SelectTrigger><SelectValue placeholder="Choose a saved address" /></SelectTrigger>
+                          <SelectContent>
+                            {savedAddresses.map((a) => (
+                              <SelectItem key={a.id} value={a.id}>
+                                {a.label || a.name} — {a.city}{a.isDefault ? ' (Default)' : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Link to="/buyer/profile" target="_blank" className="text-xs text-primary hover:underline block">+ Manage saved addresses</Link>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Tip: <Link to="/buyer/profile" target="_blank" className="text-primary hover:underline">save an address in your profile</Link> to skip typing this next time.
+                      </p>
+                    )}
                     <div className="space-y-2">
                       <Label htmlFor="address">Full Shipping Address *</Label>
-                      <Textarea 
-                        id="address" 
-                        placeholder="House No, Street, Landmark..." 
+                      <Textarea
+                        id="address"
+                        placeholder="House No, Street, Landmark..."
                         value={checkoutForm.address}
                         onChange={(e) => setCheckoutForm({...checkoutForm, address: e.target.value})}
+                        rows={2}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* City/State/Phone share one row on tablet/desktop width — stacked on
+                        mobile, since 3 columns in a narrow phone-width dialog left each input
+                        too cramped to actually use (this is what broke on mobile). */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="space-y-2">
                         <Label htmlFor="city">City *</Label>
-                        <Input 
-                          id="city" 
-                          placeholder="e.g. Mumbai" 
+                        <Input
+                          id="city"
+                          placeholder="Mumbai"
                           value={checkoutForm.city}
                           onChange={(e) => setCheckoutForm({...checkoutForm, city: e.target.value})}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="state">State *</Label>
-                        <Input 
-                          id="state" 
-                          placeholder="e.g. Maharashtra" 
+                        <Input
+                          id="state"
+                          placeholder="Maharashtra"
                           value={checkoutForm.state}
                           onChange={(e) => setCheckoutForm({...checkoutForm, state: e.target.value})}
                         />
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Contact Number *</Label>
-                      <Input 
-                        id="phone" 
-                        placeholder="10-digit mobile number" 
-                        value={checkoutForm.phone}
-                        onChange={(e) => setCheckoutForm({...checkoutForm, phone: e.target.value})}
-                      />
+                      <div className="space-y-2">
+                        <Label htmlFor="phone">Phone *</Label>
+                        <Input
+                          id="phone"
+                          placeholder="10-digit"
+                          value={checkoutForm.phone}
+                          onChange={(e) => setCheckoutForm({...checkoutForm, phone: e.target.value})}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <DialogFooter className="flex-col sm:flex-row gap-2">
+                <DialogFooter className="flex-col sm:flex-row gap-2 px-6 py-4 border-t sticky bottom-0 bg-background">
                   <Button variant="outline" onClick={() => setCheckoutOpen(false)} className="flex-1">Cancel</Button>
                   <Button onClick={handleConfirmPurchase} className="flex-1 font-bold uppercase tracking-widest" disabled={submittingRfq}>
                     {submittingRfq ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
@@ -764,8 +893,13 @@ export default function ProductDetailPage() {
 
             {/* RFQ Dialog */}
             <Dialog open={rfqOpen} onOpenChange={(open) => { setRfqOpen(open); if (!open) setIsSampleRequest(false); }}>
-              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
+              {/* Single scroll container (DialogContent itself) with the footer pinned via
+                  `sticky bottom-0` inside it — see the checkout dialog above for why this
+                  replaced the earlier flex/flex-1/min-h-0 split (broke on mobile — that
+                  approach depends on the flex container reliably reaching its max-height,
+                  which mobile browsers get wrong constantly as the address bar shows/hides). */}
+              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
+                <DialogHeader className="px-6 pt-6 pb-2">
                   <DialogTitle>{isSampleRequest ? 'Request a Sample' : 'Request for Quotation'}</DialogTitle>
                   <DialogDescription>
                     {isSampleRequest
@@ -773,7 +907,7 @@ export default function ProductDetailPage() {
                       : <>Get a custom quote from <span className="font-semibold"><span className="font-extrabold text-black">J</span>umma<span className="font-extrabold text-b2b-gst">B</span>aba<span className="text-b2b-orange">.com</span></span> Platform</>}
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 py-4 px-6">
                   <div className="p-3 bg-muted/50 rounded-lg">
                     <p className="font-medium text-sm">{product.name}</p>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -823,6 +957,22 @@ export default function ProductDetailPage() {
                         {product.unit || 'pieces'}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Moved up from the bottom of the form — with the footer now pinned/always
+                      visible, a field placed dead last risked being scrolled past unnoticed
+                      (buyer sees Submit is reachable and never realizes there was more above
+                      it). Right after Quantity is early enough to always be seen. */}
+                  <div>
+                    <Label htmlFor="rfqDesc">Additional Requirements</Label>
+                    <Textarea
+                      id="rfqDesc"
+                      value={rfqForm.description}
+                      onChange={(e) => setRfqForm({ ...rfqForm, description: e.target.value })}
+                      placeholder="Specify color, size, packaging, or any other requirements..."
+                      rows={2}
+                      className="mt-1"
+                    />
                   </div>
 
                   {isSampleRequest ? (
@@ -882,9 +1032,9 @@ export default function ProductDetailPage() {
                     return (
                       <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Estimated Cost (Pre-Negotiation)</p>
-                        <div className="flex justify-between text-slate-600">
-                          <span>Product Base Cost ({estQty} × {formatPrice(estPrice)})</span>
-                          <span className="font-semibold text-slate-800">{formatPrice(estBase)}</span>
+                        <div className="flex justify-between gap-2 text-slate-600">
+                          <span className="min-w-0 break-words">Product Base Cost ({estQty} × {formatPrice(estPrice)})</span>
+                          <span className="font-semibold text-slate-800 shrink-0">{formatPrice(estBase)}</span>
                         </div>
                         <div className="flex justify-between text-slate-600">
                           <span>GST (18%)</span>
@@ -901,30 +1051,53 @@ export default function ProductDetailPage() {
                     );
                   })()}
 
-                  <div>
-                    <Label htmlFor="rfqLocation">Delivery Location *</Label>
-                    <Input
-                      id="rfqLocation"
-                      value={rfqForm.deliveryLocation}
-                      onChange={(e) => setRfqForm({ ...rfqForm, deliveryLocation: e.target.value })}
-                      placeholder="City, State"
-                      className="mt-1"
-                    />
-                  </div>
+                  {savedAddresses.length > 0 ? (
+                    <div>
+                      <Label>Saved Addresses</Label>
+                      <Select value={selectedAddressId} onValueChange={(v) => applyAddress(v, 'rfq')}>
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="Choose a saved address" /></SelectTrigger>
+                        <SelectContent>
+                          {savedAddresses.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.label || a.name} — {a.city}{a.isDefault ? ' (Default)' : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Link to="/buyer/profile" target="_blank" className="text-xs text-primary hover:underline block mt-1">+ Manage saved addresses</Link>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Tip: <Link to="/buyer/profile" target="_blank" className="text-primary hover:underline">save an address in your profile</Link> to skip typing this next time.
+                    </p>
+                  )}
 
-                  <div>
-                    <Label htmlFor="rfqDesc">Additional Requirements</Label>
-                    <Textarea
-                      id="rfqDesc"
-                      value={rfqForm.description}
-                      onChange={(e) => setRfqForm({ ...rfqForm, description: e.target.value })}
-                      placeholder="Specify color, size, packaging, or any other requirements..."
-                      rows={3}
-                      className="mt-1"
-                    />
+                  {/* Location + Phone share one row on tablet/desktop width — stacked on
+                      mobile, same reason as the checkout dialog's City/State/Phone below. */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="rfqLocation">Delivery Location *</Label>
+                      <Input
+                        id="rfqLocation"
+                        value={rfqForm.deliveryLocation}
+                        onChange={(e) => setRfqForm({ ...rfqForm, deliveryLocation: e.target.value })}
+                        placeholder="City, State"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="rfqPhone">Contact Number *</Label>
+                      <Input
+                        id="rfqPhone"
+                        value={rfqForm.phone}
+                        onChange={(e) => setRfqForm({ ...rfqForm, phone: e.target.value })}
+                        placeholder="10-digit mobile"
+                        className="mt-1"
+                      />
+                    </div>
                   </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="px-6 py-4 border-t sticky bottom-0 bg-background">
                   <Button variant="outline" onClick={() => { setRfqOpen(false); setIsSampleRequest(false); }} disabled={submittingRfq}>Cancel</Button>
                   <Button onClick={handleSubmitRfq} disabled={submittingRfq} className="bg-b2b-orange hover:bg-b2b-orange/90 text-white font-bold">
                     {submittingRfq ? (
@@ -946,8 +1119,13 @@ export default function ProductDetailPage() {
         </div>
 
 
-        {/* Product Details & Seller Info Grid */}
-        <div className="grid lg:grid-cols-2 gap-8 mt-10">
+        {/* Product Details & Seller Info Grid — explicit grid-cols-1 matters: without it, a
+            bare `grid` container's single implicit column sizes to its content's natural width
+            (like a flex item's default min-width:auto) instead of shrinking to fit, which is
+            what was forcing this whole section (and the page under it) wider than the mobile
+            viewport. Tailwind's `grid-cols-N` utilities generate minmax(0,1fr) tracks — that
+            `minmax(0, ...)` is what actually allows shrinking; the bare `grid` didn't have it. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-10">
           {/* Details Section (Left) */}
           <div className="space-y-6">
             <Card className="h-full">
@@ -970,8 +1148,19 @@ export default function ProductDetailPage() {
                       title="Full Product Description"
                     />
                     <style dangerouslySetInnerHTML={{ __html: `
-                      .description-html-content table { width: 100% !important; border-collapse: collapse !important; margin: 1rem 0 !important; font-size: 0.875rem !important; background-color: #ffffff !important; border-radius: 0.75rem !important; overflow: hidden !important; border: 1px solid #e2e8f0 !important; }
-                      .description-html-content th, .description-html-content td { border: 1px solid #e2e8f0 !important; padding: 0.75rem 1rem !important; text-align: left !important; }
+                      /* This is vendor-authored rich-text HTML (pasted from a WYSIWYG editor,
+                         often originally from Word/Docs) — its own tables/cells can carry
+                         content wide enough (a long unbroken spec value, an inline image width,
+                         etc.) to force this whole box, and with it the entire page, wider than
+                         the mobile viewport. table-layout:fixed makes column widths respect the
+                         100% container width regardless of content; break-word lets any
+                         unbreakable long token actually wrap instead of forcing overflow; and
+                         overflow-x:auto is the last-resort safety net for anything neither of
+                         those catches (an oversized inline image, for example) — it becomes a
+                         contained horizontal scroll here instead of blowing out the page. */
+                      .description-html-content { overflow-x: auto !important; }
+                      .description-html-content table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; margin: 1rem 0 !important; font-size: 0.875rem !important; background-color: #ffffff !important; border-radius: 0.75rem !important; overflow: hidden !important; border: 1px solid #e2e8f0 !important; }
+                      .description-html-content th, .description-html-content td { border: 1px solid #e2e8f0 !important; padding: 0.75rem 1rem !important; text-align: left !important; word-break: break-word !important; overflow-wrap: break-word !important; }
                       .description-html-content th { background-color: #f8fafc !important; font-weight: 800 !important; color: #0f172a !important; text-transform: uppercase !important; font-size: 0.75rem !important; letter-spacing: 0.05em !important; }
                       .description-html-content tr:nth-child(even) { background-color: #f8fafc/50 !important; }
                       .description-html-content ul { list-style-type: disc !important; padding-left: 1.5rem !important; margin: 0.75rem 0 !important; }
@@ -985,9 +1174,15 @@ export default function ProductDetailPage() {
                     <h3 className="font-bold text-sm uppercase tracking-widest text-primary mb-4">Specifications</h3>
                     <div className="flex flex-col space-y-0">
                       {Object.entries(product.specifications).map(([key, value]) => (
-                        <div key={key} className="flex items-center justify-between py-3 border-b border-zinc-100 last:border-0 hover:bg-zinc-50/50 transition-colors px-2 -mx-2 rounded-lg">
-                          <span className="text-muted-foreground text-sm font-medium">{key}</span>
-                          <span className="font-bold text-sm text-foreground">{value as string}</span>
+                        // min-w-0 on both spans: same class of bug as the Header's category
+                        // pills — a flex row's items default to min-width:auto (won't shrink
+                        // below their own text's intrinsic width), so a long spec value forced
+                        // this row, the whole card, and the ENTIRE page wider than the mobile
+                        // viewport instead of wrapping. gap-4 keeps key/value from touching once
+                        // they're actually allowed to shrink/wrap.
+                        <div key={key} className="flex items-start justify-between gap-4 py-3 border-b border-zinc-100 last:border-0 hover:bg-zinc-50/50 transition-colors px-2 -mx-2 rounded-lg">
+                          <span className="text-muted-foreground text-sm font-medium min-w-0">{key}</span>
+                          <span className="font-bold text-sm text-foreground min-w-0 text-right break-words">{value as string}</span>
                         </div>
                       ))}
                     </div>
@@ -996,7 +1191,7 @@ export default function ProductDetailPage() {
                   {/* Shipping Section */}
                   <div className="p-6 bg-muted/10">
                     <h3 className="font-bold text-sm uppercase tracking-widest text-primary mb-3">Shipping & Returns</h3>
-                    <div className="grid sm:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-3">
                         <div className="flex gap-2">
                           <Clock className="h-4 w-4 text-muted-foreground shrink-0" />

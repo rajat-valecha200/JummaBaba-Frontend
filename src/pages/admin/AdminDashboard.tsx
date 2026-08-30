@@ -161,11 +161,21 @@ export default function AdminDashboard() {
         <p className="text-muted-foreground">Platform overview and management</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Capped at 3 columns, not 5 — 5 narrow columns left too little width for a label like
+          "TOTAL REVENUE" or a real currency value, so the value wrapped mid-number instead of
+          fitting on one line. 5 cards over 3 columns just wraps to a second (2-card) row. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatsCard title="Total Users" value={stats?.totalUsers || 0} icon={Users} />
-        <StatsCard title="Total Products" value={stats?.totalProducts || 0} icon={Package} iconClassName="bg-accent/10 text-accent" />
+        {/* iconClassName was "bg-accent/10 text-accent" — --accent is a near-white 96% lightness
+            gray in this theme (meant to pair with the near-black --accent-foreground, not itself
+            as a foreground color), so the icon rendered near-white on a near-white background:
+            functionally invisible. Same root cause (and --secondary, which is the same near-white
+            value) hit VendorDashboard, BuyerDashboard, AdminAnalytics, VendorActivity, and
+            VendorPayouts — fixed all of them the same way, with a real visible color instead. */}
+        <StatsCard title="Total Products" value={stats?.totalProducts || 0} icon={Package} iconClassName="bg-blue-500/10 text-blue-500" />
         <StatsCard title="Pending Moderation" value={pendingVendors.length + pendingProducts.length} icon={ShieldAlert} iconClassName="bg-destructive/10 text-destructive" />
         <StatsCard title="RFQ Moderation" value={stats?.activeRfqs || 0} icon={MessageCircle} iconClassName="bg-amber-500/10 text-amber-500" />
+        <StatsCard title="Total Revenue" value={formatPrice(stats?.totalRevenue || 0)} icon={TrendingUp} iconClassName="bg-emerald-500/10 text-emerald-500" />
       </div>
 
       {/* <div className="grid lg:grid-cols-1">
@@ -182,7 +192,10 @@ export default function AdminDashboard() {
             </CardTitle>
             <Button asChild variant="ghost" size="sm"><Link to="/admin/vendors">View All</Link></Button>
           </CardHeader>
-          <CardContent>
+          {/* shadcn's CardContent defaults to pt-0 (it assumes the CardHeader above already
+              provides bottom spacing) — but this header's own py-4 plus its border-b sits right
+              at the boundary, so the first row's box was landing almost flush against it. */}
+          <CardContent className="pt-4">
             <div className="space-y-3">
               {pendingVendors.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">No pending vendor requests</p>
@@ -236,7 +249,10 @@ export default function AdminDashboard() {
             </CardTitle>
             <Button asChild variant="ghost" size="sm"><Link to="/admin/products">View All</Link></Button>
           </CardHeader>
-          <CardContent>
+          {/* shadcn's CardContent defaults to pt-0 (it assumes the CardHeader above already
+              provides bottom spacing) — but this header's own py-4 plus its border-b sits right
+              at the boundary, so the first row's box was landing almost flush against it. */}
+          <CardContent className="pt-4">
             <div className="space-y-3">
               {pendingProducts.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">No products awaiting review</p>
@@ -284,7 +300,10 @@ export default function AdminDashboard() {
             </CardTitle>
             <Button asChild variant="ghost" size="sm"><Link to="/admin/rfqs">View All</Link></Button>
           </CardHeader>
-          <CardContent>
+          {/* shadcn's CardContent defaults to pt-0 (it assumes the CardHeader above already
+              provides bottom spacing) — but this header's own py-4 plus its border-b sits right
+              at the boundary, so the first row's box was landing almost flush against it. */}
+          <CardContent className="pt-4">
             <div className="space-y-3">
               {recentRfqs.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">No recent RFQs</p>
@@ -333,7 +352,10 @@ export default function AdminDashboard() {
             </CardTitle>
             <Button asChild variant="ghost" size="sm"><Link to="/admin/orders">View All</Link></Button>
           </CardHeader>
-          <CardContent>
+          {/* shadcn's CardContent defaults to pt-0 (it assumes the CardHeader above already
+              provides bottom spacing) — but this header's own py-4 plus its border-b sits right
+              at the boundary, so the first row's box was landing almost flush against it. */}
+          <CardContent className="pt-4">
             <div className="space-y-3">
               {recentOrders.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">No recent orders</p>
@@ -350,19 +372,18 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                       {order.moderation_status === 'pending_moderation' ? (
-                        <Button size="sm" className="bg-primary text-white font-black text-[9px] uppercase tracking-widest h-8 px-3 rounded-lg shadow-md shadow-primary/10" asChild>
-                          <Link to={`/admin/orders/${order.id}`}>
-                            Forward
-                          </Link>
-                        </Button>
-                      ) : (
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-full hover:bg-white/80" asChild>
-                          <Link to={`/admin/orders/${order.id}`}>
-                            <Eye className="h-4 w-4 text-slate-400" />
-                          </Link>
-                        </Button>
-                      )}
+                      {/* recentOrders comes from api.orders.listBuyer(), which only ever returns
+                          rows that have actually reached the ordered+ lifecycle — so every row
+                          here is already a real, placed order, never one still waiting to be
+                          forwarded. The old "Forward" branch checked moderation_status, which
+                          Direct Orders never touch at all (they use direct_order_status instead)
+                          — it stays 'pending_moderation' forever, so every Direct Order in this
+                          widget always showed "Forward" instead of the correct view link. */}
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-full hover:bg-white/80" asChild>
+                        <Link to={`/admin/orders/${order.id}`}>
+                          <Eye className="h-4 w-4 text-slate-400" />
+                        </Link>
+                      </Button>
                     </div>
                   </div>
                 ))

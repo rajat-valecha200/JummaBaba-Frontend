@@ -390,6 +390,13 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
       );
 
     case 'rfq_specs':
+      // Direct Orders get their own dedicated card (direct_order_pending_review /
+      // direct_order_pending_accept) with the exact same product/qty/price/delivery info, plus
+      // the correct Accept/Decline/Forward actions. This "classic moderation flow" card is pure
+      // redundant clutter for them now that its own action buttons are suppressed (see
+      // is_direct_order checks below) — so skip rendering it at all rather than showing an
+      // action-less duplicate of the real card.
+      if (metadata.is_direct_order) return null;
       return (
         <div className="w-full max-w-md my-2 rounded-2xl border border-cyan-500/25 bg-cyan-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center gap-2 border-b border-cyan-500/20 pb-3 mb-4">
@@ -436,7 +443,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             )}
           </div>
 
-          {userRole === 'admin' && (
+          {userRole === 'admin' && !metadata.is_direct_order && (
             <div className="mt-4 pt-4 border-t border-cyan-500/20 space-y-3">
               {metadata.moderation_status === 'forwarded' ? (
                 <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3 text-xs text-center text-cyan-600 dark:text-cyan-400 font-bold">
@@ -493,7 +500,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <Badge variant="secondary" className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] py-1 border border-cyan-500/10">
                 {metadata.moderation_status === 'forwarded' ? 'Forwarded to Seller' : 'Awaiting Admin Verification'}
               </Badge>
-              {userRole === 'vendor' && (!metadata.rfq_status || metadata.rfq_status === 'pending') && (
+              {userRole === 'vendor' && !metadata.is_direct_order && (!metadata.rfq_status || metadata.rfq_status === 'pending') && (
                 <div className="pt-2 border-t border-cyan-500/10">
                   <Button
                     onClick={handleConfirmOrder}
@@ -892,61 +899,31 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
       );
 
     case 'negotiated_offer':
-      const discountVal = Number(metadata.discount_percentage) || 0;
-      const baseTotalVal = Number(metadata.negotiated_price) * Number(metadata.quantity);
-      const savings = baseTotalVal * (discountVal / 100);
-      const finalTotalVal = baseTotalVal - savings;
+      // Dead card: the /rfqs/:id/offer endpoint that used to create these has no caller left
+      // anywhere in the UI (superseded by the real payment-request flow, 'rfq_payment_request' —
+      // "Sourcing Statement & Payment Request"). Old RFQs from before that switchover can still
+      // have a stale message of this type sitting in their chat history, so keep the case (don't
+      // let it fall through to the "unknown message type" default) but render nothing.
+      return null;
 
-      return (
-        <div className="w-full max-w-md my-2 rounded-2xl border border-b2b-orange/25 bg-b2b-orange/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center gap-2 border-b border-b2b-orange/20 pb-3 mb-4">
-            <div className="p-2 rounded-lg bg-b2b-orange/10 text-b2b-orange">
-              <Tag className="h-5 w-5" />
-            </div>
-            <div>
-              <h4 className="font-bold text-sm text-foreground">Negotiated Coupon Offer</h4>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Agreed Sourcing Deal</p>
-            </div>
-          </div>
+    case 'rfq_terms_modified': {
+      // Same hardcoded-10%/90% bug (and same fix — live getQuoteEstimate, the one source of
+      // truth for commission everywhere else) as this file's 'rfq_forwarded_to_seller' case
+      // above: this was showing the vendor a flat 10% regardless of their actual commission_rules
+      // or the global rate, disagreeing with what settlement would really pay out.
+      const [modifiedBreakdown, setModifiedBreakdown] = useState<any>(null);
+      const [modifiedBreakdownLoading, setModifiedBreakdownLoading] = useState(false);
+      useEffect(() => {
+        if (userRole === 'buyer' || !metadata.rfq_id || !metadata.price) return;
+        let cancelled = false;
+        setModifiedBreakdownLoading(true);
+        api.rfqs.getQuoteEstimate(metadata.rfq_id, Number(metadata.price), undefined, undefined, undefined, Number(metadata.quantity) || undefined)
+          .then((result: any) => { if (!cancelled) setModifiedBreakdown(result); })
+          .catch(() => { if (!cancelled) setModifiedBreakdown(null); })
+          .finally(() => { if (!cancelled) setModifiedBreakdownLoading(false); });
+        return () => { cancelled = true; };
+      }, [metadata.rfq_id, metadata.price, metadata.quantity]);
 
-          <div className="space-y-2.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Price per Unit:</span>
-              <span className="font-bold text-foreground">₹{Number(metadata.negotiated_price).toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Quantity Agreed:</span>
-              <span className="font-bold text-foreground">{metadata.quantity} units</span>
-            </div>
-            {discountVal > 0 && (
-              <div className="flex justify-between text-emerald-600 font-semibold">
-                <span>Special Discount:</span>
-                <span>{discountVal}% Off (-₹{savings.toLocaleString('en-IN')})</span>
-              </div>
-            )}
-            <div className="flex justify-between border-t border-b2b-orange/10 pt-2 text-sm font-black">
-              <span>Total Value:</span>
-              <span className="text-b2b-orange">₹{finalTotalVal.toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-b2b-orange/20 text-center">
-            {userRole === 'buyer' ? (
-              <Link to={`/buyer/checkout?rfqId=${metadata.rfq_id}`}>
-                <Button className="w-full bg-b2b-orange hover:bg-b2b-orange/90 text-white font-bold h-9 rounded-lg">
-                  ⚡ Proceed to Checkout
-                </Button>
-              </Link>
-            ) : (
-              <Badge className="bg-b2b-orange/10 text-b2b-orange border border-b2b-orange/25 py-1 text-[10px] uppercase font-bold tracking-wider">
-                {userRole === 'admin' ? 'Offer Sent to Buyer' : 'Special Offer Generated'}
-              </Badge>
-            )}
-          </div>
-        </div>
-      );
-
-    case 'rfq_terms_modified':
       return (
         <div className="w-full max-w-md my-2 rounded-2xl border border-amber-500/25 bg-amber-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3 mb-4">
@@ -978,16 +955,22 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 <span className="font-bold">₹{(Number(metadata.price) * Number(metadata.quantity)).toLocaleString()}</span>
               </div>
               {userRole !== 'buyer' && (
-                <>
-                  <div className="flex justify-between text-indigo-600 font-semibold">
-                    <span>Platform Commission Fee (10%):</span>
-                    <span>- ₹{(Number(metadata.price) * Number(metadata.quantity) * 0.10).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-emerald-600 font-bold">
-                    <span>Vendor Settlement Payout:</span>
-                    <span>₹{(Number(metadata.price) * Number(metadata.quantity) * 0.90).toLocaleString()}</span>
-                  </div>
-                </>
+                modifiedBreakdownLoading && !modifiedBreakdown ? (
+                  <p className="text-muted-foreground flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Calculating...</p>
+                ) : modifiedBreakdown ? (
+                  <>
+                    <div className="flex justify-between text-indigo-600 font-semibold">
+                      <span>Platform Commission:</span>
+                      <span>- ₹{modifiedBreakdown.commission.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-600 font-bold">
+                      <span>Vendor Settlement Payout:</span>
+                      <span>₹{modifiedBreakdown.vendorNet.toLocaleString()}</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-destructive">Could not load breakdown.</p>
+                )
               )}
             </div>
 
@@ -1164,6 +1147,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </div>
         </div>
       );
+    }
 
     case 'system_intervention':
       return (
@@ -1563,27 +1547,46 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <span className="font-bold text-foreground">₹{(Number(metadata.price) * Number(metadata.quantity)).toLocaleString()}</span>
             </div>
           </div>
+          {(metadata.notes || metadata.reason) && (
+            <div className="mb-4 p-3 bg-amber-500/5 border border-amber-500/15 rounded-lg text-xs">
+              <p className="font-semibold text-muted-foreground mb-1">Seller's Remark:</p>
+              <p className="text-foreground italic">"{metadata.notes || metadata.reason}"</p>
+            </div>
+          )}
 
           {userRole === 'buyer' ? (
             negotiationStep === 'admin_approved_seller_counter' ? (
-              <Button
-                onClick={async () => {
-                  setIsActioning(true);
-                  try {
-                    await api.rfqs.buyerConfirm(metadata.rfq_id, 'seller');
-                    alert('Terms Confirmed successfully! Sourcing details updated.');
-                    onRefresh();
-                  } catch (err: any) {
-                    alert(err.message || 'Failed to confirm terms.');
-                  } finally {
-                    setIsActioning(false);
-                  }
-                }}
-                disabled={isActioning}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg text-xs"
-              >
-                ✓ Accept & Confirm Terms
-              </Button>
+              <div className="flex gap-2 w-full">
+                <Button
+                  onClick={async () => {
+                    setIsActioning(true);
+                    try {
+                      await api.rfqs.buyerConfirm(metadata.rfq_id, 'seller');
+                      alert('Terms Confirmed successfully! Sourcing details updated.');
+                      onRefresh();
+                    } catch (err: any) {
+                      alert(err.message || 'Failed to confirm terms.');
+                    } finally {
+                      setIsActioning(false);
+                    }
+                  }}
+                  disabled={isActioning}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-lg text-xs"
+                >
+                  ✓ Accept & Confirm Terms
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (triggerCounterNegotiation) {
+                      triggerCounterNegotiation(metadata.rfq_id, Number(metadata.price), Number(metadata.quantity));
+                    }
+                  }}
+                  disabled={isActioning}
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 rounded-lg text-xs"
+                >
+                  Propose Counter
+                </Button>
+              </div>
             ) : (
               <Badge className="w-full justify-center bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 py-1 text-[10px] uppercase font-bold tracking-wider">
                 ✓ Terms Confirmed

@@ -126,7 +126,12 @@ export default function AdminProducts() {
     try {
       setApprovingId(productId);
       await api.products.updateStatus(productId, 'approved');
-      setProductList(productList.map(p => p.id === productId ? { ...p, status: 'approved' as ProductStatus } : p));
+      // Functional updater — approving several products in quick succession means this await
+      // can resolve after a LATER approval's own update already ran; using the `productList`
+      // closed over when THIS call started would silently overwrite that later change with a
+      // stale snapshot, making an already-approved product's buttons reappear in the UI (DB
+      // stayed correct the whole time — this was purely a client-side stale-state bug).
+      setProductList(prev => prev.map(p => p.id === productId ? { ...p, status: 'approved' as ProductStatus } : p));
       toast({ title: 'Product Approved', description: 'Product is now live on the marketplace.' });
     } catch (error: any) {
       toast({ title: 'Approval Failed', description: error.message, variant: 'destructive' });
@@ -149,7 +154,7 @@ export default function AdminProducts() {
     setRejectingInFlight(true);
     try {
       await api.products.updateStatus(rejectingId, 'rejected', rejectionReason);
-      setProductList(productList.map(p => p.id === rejectingId ? { ...p, status: 'rejected' as ProductStatus, rejectionReason: rejectionReason } : p));
+      setProductList(prev => prev.map(p => p.id === rejectingId ? { ...p, status: 'rejected' as ProductStatus, rejectionReason: rejectionReason } : p));
       toast({ title: 'Product Rejected' });
       setRejectDialogOpen(false);
       setRejectingId(null);
@@ -168,7 +173,7 @@ export default function AdminProducts() {
     setRevokingId(productId);
     try {
       await api.products.updateStatus(productId, 'pending', '');
-      setProductList(productList.map(p => p.id === productId ? { ...p, status: 'pending' as ProductStatus, rejectionReason: '' } : p));
+      setProductList(prev => prev.map(p => p.id === productId ? { ...p, status: 'pending' as ProductStatus, rejectionReason: '' } : p));
       toast({ title: 'Rejection Revoked', description: 'Product is now pending review again.' });
     } catch (error: any) {
       toast({ title: 'Failed to revoke', description: error.message, variant: 'destructive' });

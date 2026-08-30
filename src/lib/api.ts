@@ -214,8 +214,8 @@ export const api = {
       apiFetch(`/rfqs/${id}/forward`, { method: 'POST', body: JSON.stringify({ supplier_id }) }),
     submitQuote: (id: string, quoteDetails: any) =>
       apiFetch(`/rfqs/${id}/quote`, { method: 'POST', body: JSON.stringify(quoteDetails) }),
-    getQuoteEstimate: (id: string, price: number, discountType?: 'percentage' | 'flat', discountValue?: number, discountAbsorbedBy?: 'seller' | 'platform' | 'split') =>
-      apiFetch(`/rfqs/${id}/quote-estimate?price=${price}${discountValue ? `&discountType=${discountType || 'percentage'}&discountValue=${discountValue}&discountAbsorbedBy=${discountAbsorbedBy || 'seller'}` : ''}`),
+    getQuoteEstimate: (id: string, price: number, discountType?: 'percentage' | 'flat', discountValue?: number, discountAbsorbedBy?: 'seller' | 'platform' | 'split', quantity?: number) =>
+      apiFetch(`/rfqs/${id}/quote-estimate?price=${price}${discountValue ? `&discountType=${discountType || 'percentage'}&discountValue=${discountValue}&discountAbsorbedBy=${discountAbsorbedBy || 'seller'}` : ''}${quantity ? `&quantity=${quantity}` : ''}`),
     approveQuote: (id: string, approval: { status: 'approved' | 'rejected', rejection_reason?: string, admin_notes?: string, discountType?: 'percentage' | 'flat', discountValue?: number, discountAbsorbedBy?: 'seller' | 'platform' | 'split' }) =>
       apiFetch(`/rfqs/${id}/approve-quote`, { method: 'POST', body: JSON.stringify(approval) }),
     acceptQuote: (id: string) =>
@@ -353,17 +353,22 @@ export const api = {
       }),
   },
   orders: {
+    // Direct Orders go through the exact same payment pipeline as negotiated RFQs
+    // (vendorAcceptDirectOrder -> adminSendPaymentRequest -> buyer pays -> admin confirms ->
+    // convertRfqToOrder sets status='ordered') — they must NOT get a blanket bypass here. Before
+    // payment is confirmed, status is still 'pending', so an unconditional `is_direct_order === true`
+    // was pulling a just-placed, unpaid/unaccepted Direct Order straight into Buyer's Orders page
+    // and Admin's Marketplace Orders page — showing an "order" the seller hasn't even accepted yet
+    // and the buyer hasn't paid for. Same fix already applied to VendorOrders.tsx's own fetch.
     listBuyer: async () => {
       const data = await api.rfqs.list();
-      return data.filter((r: any) => 
-        r.is_direct_order === true || 
+      return data.filter((r: any) =>
         ['ordered', 'confirmed', 'shipped', 'delivered', 'completed', 'cancelled'].includes(r.status)
       );
     },
     listVendor: async () => {
       const data = await api.rfqs.list();
-      return data.filter((r: any) => 
-        r.is_direct_order === true || 
+      return data.filter((r: any) =>
         ['ordered', 'confirmed', 'shipped', 'delivered', 'completed', 'cancelled'].includes(r.status)
       );
     },

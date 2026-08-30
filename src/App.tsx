@@ -25,6 +25,7 @@ import SuppliersPage from "./pages/SuppliersPage";
 import BuyerDashboard from "./pages/buyer/BuyerDashboard";
 import BuyerCart from "./pages/buyer/BuyerCart";
 import BuyerOrders from "./pages/buyer/BuyerOrders";
+import BuyerDirectOrders from "./pages/buyer/BuyerDirectOrders";
 import BuyerRfqs from "./pages/buyer/BuyerRfqs";
 import RfqDetailPage from "./pages/shared/RfqDetailPage";
 import BuyerProfile from "./pages/buyer/BuyerProfile";
@@ -41,6 +42,8 @@ import RfqPaymentPage from "./pages/buyer/RfqPaymentPage";
 import VendorDashboard from "./pages/vendor/VendorDashboard";
 import VendorProducts from "./pages/vendor/VendorProducts";
 import VendorOrders from "./pages/vendor/VendorOrders";
+import VendorDirectOrders from "./pages/vendor/VendorDirectOrders";
+import VendorPOPage from "./pages/vendor/VendorPOPage";
 import VendorRfqs from "./pages/vendor/VendorRfqs";
 import VendorProfile from "./pages/vendor/VendorProfile";
 import VendorMessages from "./pages/vendor/VendorMessages";
@@ -59,6 +62,7 @@ import AdminCommissions from "./pages/admin/AdminCommissions";
 import AdminMessages from "./pages/admin/AdminMessages";
 import AdminRfqs from "./pages/admin/AdminRfqs";
 import AdminOrders from "./pages/admin/AdminOrders";
+import AdminDirectOrders from "./pages/admin/AdminDirectOrders";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminCategories from "./pages/admin/AdminCategories";
 import AdminOrderDetail from "./pages/admin/AdminOrderDetail";
@@ -113,6 +117,7 @@ const App = () => (
                   <Route path="/buyer/order-confirmation" element={<OrderConfirmationPage />} />
                   <Route path="/buyer/wishlist" element={<BuyerWishlist />} />
                   <Route path="/buyer/orders" element={<BuyerOrders />} />
+                  <Route path="/buyer/direct-orders" element={<BuyerDirectOrders />} />
                   <Route path="/buyer/rfqs" element={<BuyerRfqs />} />
                   <Route path="/buyer/rfqs/:id" element={<RfqDetailPage role="buyer" />} />
                   <Route path="/buyer/messages" element={<BuyerMessages />} />
@@ -126,6 +131,8 @@ const App = () => (
                   <Route path="/vendor/dashboard" element={<VendorDashboard />} />
                   <Route path="/vendor/products" element={<VendorProducts />} />
                   <Route path="/vendor/orders" element={<VendorOrders />} />
+                  <Route path="/vendor/direct-orders" element={<VendorDirectOrders />} />
+                  <Route path="/vendor/po/:rfqId" element={<VendorPOPage />} />
                   <Route path="/vendor/rfqs" element={<VendorRfqs />} />
                   <Route path="/vendor/rfqs/:id" element={<RfqDetailPage role="vendor" />} />
                   <Route path="/vendor/messages" element={<VendorMessages />} />
@@ -143,6 +150,7 @@ const App = () => (
                   <Route path="/admin/rfqs" element={<AdminRfqs />} />
                   <Route path="/admin/rfqs/:id" element={<RfqDetailPage role="admin" />} />
                   <Route path="/admin/orders" element={<AdminOrders />} />
+                  <Route path="/admin/direct-orders" element={<AdminDirectOrders />} />
                   <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
                   <Route path="/admin/vendors" element={<AdminVendors />} />
                   <Route path="/admin/products" element={<AdminProducts />} />

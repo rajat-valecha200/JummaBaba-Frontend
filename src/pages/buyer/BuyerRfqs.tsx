@@ -55,6 +55,7 @@ const statusColors: Record<string, string> = {
   confirmed: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-bold px-2 py-0.5 rounded-full uppercase text-[9px] tracking-widest',
   shipped: 'bg-violet-500/10 text-violet-500 border-violet-500/20 font-bold px-2 py-0.5 rounded-full uppercase text-[9px] tracking-widest',
   delivered: 'bg-success/10 text-success border-success/20 font-bold px-2 py-0.5 rounded-full uppercase text-[9px] tracking-widest',
+  completed: 'bg-success/10 text-success border-success/20 font-bold px-2 py-0.5 rounded-full uppercase text-[9px] tracking-widest',
   closed: 'bg-muted text-muted-foreground border-border/50 font-bold px-2 py-0.5 rounded-full uppercase text-[9px] tracking-widest',
   cancelled: 'bg-destructive/10 text-destructive border-destructive/20 font-bold px-2 py-0.5 rounded-full uppercase text-[9px] tracking-widest',
 };
@@ -258,7 +259,13 @@ export default function BuyerRfqs() {
                   )}
                 </TableCell>
                 <TableCell>
-                  {rfq.moderation_status === 'quote_approved' ? (
+                  {/* moderation_status stays 'quote_approved' for the rest of this RFQ's life
+                      once set — it's never reset when the order actually gets placed and
+                      completed, so "Quote Ready" (implying the buyer still needs to accept
+                      something) kept showing on orders that were done and dusted weeks ago. */}
+                  {['ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(rfq.status) ? (
+                    <span className="text-[10px] font-black uppercase tracking-tighter text-emerald-600">Order Placed</span>
+                  ) : rfq.moderation_status === 'quote_approved' ? (
                     <Badge className="bg-blue-500 text-white font-black animate-bounce shadow-lg shadow-blue-500/20">Quote Ready</Badge>
                   ) : (
                     <span className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground italic">
@@ -335,9 +342,13 @@ export default function BuyerRfqs() {
               <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-8 space-y-6">
                 {selectedRfq && (
                   <div className="space-y-6">
-                    {/* Success Banner for Converted Orders */}
-                    {selectedRfq.status === 'ordered' && (
-                      <motion.div 
+                    {/* Success Banner for Converted Orders — was only checking status ===
+                        'ordered', so this (and the "Go to Order" link) silently disappeared the
+                        moment the order progressed to confirmed/shipped/delivered/completed,
+                        even though it's still very much a real order at every one of those
+                        stages. */}
+                    {['ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(selectedRfq.status) && (
+                      <motion.div
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 flex items-start gap-4"
@@ -345,9 +356,14 @@ export default function BuyerRfqs() {
                         <div className="w-12 h-12 rounded-xl bg-emerald-500 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
                           <CheckCircle className="h-6 w-6 text-white" />
                         </div>
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <h4 className="text-lg font-black text-emerald-600 leading-tight">Order Confirmed!</h4>
                           <p className="text-sm font-medium text-emerald-600/80">Your inquiry has been successfully converted into an order. The vendor <span className="font-bold underline">{selectedRfq.vendor_business_name || 'Verified Supplier'}</span> has been notified to start processing.</p>
+                          <Link to={`/buyer/orders?open=${selectedRfq.id}`} className="inline-block mt-3">
+                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+                              Go to Order <ArrowRight className="h-4 w-4 ml-1.5" />
+                            </Button>
+                          </Link>
                         </div>
                       </motion.div>
                     )}
@@ -653,7 +669,7 @@ export default function BuyerRfqs() {
                       ⏳ Payment reference submitted. Support is verifying transaction receipts.
                     </div>
                   )}
-                  {selectedRfq?.status === 'ordered' && selectedRfq.cancellation_request?.status !== 'pending' && (
+                  {(selectedRfq?.status === 'ordered' || selectedRfq?.negotiation_step === 'payment_pending') && selectedRfq.cancellation_request?.status !== 'pending' && (
                     <Button variant="outline" className="text-destructive" onClick={() => handleAction(selectedRfq.id, 'request_cancellation')} disabled={isLoading}>
                       <AlertCircle className="h-4 w-4 mr-2" /> Request Cancellation
                     </Button>

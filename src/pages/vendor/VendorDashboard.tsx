@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { Package, ShoppingCart, FileText, TrendingUp, Plus, Eye, Loader2, ShieldAlert } from 'lucide-react';
+import { Package, ShoppingCart, ShoppingBag, FileText, TrendingUp, Plus, Eye, Loader2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,9 +26,14 @@ export default function VendorDashboard() {
         ]);
         setStats(statsData);
         setLiveRfqs(rfqData);
+        // A Direct Order isn't a real order until the seller accepts AND the buyer pays
+        // (status only flips to 'ordered' at that point) — the old blanket
+        // `|| rfq.is_direct_order === true` pulled every just-placed, unpaid Direct Order in
+        // here too, mixed in with real orders under a "Recent Orders" heading. Same bug already
+        // fixed in VendorOrders.tsx's own fetch and in api.ts's orders.listVendor().
         setRealOrders(
           rfqData
-            .filter((rfq: any) => ['ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(rfq.status) || rfq.is_direct_order === true)
+            .filter((rfq: any) => ['ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(rfq.status))
             .slice(0, 3)
         );
       } catch (error) {
@@ -40,9 +45,15 @@ export default function VendorDashboard() {
     fetchStats();
   }, []);
 
-  const displayedRfqs = Array.isArray(liveRfqs) 
-    ? liveRfqs.filter((rfq: any) => rfq.status === 'pending' && rfq.moderation_status === 'forwarded' && !rfq.vendor_status && rfq.is_direct_order !== true).slice(0, 3) 
+  const displayedRfqs = Array.isArray(liveRfqs)
+    ? liveRfqs.filter((rfq: any) => rfq.status === 'pending' && rfq.moderation_status === 'forwarded' && !rfq.vendor_status && rfq.is_direct_order !== true).slice(0, 3)
     : [];
+  // Direct Orders never show up in the RFQ tab and only reach the Orders tab once paid — this
+  // count (mirrored by the "Direct Orders" nav link's own count) is otherwise invisible from the
+  // dashboard entirely. Counts every one still awaiting this vendor's Accept/Decline.
+  const directOrdersCount = Array.isArray(liveRfqs)
+    ? liveRfqs.filter((rfq: any) => rfq.is_direct_order === true && rfq.direct_order_status === 'pending_seller_accept').length
+    : 0;
 
   if (loading) {
     return (
@@ -92,10 +103,18 @@ export default function VendorDashboard() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Capped at 3 columns, not 5 — 5 narrow columns left too little width for a label like
+          "TOTAL REVENUE" or a real currency value, so the value wrapped mid-number instead of
+          fitting on one line. 5 cards over 3 columns just wraps to a second (2-card) row. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatsCard title="Total Products" value={stats?.products || 0} icon={Package} trend={{ value: 8, isPositive: true }} />
-        <StatsCard title="Orders Received" value={stats?.orders || 0} icon={ShoppingCart} iconClassName="bg-secondary/10 text-secondary" />
-        <StatsCard title="RFQs Received" value={stats?.rfqs || 0} icon={FileText} iconClassName="bg-accent/10 text-accent" />
+        {/* --secondary and --accent are both a near-white 96% lightness gray in this theme (meant
+            to pair with their near-black *-foreground counterparts, not as a foreground color
+            themselves) — text-secondary/text-accent icons were rendering near-white on a
+            near-white background: functionally invisible. Swapped for real visible colors. */}
+        <StatsCard title="Orders Received" value={stats?.orders || 0} icon={ShoppingCart} iconClassName="bg-indigo-500/10 text-indigo-500" />
+        <StatsCard title="RFQs Received" value={stats?.rfqs || 0} icon={FileText} iconClassName="bg-cyan-500/10 text-cyan-500" />
+        <StatsCard title="Direct Orders" value={directOrdersCount} icon={ShoppingBag} iconClassName="bg-orange-500/10 text-orange-500" />
         <StatsCard title="Revenue" value={formatPrice(stats?.revenue || 0)} icon={TrendingUp} iconClassName="bg-success/10 text-success" />
       </div>
 
@@ -105,7 +124,10 @@ export default function VendorDashboard() {
             <CardTitle className="text-lg">Recent Orders</CardTitle>
             <Button asChild variant="ghost" size="sm"><Link to="/vendor/orders">View All</Link></Button>
           </CardHeader>
-          <CardContent>
+          {/* shadcn's CardContent defaults to pt-0 (it assumes the CardHeader above already
+              provides bottom spacing) — but this header's own py-4 plus its border-b sits right
+              at the boundary, so the first row's box was landing almost flush against it. */}
+          <CardContent className="pt-4">
             <div className="space-y-3">
               {realOrders.length > 0 ? realOrders.map((order: any) => (
                 <div key={order.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
@@ -124,7 +146,10 @@ export default function VendorDashboard() {
             <CardTitle className="text-lg">Pending RFQs</CardTitle>
             <Button asChild variant="ghost" size="sm"><Link to="/vendor/rfqs">View All</Link></Button>
           </CardHeader>
-          <CardContent>
+          {/* shadcn's CardContent defaults to pt-0 (it assumes the CardHeader above already
+              provides bottom spacing) — but this header's own py-4 plus its border-b sits right
+              at the boundary, so the first row's box was landing almost flush against it. */}
+          <CardContent className="pt-4">
             <div className="space-y-3">
               {displayedRfqs.length > 0 ? displayedRfqs.map(rfq => (
                 <div key={rfq.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle, ArrowLeft, Upload, Info, AlertTriangle, Loader2, Lock } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { Eye, Search, Filter, Package, Truck, CheckCircle, Clock, XCircle, ArrowLeft, Upload, Info, AlertTriangle, Loader2, Lock, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -37,7 +37,7 @@ import { api, apiFetch } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { OrderTracking } from '@/components/orders/OrderTracking';
 
-type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancel_requested' | 'cancelled';
+type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'completed' | 'cancel_requested' | 'cancelled';
 
 interface OrderItem {
   productId: string;
@@ -67,6 +67,7 @@ const statusConfig: Record<OrderStatus, { label: string; icon: typeof Package; c
   confirmed: { label: 'Accepted', icon: CheckCircle, color: 'bg-blue-500/10 text-blue-500 border-blue-500/20 font-black uppercase text-[10px] tracking-widest' },
   shipped: { label: 'In Transit', icon: Truck, color: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-black uppercase text-[10px] tracking-widest' },
   delivered: { label: 'Delivered', icon: Package, color: 'bg-blue-500/10 text-blue-500 border-blue-500/20 font-black uppercase text-[10px] tracking-widest' },
+  completed: { label: 'Completed', icon: CheckCircle, color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-black uppercase text-[10px] tracking-widest' },
   cancel_requested: { label: 'Flagged', icon: AlertTriangle, color: 'bg-destructive/10 text-destructive border-destructive/20 font-black uppercase text-[10px] tracking-widest' },
   cancelled: { label: 'Revoked', icon: XCircle, color: 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20 font-black uppercase text-[10px] tracking-widest' },
 };
@@ -82,13 +83,27 @@ export default function VendorOrders() {
       try {
         const data = await api.rfqs.list();
         setDbOrders(data
-          .filter((r: any) => r.is_direct_order === true || r.status === 'ordered' || r.status === 'confirmed' || r.status === 'shipped' || r.status === 'delivered' || ['confirmed', 'shipped', 'delivered', 'cancelled', 'cancel_requested'].includes(r.vendor_status))
+          // Direct Orders go through the exact same payment pipeline as negotiated RFQs
+          // (vendorAcceptDirectOrder -> adminSendPaymentRequest -> buyer pays -> admin confirms
+          // -> convertRfqToOrder sets status='ordered') — they must NOT get a blanket bypass here.
+          // Before payment is confirmed, status is still 'pending', so an unconditional
+          // `r.is_direct_order === true` was pulling a just-accepted, unpaid Direct Order straight
+          // into this list, where it defaulted to uiStatus 'pending' and rendered a clickable
+          // "Confirm" button — letting the vendor start processing an order the buyer never paid for.
+          .filter((r: any) => r.status === 'ordered' || r.status === 'confirmed' || r.status === 'shipped' || r.status === 'delivered' || r.status === 'completed' || ['confirmed', 'shipped', 'delivered', 'completed', 'cancelled', 'cancel_requested'].includes(r.vendor_status))
           .map((r: any) => {
             // Normalize status for UI
             let uiStatus: OrderStatus = 'pending';
             const vStatus = r.vendor_status;
             const cancellationRequest = typeof r.cancellation_request === 'string' ? JSON.parse(r.cancellation_request) : r.cancellation_request;
-            if (cancellationRequest?.status === 'pending') {
+            // Completed (delivery confirmed, settlement done) must be checked before the
+            // cancellation-request/in-progress branches below — an order that's genuinely done
+            // was previously falling through every check (none of them recognized 'completed')
+            // and defaulting to 'pending', which re-showed it as a fresh "New Order" with a
+            // clickable "Confirm" button that could actually revert the real DB record.
+            if (r.status === 'completed' || vStatus === 'completed') {
+              uiStatus = 'completed';
+            } else if (cancellationRequest?.status === 'pending') {
               uiStatus = 'cancel_requested';
             } else if (['confirmed', 'shipped', 'delivered', 'cancelled'].includes(vStatus)) {
               uiStatus = vStatus as OrderStatus;
@@ -277,6 +292,7 @@ export default function VendorOrders() {
       confirmed: 'shipped',
       shipped: 'delivered',
       delivered: null,
+      completed: null,
       cancel_requested: null,
       cancelled: null,
     };
@@ -342,6 +358,16 @@ export default function VendorOrders() {
                   <span className="text-sm text-muted-foreground">Current Status</span>
                   {getStatusBadge(selectedOrder.status)}
                 </div>
+
+                {/* Same client-rendered Print/Download pattern as the buyer's invoice page —
+                    reused deliberately rather than opening the backend's separately-generated
+                    PO document, since that Print/Download flow already works and is tested. */}
+                <Button variant="outline" className="w-full" asChild>
+                  <Link to={`/vendor/po/${selectedOrder.id}`}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    View Purchase Order
+                  </Link>
+                </Button>
 
                 {selectedOrder.status === 'confirmed' && (
                   <div className="space-y-3 pt-2">
@@ -475,10 +501,10 @@ export default function VendorOrders() {
             <Card className="border-border/50 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
               <CardContent className="pt-6">
                 <h3 className="font-semibold mb-3">Buyer Information</h3>
+                {/* Email/phone never shown to vendor — admin-moderated communication only.
+                    Shipping address is its own card below. */}
                 <div className="space-y-2 text-sm">
                   <p className="font-medium">{selectedOrder.buyerName}</p>
-                  <p className="text-muted-foreground">{selectedOrder.buyerEmail}</p>
-                  <p className="text-muted-foreground">{selectedOrder.buyerPhone}</p>
                 </div>
               </CardContent>
             </Card>
@@ -618,6 +644,7 @@ export default function VendorOrders() {
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="shipped">Shipped</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancel_requested">Cancel Requested</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
@@ -643,10 +670,8 @@ export default function VendorOrders() {
                 <TableRow key={order.id}>
                   <TableCell className="font-mono font-medium">{order.orderNumber}</TableCell>
                   <TableCell>
-                    <div>
-                      <p className="font-medium">{order.buyerName}</p>
-                      <p className="text-sm text-muted-foreground">{order.buyerEmail}</p>
-                    </div>
+                    {/* Email never shown to vendor — admin-moderated communication only. */}
+                    <p className="font-medium">{order.buyerName}</p>
                   </TableCell>
                   <TableCell>{order.items.length} item(s)</TableCell>
                   <TableCell className="font-medium">{formatPrice(order.totalAmount)}</TableCell>

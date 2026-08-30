@@ -112,6 +112,7 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
     { icon: Package, label: 'Products', path: '/admin/products', badgeCount: pendingProducts },
     { icon: FileText, label: 'RFQ Inquiries', path: '/admin/rfqs', badgeCount: pendingRfqs },
     { icon: ShoppingCart, label: 'Marketplace Orders', path: '/admin/orders', badgeCount: activeOrders },
+    { icon: Package, label: 'Direct Orders', path: '/admin/direct-orders' },
     { icon: DollarSign, label: 'Commissions', path: '/admin/commissions' },
     { icon: DollarSign, label: 'Earnings Ledger', path: '/admin/earnings' },
     { icon: Users, label: 'Users', path: '/admin/users' },
@@ -125,6 +126,7 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
     { icon: LayoutDashboard, label: 'Dashboard', path: '/vendor/dashboard' },
     { icon: Package, label: 'Products', path: '/vendor/products' },
     { icon: ShoppingCart, label: 'Orders', path: '/vendor/orders', badgeCount: activeOrders },
+    { icon: Package, label: 'Direct Orders', path: '/vendor/direct-orders' },
     { icon: FileText, label: 'RFQs', path: '/vendor/rfqs', badgeCount: pendingRfqs },
     { icon: MessageSquare, label: 'Messages', path: '/vendor/messages', badgeCount: unreadMessages },
     { icon: Building, label: 'Business Profile', path: '/vendor/profile' },
@@ -136,7 +138,8 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
 
   const buyerNav: SidebarItem[] = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/buyer/dashboard' },
-    { icon: ShoppingCart, label: 'Direct Orders', path: '/buyer/orders' },
+    { icon: ShoppingCart, label: 'Orders', path: '/buyer/orders' },
+    { icon: Package, label: 'Direct Orders', path: '/buyer/direct-orders' },
     { icon: ListTodo, label: 'Negotiations (RFQ)', path: '/buyer/rfqs', badgeCount: pendingRfqs },
     { icon: Heart, label: 'My Wishlist', path: '/buyer/wishlist' },
     { icon: MessageSquare, label: 'Messages', path: '/buyer/messages', badgeCount: unreadMessages },

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, Trash2, ShoppingCart, MessageSquare, Package } from 'lucide-react';
+import { Heart, Trash2, ShoppingCart, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -153,15 +153,14 @@ export default function BuyerWishlist() {
                         <Badge variant="outline">MOQ: {product.moq}</Badge>
                       </div>
                       <div className="flex gap-2">
+                        {/* "Contact" button removed — it had no onClick at all (dead UI), and
+                            buyers aren't meant to directly contact a seller anyway; RFQ/Buy Now
+                            on the product page is the actual sanctioned path. */}
                         <Button variant="outline" size="sm" asChild>
                           <Link to={`/product/${product.slug}`}>
                             <Package className="h-4 w-4 mr-2" />
                             View Details
                           </Link>
-                        </Button>
-                        <Button size="sm">
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          Contact
                         </Button>
                       </div>
                     </div>

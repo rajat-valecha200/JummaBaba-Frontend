@@ -314,6 +314,37 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
       .finally(() => setBreakdownLoading(false));
   }, [cardType]);
 
+  // "Sourcing Terms Forwarded to Seller" used to compute commission/vendor-payout with a
+  // hardcoded 10%/90% split (`price * quantity * 0.1` / `* 0.9`) — completely ignoring the
+  // vendor's actual commission_rules or the global rate. This is the one live API call
+  // (getQuoteEstimate, the same source of truth used everywhere else this session) instead —
+  // for a vendor whose real rate isn't 10%, this card was showing admin a DIFFERENT commission
+  // and vendor payout than what the vendor's own chat correctly displayed and what
+  // executeSettlement will actually pay out at.
+  useEffect(() => {
+    if (cardType !== 'rfq_forwarded_to_seller' || !metadata.rfq_id || !metadata.price) return;
+    setShowBreakdown(true);
+    setBreakdownLoading(true);
+    api.rfqs.getQuoteEstimate(metadata.rfq_id, Number(metadata.price))
+      .then(setBreakdown)
+      .catch(() => setErrorMsg('Could not load the commission breakdown for this order.'))
+      .finally(() => setBreakdownLoading(false));
+  }, [cardType, metadata.rfq_id, metadata.price]);
+
+  // Same hardcoded-10%/90% bug, same fix, for "Terms Modification Proposal" (admin
+  // Adjust/Modify Terms, and buyer/seller counter-proposals) — this is the card that was
+  // showing a flat ₹69,300 commission on a ₹693,000 order (exactly 10%) while the vendor's own
+  // chat correctly showed ₹103,950 (this vendor's real 15% rate).
+  useEffect(() => {
+    if (cardType !== 'rfq_terms_modified' || !metadata.rfq_id || !metadata.price) return;
+    setShowBreakdown(true);
+    setBreakdownLoading(true);
+    api.rfqs.getQuoteEstimate(metadata.rfq_id, Number(metadata.price))
+      .then(setBreakdown)
+      .catch(() => setErrorMsg('Could not load the commission breakdown for this proposal.'))
+      .finally(() => setBreakdownLoading(false));
+  }, [cardType, metadata.rfq_id, metadata.price]);
+
   useEffect(() => {
     if (cardType === 'rfq_specs' && userRole === 'admin') {
       api.profiles.list('vendor', 'approved')
@@ -392,6 +423,13 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
   // Card designs using sleek glassmorphism and tailored dark/light HSL palettes
   switch (cardType) {
     case 'rfq_specs':
+      // Direct Orders get their own dedicated card (direct_order_pending_review /
+      // direct_order_pending_accept) with the exact same product/qty/price/delivery info, plus
+      // the correct Accept/Decline/Forward actions. This "classic moderation flow" card is pure
+      // redundant clutter for them now that its own action buttons are suppressed (see
+      // is_direct_order checks below) — so skip rendering it at all rather than showing an
+      // action-less duplicate of the real card.
+      if (metadata.is_direct_order) return null;
       return (
         <div className="w-full max-w-md my-2 rounded-2xl border border-cyan-500/25 bg-cyan-500/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center gap-2 border-b border-cyan-500/20 pb-3 mb-4">
@@ -438,7 +476,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             )}
           </div>
 
-          {userRole === 'admin' && (
+          {userRole === 'admin' && !metadata.is_direct_order && (
             <div className="mt-4 pt-4 border-t border-cyan-500/20 space-y-3">
               {(!metadata.moderation_status || metadata.moderation_status === 'pending_moderation') && (
                 <div className="flex gap-2">
@@ -511,7 +549,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <Badge variant="secondary" className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] py-1 border border-cyan-500/10">
                 {metadata.moderation_status === 'forwarded' ? 'Forwarded to Seller' : 'Awaiting Admin Verification'}
               </Badge>
-              {userRole === 'vendor' && (!metadata.rfq_status || metadata.rfq_status === 'pending') && (
+              {userRole === 'vendor' && !metadata.is_direct_order && (!metadata.rfq_status || metadata.rfq_status === 'pending') && (
                 <div className="pt-2 border-t border-cyan-500/10">
                   <Button
                     onClick={async () => {
@@ -1060,59 +1098,12 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
       );
 
     case 'negotiated_offer':
-      const discountVal = Number(metadata.discount_percentage) || 0;
-      const baseTotalVal = Number(metadata.negotiated_price) * Number(metadata.quantity);
-      const savings = baseTotalVal * (discountVal / 100);
-      const finalTotalVal = baseTotalVal - savings;
-
-      return (
-        <div className="w-full max-w-md my-2 rounded-2xl border border-b2b-orange/25 bg-b2b-orange/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center gap-2 border-b border-b2b-orange/20 pb-3 mb-4">
-            <div className="p-2 rounded-lg bg-b2b-orange/10 text-b2b-orange">
-              <Tag className="h-5 w-5" />
-            </div>
-            <div>
-              <h4 className="font-bold text-sm text-foreground">Negotiated Coupon Offer</h4>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Agreed Sourcing Deal</p>
-            </div>
-          </div>
-
-          <div className="space-y-2.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Price per Unit:</span>
-              <span className="font-bold text-foreground">₹{Number(metadata.negotiated_price).toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Quantity Agreed:</span>
-              <span className="font-bold text-foreground">{metadata.quantity} units</span>
-            </div>
-            {discountVal > 0 && (
-              <div className="flex justify-between text-emerald-600 font-semibold">
-                <span>Special Discount:</span>
-                <span>{discountVal}% Off (-₹{savings.toLocaleString('en-IN')})</span>
-              </div>
-            )}
-            <div className="flex justify-between border-t border-b2b-orange/10 pt-2 text-sm font-black">
-              <span>Total Value:</span>
-              <span className="text-b2b-orange">₹{finalTotalVal.toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-b2b-orange/20 text-center">
-            {userRole === 'buyer' ? (
-              <Link to={`/buyer/checkout?rfqId=${metadata.rfq_id}`}>
-                <Button className="w-full bg-b2b-orange hover:bg-b2b-orange/90 text-white font-bold h-9 rounded-lg">
-                  ⚡ Proceed to Checkout
-                </Button>
-              </Link>
-            ) : (
-              <Badge className="bg-b2b-orange/10 text-b2b-orange border border-b2b-orange/25 py-1 text-[10px] uppercase font-bold tracking-wider">
-                {userRole === 'admin' ? 'Offer Sent to Buyer' : 'Special Offer Generated'}
-              </Badge>
-            )}
-          </div>
-        </div>
-      );
+      // Dead card: the /rfqs/:id/offer endpoint that used to create these has no caller left
+      // anywhere in the UI (superseded by the real payment-request flow, 'rfq_payment_request' —
+      // "Sourcing Statement & Payment Request"). Old RFQs from before that switchover can still
+      // have a stale message of this type sitting in their chat history, so keep the case (don't
+      // let it fall through to the "unknown message type" default) but render nothing.
+      return null;
 
     case 'rfq_terms_modified':
       return (
@@ -1146,18 +1137,37 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
                 <span className="font-bold">₹{(Number(metadata.price) * Number(metadata.quantity)).toLocaleString()}</span>
               </div>
               {userRole !== 'buyer' && (
-                <>
-                  <div className="flex justify-between text-indigo-600 font-semibold">
-                    <span>Platform Commission Fee (10%):</span>
-                    <span>- ₹{(Number(metadata.price) * Number(metadata.quantity) * 0.10).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-emerald-600 font-bold">
-                    <span>Vendor Settlement Payout:</span>
-                    <span>₹{(Number(metadata.price) * Number(metadata.quantity) * 0.90).toLocaleString()}</span>
-                  </div>
-                </>
+                breakdownLoading && !breakdown ? (
+                  <p className="text-muted-foreground flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Calculating...</p>
+                ) : breakdown ? (
+                  <>
+                    <div className="flex justify-between text-indigo-600 font-semibold">
+                      <span>Platform Commission:</span>
+                      <span>- ₹{breakdown.commission.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-600 font-bold">
+                      <span>Vendor Settlement Payout:</span>
+                      <span>₹{breakdown.vendorNet.toLocaleString()}</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-destructive">Could not load breakdown.</p>
+                )
               )}
             </div>
+
+            {/* Was missing entirely on this (admin's) side of the card — the buyer/vendor
+                chat's version of this same card already showed the remark, but whoever typed
+                one here (via the Modify Terms / Propose Counter dialogs) had no way to know
+                admin could never actually see it. */}
+            {(metadata.notes || metadata.reason) && (
+              <div className="mt-2.5 pt-2 border-t border-amber-500/15">
+                <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300 tracking-wider block mb-1">Reason / Remark</span>
+                <p className="text-slate-700 dark:text-slate-200 text-xs italic bg-white/70 dark:bg-slate-900/60 p-2.5 rounded-lg border border-amber-500/10 leading-relaxed">
+                  "{metadata.notes || metadata.reason}"
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 pt-4 border-t border-amber-500/20">
@@ -1395,19 +1405,31 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <span className="text-muted-foreground">Adjusted Quantity:</span>
               <span className="font-bold">{metadata.quantity} units</span>
             </div>
+            {/* Real commission via getQuoteEstimate (same source of truth as everywhere else) —
+                this used to hardcode a 10%/90% split regardless of the vendor's actual
+                commission_rules or the global rate, showing admin a different number than what
+                the vendor's own chat displayed and what settlement would actually pay out. */}
             <div className="border-t border-slate-200/50 pt-2 space-y-1 text-[11px]">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Product Base Value:</span>
-                <span className="font-bold">₹{(Number(metadata.price) * Number(metadata.quantity)).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-rose-500 font-semibold">
-                <span>Platform Commission Fee (10%):</span>
-                <span>- ₹{(Number(metadata.price) * Number(metadata.quantity) * 0.1).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-emerald-600 font-bold border-t border-dashed border-emerald-500/10 pt-1 text-xs">
-                <span>Vendor Net Settlement Payout:</span>
-                <span>₹{(Number(metadata.price) * Number(metadata.quantity) * 0.9).toLocaleString()}</span>
-              </div>
+              {breakdownLoading && !breakdown ? (
+                <p className="text-muted-foreground flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Calculating...</p>
+              ) : breakdown ? (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Product Base Value:</span>
+                    <span className="font-bold">₹{breakdown.rawOrderValue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-500 font-semibold">
+                    <span>Platform Commission:</span>
+                    <span>- ₹{breakdown.commission.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-600 font-bold border-t border-dashed border-emerald-500/10 pt-1 text-xs">
+                    <span>Vendor Net Settlement Payout:</span>
+                    <span>₹{breakdown.vendorNet.toLocaleString()}</span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-destructive">Could not load breakdown.</p>
+              )}
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-indigo-500/20">
@@ -1505,6 +1527,12 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <span className="font-bold text-foreground">₹{(Number(metadata.price) * Number(metadata.quantity)).toLocaleString()}</span>
             </div>
           </div>
+          {(metadata.notes || metadata.reason) && (
+            <div className="mb-4 p-3 bg-amber-500/5 border border-amber-500/15 rounded-lg text-xs">
+              <p className="font-semibold text-muted-foreground mb-1">Seller's Remark:</p>
+              <p className="text-foreground italic">"{metadata.notes || metadata.reason}"</p>
+            </div>
+          )}
 
           {userRole === 'buyer' ? (
             negotiationStep === 'admin_approved_seller_counter' ? (
@@ -2190,6 +2218,26 @@ export default function AdminMessages() {
   const [modifyNotes, setModifyNotes] = useState('');
   const [modifyRfqId, setModifyRfqId] = useState('');
   const [isModifyingTerms, setIsModifyingTerms] = useState(false);
+  const [modifyBreakdown, setModifyBreakdown] = useState<any>(null);
+  const [modifyBreakdownLoading, setModifyBreakdownLoading] = useState(false);
+
+  // Live commission preview as admin types a new price/quantity here — same
+  // hardcoded-10%/90% bug as the two chat cards above, same fix (real getQuoteEstimate).
+  useEffect(() => {
+    if (!showModifyDialog || !modifyRfqId || !modifyPrice) return;
+    setModifyBreakdownLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await api.rfqs.getQuoteEstimate(modifyRfqId, Number(modifyPrice), undefined, undefined, undefined, Number(modifyQty) || undefined);
+        setModifyBreakdown(result);
+      } catch (err) {
+        setModifyBreakdown(null);
+      } finally {
+        setModifyBreakdownLoading(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [showModifyDialog, modifyRfqId, modifyPrice, modifyQty]);
 
   const handleModifyTermsSubmit = async () => {
     if (!modifyRfqId || !modifyPrice || !modifyQty) return;
@@ -2302,6 +2350,13 @@ export default function AdminMessages() {
       // Keep the open conversation's negotiation state in sync too — otherwise action
       // buttons (Approve Seller Counter, Forward to Seller, etc.) stay stale until the
       // admin closes and reopens the conversation, even though the sidebar list refreshed.
+      // linkedProductPrice/linkedProductQty MUST be included here — they're what the "Send
+      // Sourcing Statement & Payment Request" dialog actually bills the buyer from. Leaving
+      // them out (as this only used to sync negotiationStep/directChatActive/canIntervene)
+      // meant that dialog kept showing whatever price/qty was agreed WHEN THE ADMIN FIRST
+      // OPENED THIS CHAT, even after "Adjust/Modify Terms" changed it and the buyer/seller
+      // both confirmed the new figure — a live, confirmed case of this sending a payment
+      // request at the wrong (stale, pre-negotiation) price.
       setSelectedConversation(prev => {
         if (!prev) return prev;
         const fresh = mapped.find(c => c.id === prev.id);
@@ -2309,11 +2364,20 @@ export default function AdminMessages() {
         if (
           prev.negotiationStep === fresh.negotiationStep &&
           prev.directChatActive === fresh.directChatActive &&
-          prev.canIntervene === fresh.canIntervene
+          prev.canIntervene === fresh.canIntervene &&
+          prev.linkedProductPrice === fresh.linkedProductPrice &&
+          prev.linkedProductQty === fresh.linkedProductQty
         ) {
           return prev;
         }
-        return { ...prev, negotiationStep: fresh.negotiationStep, directChatActive: fresh.directChatActive, canIntervene: fresh.canIntervene };
+        return {
+          ...prev,
+          negotiationStep: fresh.negotiationStep,
+          directChatActive: fresh.directChatActive,
+          canIntervene: fresh.canIntervene,
+          linkedProductPrice: fresh.linkedProductPrice,
+          linkedProductQty: fresh.linkedProductQty
+        };
       });
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
@@ -3418,18 +3482,26 @@ export default function AdminMessages() {
                     {modifyPrice && modifyQty && (
                       <div className="p-3 bg-muted rounded-xl text-xs space-y-1.5 border border-slate-200">
                         <p className="font-bold border-b pb-1 text-slate-800">Financial Splits Calculation</p>
-                        <div className="flex justify-between">
-                          <span>Product Base Value:</span>
-                          <span className="font-bold">₹{(Number(modifyPrice) * Number(modifyQty)).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-indigo-600">
-                          <span>Platform Fee Commission (10%):</span>
-                          <span className="font-bold">- ₹{(Number(modifyPrice) * Number(modifyQty) * 0.10).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-emerald-600 font-bold">
-                          <span>Expected Vendor Settlement (90%):</span>
-                          <span>₹{(Number(modifyPrice) * Number(modifyQty) * 0.90).toLocaleString()}</span>
-                        </div>
+                        {modifyBreakdownLoading && !modifyBreakdown ? (
+                          <p className="text-muted-foreground flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Calculating...</p>
+                        ) : modifyBreakdown ? (
+                          <>
+                            <div className="flex justify-between">
+                              <span>Product Base Value:</span>
+                              <span className="font-bold">₹{modifyBreakdown.rawOrderValue.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-indigo-600">
+                              <span>Platform Commission:</span>
+                              <span className="font-bold">- ₹{modifyBreakdown.commission.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-emerald-600 font-bold">
+                              <span>Expected Vendor Settlement:</span>
+                              <span>₹{modifyBreakdown.vendorNet.toLocaleString()}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-destructive">Could not load breakdown.</p>
+                        )}
                       </div>
                     )}
 

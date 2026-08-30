@@ -24,11 +24,15 @@ const getActivityIcon = (type: ActivityItem['type']) => {
     case 'quote_submitted':
       return <FileText className="h-5 w-5 text-primary" />;
     case 'order_shipped':
-      return <Truck className="h-5 w-5 text-secondary" />;
+      // --secondary is a near-white 96% lightness gray in this theme (meant to pair with the
+      // near-black --secondary-foreground, not itself as a foreground color) — this icon was
+      // rendering near-white on a near-white background: functionally invisible.
+      return <Truck className="h-5 w-5 text-indigo-500" />;
     case 'admin_message':
       return <MessageSquare className="h-5 w-5 text-warning" />;
     case 'rfq_received':
-      return <FileText className="h-5 w-5 text-accent" />;
+      // Same near-white issue with --accent.
+      return <FileText className="h-5 w-5 text-blue-500" />;
     case 'order_received':
       return <Package className="h-5 w-5 text-primary" />;
     default:
@@ -47,7 +51,7 @@ const getActivityBadge = (type: ActivityItem['type']) => {
     case 'quote_submitted':
       return <Badge className="bg-primary/10 text-primary border-primary/20">Quote Submitted</Badge>;
     case 'order_shipped':
-      return <Badge className="bg-secondary/10 text-secondary border-secondary/20">Shipped</Badge>;
+      return <Badge className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20">Shipped</Badge>;
     case 'admin_message':
       return <Badge className="bg-warning/10 text-warning border-warning/20">Message</Badge>;
     case 'rfq_received':

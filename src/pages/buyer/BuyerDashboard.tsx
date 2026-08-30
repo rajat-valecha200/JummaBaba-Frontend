@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { 
-  Package, 
-  ShoppingCart, 
-  FileText, 
+import {
+  Package,
+  ShoppingCart,
+  ShoppingBag,
+  FileText,
   MessageSquare,
   TrendingUp,
   Clock,
@@ -26,9 +27,14 @@ import {
 
 const statusColors: Record<string, string> = {
   pending: 'bg-warning/10 text-warning',
-  confirmed: 'bg-secondary/10 text-secondary',
+  ordered: 'bg-indigo-500/10 text-indigo-500',
+  // --secondary is a near-white 96% lightness gray in this theme (meant to pair with the
+  // near-black --secondary-foreground, not itself as a foreground color) — this badge text was
+  // rendering near-white on a near-white background: functionally invisible.
+  confirmed: 'bg-indigo-500/10 text-indigo-500',
   shipped: 'bg-primary/10 text-primary',
   delivered: 'bg-success/10 text-success',
+  completed: 'bg-success/10 text-success',
   cancelled: 'bg-destructive/10 text-destructive',
   responded: 'bg-success/10 text-success',
   closed: 'bg-muted text-muted-foreground',
@@ -38,6 +44,7 @@ export default function BuyerDashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [liveRfqs, setLiveRfqs] = useState<any[]>([]);
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [dbCategories, setDbCategories] = useState<any[]>([]);
@@ -46,14 +53,16 @@ export default function BuyerDashboard() {
   const fetchDashboardContent = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [statsData, rfqData, catRes, prodData] = await Promise.all([
+      const [statsData, rfqData, ordersData, catRes, prodData] = await Promise.all([
         api.stats.get('buyer'),
         api.rfqs.list(),
+        api.orders.listBuyer(),
         fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`),
         api.products.list('approved')
       ]);
       setStats(statsData);
       setLiveRfqs(rfqData);
+      setRecentOrders(Array.isArray(ordersData) ? ordersData.slice(0, 3) : []);
       if (catRes.ok) setDbCategories(await catRes.json());
       setDbProducts(prodData);
     } catch (error) {
@@ -69,8 +78,10 @@ export default function BuyerDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const recentOrders = []; // Buyer orders not yet implemented in backend
-  const displayedRfqs = liveRfqs.length > 0 ? liveRfqs.slice(0, 3) : [];
+  // Direct Orders never show up in the RFQ tab and were previously entirely absent from "Active
+  // RFQs" widgets' intent (they're not a negotiation) — kept in liveRfqs for stats, but not mixed
+  // into the RFQ-specific lists below.
+  const displayedRfqs = liveRfqs.length > 0 ? liveRfqs.filter((rfq: any) => !rfq.is_direct_order).slice(0, 3) : [];
   const featuredProducts = dbProducts.slice(0, 4);
   const topCategories = dbCategories.slice(0, 6);
 
@@ -98,17 +109,21 @@ export default function BuyerDashboard() {
           icon={ShoppingCart}
           trend={{ value: 12, isPositive: true }}
         />
+        {/* --secondary and --accent are both a near-white 96% lightness gray in this theme
+            (meant to pair with their near-black *-foreground counterparts, not as a foreground
+            color themselves) — these icons were rendering near-white on a near-white background:
+            functionally invisible. Swapped for real visible colors. */}
         <StatsCard
           title="RFQs Sent"
           value={stats?.rfqs || 0}
           icon={FileText}
-          iconClassName="bg-secondary/10 text-secondary"
+          iconClassName="bg-indigo-500/10 text-indigo-500"
         />
         <StatsCard
           title="Messages"
           value={stats?.messages || 0}
           icon={MessageSquare}
-          iconClassName="bg-accent/10 text-accent"
+          iconClassName="bg-cyan-500/10 text-cyan-500"
         />
         <StatsCard
           title="Total Spent"
@@ -130,22 +145,24 @@ export default function BuyerDashboard() {
           </CardHeader>
           <CardContent className="p-4 sm:p-6">
             <div className="space-y-3 sm:space-y-4">
-              {recentOrders.map(order => (
+              {recentOrders.length > 0 ? recentOrders.map(order => (
                 <div key={order.id} className="flex items-start sm:items-center justify-between p-2.5 sm:p-3 bg-muted/50 rounded-lg gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm sm:text-base truncate">{order.orderNumber}</p>
+                    <p className="font-medium text-sm sm:text-base truncate">{order.product_name}</p>
                     <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                      {order.items[0].productName}
+                      Qty: {order.quantity} {order.unit}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="font-semibold text-sm sm:text-base">{formatPrice(order.totalAmount)}</p>
-                    <Badge className={`${statusColors[order.status]} text-xs`} variant="secondary">
+                    <p className="font-semibold text-sm sm:text-base">{formatPrice(Number(order.target_price) * Number(order.quantity))}</p>
+                    <Badge className={`${statusColors[order.status] || 'bg-muted'} text-xs`} variant="secondary">
                       {order.status}
                     </Badge>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="text-center py-8 text-muted-foreground text-sm">No recent orders yet</div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -190,8 +207,8 @@ export default function BuyerDashboard() {
         <CardHeader className="border-b border-border/50 bg-slate-50/50 p-4 sm:p-6">
           <CardTitle className="text-base sm:text-lg">Account Management</CardTitle>
         </CardHeader>
-        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+        <CardContent className="p-4 sm:p-6 pt-4 sm:pt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4">
             <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Link to="/post-requirement">
                 <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
@@ -199,8 +216,14 @@ export default function BuyerDashboard() {
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
+              <Link to="/buyer/direct-orders">
+                <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" />
+                <span>Direct Orders</span>
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Link to="/buyer/cart">
-                <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-secondary" />
+                <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-500" />
                 <span>My Cart</span>
               </Link>
             </Button>
@@ -212,7 +235,7 @@ export default function BuyerDashboard() {
             </Button>
             <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Link to="/buyer/messages">
-                <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-accent" />
+                <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-cyan-500" />
                 <span>Support</span>
               </Link>
             </Button>
@@ -228,7 +251,7 @@ export default function BuyerDashboard() {
             <Link to="/buyer/rfqs">View All</Link>
           </Button>
         </CardHeader>
-        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+        <CardContent className="p-4 sm:p-6 pt-4 sm:pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {displayedRfqs.length > 0 ? displayedRfqs.map(rfq => (
               <div key={rfq.id} className="p-3 border rounded-lg hover:border-primary/50 transition-colors">

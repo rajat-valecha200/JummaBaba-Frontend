@@ -90,8 +90,11 @@ export default function AdminAnalytics() {
                   <span>+24.5% vs last year</span>
                 </div>
               </div>
-              <div className="p-3 bg-secondary/10 rounded-full">
-                <ShoppingCart className="h-6 w-6 text-secondary" />
+              {/* --secondary is a near-white 96% lightness gray in this theme (meant to pair with
+                  the near-black --secondary-foreground, not itself as a foreground color) — this
+                  icon was rendering near-white on a near-white background: functionally invisible. */}
+              <div className="p-3 bg-indigo-500/10 rounded-full">
+                <ShoppingCart className="h-6 w-6 text-indigo-500" />
               </div>
             </div>
           </CardContent>
@@ -124,8 +127,11 @@ export default function AdminAnalytics() {
                   <span>+10.4% this month</span>
                 </div>
               </div>
-              <div className="p-3 bg-accent/10 rounded-full">
-                <Package className="h-6 w-6 text-accent" />
+              {/* --accent is a near-white 96% lightness gray in this theme (meant to pair with
+                  the near-black --accent-foreground, not itself as a foreground color) — this
+                  icon was rendering near-white on a near-white background: functionally invisible. */}
+              <div className="p-3 bg-blue-500/10 rounded-full">
+                <Package className="h-6 w-6 text-blue-500" />
               </div>
             </div>
           </CardContent>

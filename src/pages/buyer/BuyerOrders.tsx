@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Eye, Download, ArrowLeft, Truck, Package, Star } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Eye, ArrowLeft, Truck, Package, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +33,7 @@ import { Separator } from '@/components/ui/separator';
 import { formatPrice, cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { OrderTracking } from '@/components/orders/OrderTracking';
+import { useToast } from '@/hooks/use-toast';
 
 type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
 
@@ -48,6 +49,8 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 
 export default function BuyerOrders() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { toast } = useToast();
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [dbOrders, setDbOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -83,6 +86,24 @@ export default function BuyerOrders() {
     };
     fetchOrders();
   }, []);
+
+  // Deep link from the RFQ list's "Go to Order" link (?open=<id>) — same pattern already used
+  // by VendorOrders.tsx.
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || dbOrders.length === 0) return;
+
+    const target = dbOrders.find((o) => String(o.id) === String(openId));
+    if (target) {
+      setSelectedOrderId(target.id);
+    } else {
+      toast({ variant: 'destructive', title: 'Order not found', description: "This order isn't in your list yet." });
+    }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    setSearchParams(next, { replace: true });
+  }, [dbOrders, searchParams]);
 
   const handleSubmitFeedback = async () => {
     if (rating === 0) {
@@ -416,15 +437,15 @@ export default function BuyerOrders() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        {/* Download button removed — it had no onClick at all (dead UI). The
+                            real invoice download lives in the order detail view's "View &
+                            Download Invoice" button, which actually works. */}
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => setSelectedOrderId(order.id)}
                         >
                           <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon">
-                          <Download className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>
