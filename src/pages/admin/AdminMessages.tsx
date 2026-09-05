@@ -1606,8 +1606,19 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
         </div>
       );
 
-    case 'rfq_payment_request':
-      const breakdown = metadata.breakdown || {};
+    case 'rfq_payment_request': {
+      // Scoped to its own block, with its own name (paymentBreakdown, not breakdown) —
+      // deliberately: an unbraced `switch` shares ONE block scope across every case, so a bare
+      // `const breakdown` here got hoisted (TDZ-wise) to the top of the WHOLE switch. Every case
+      // textually ABOVE this one that also references the outer `breakdown` state variable (by
+      // the same name) was actually hitting this local, not-yet-initialized binding instead —
+      // a real `ReferenceError: Cannot access 'breakdown' before initialization` at runtime, not
+      // just a tsc warning. That's exactly what broke production (minified to a single-letter
+      // name, but the same TDZ) — this was wrongly written off earlier as "harmless in dev only"
+      // when in fact JS engines enforce TDZ regardless of dev vs. prod; it happened not to be
+      // hit locally. This is a static payload from metadata, unrelated to the live-fetched
+      // `breakdown` state used elsewhere in this switch — different data, so it gets its own name.
+      const paymentBreakdown = metadata.breakdown || {};
       return (
         <div className="w-full max-w-md my-2 rounded-2xl border border-primary/25 bg-primary/5 backdrop-blur-md p-5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center gap-2 border-b border-primary/20 pb-3 mb-4">
@@ -1622,38 +1633,38 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           <div className="space-y-1.5 text-xs text-foreground bg-background/60 p-3 rounded-lg border border-primary/10 mb-2">
             <div className="flex justify-between">
               <span>Agreed Price:</span>
-              <span className="font-bold text-foreground">₹{Number(breakdown.price).toLocaleString()} / Unit</span>
+              <span className="font-bold text-foreground">₹{Number(paymentBreakdown.price).toLocaleString()} / Unit</span>
             </div>
             <div className="flex justify-between">
               <span>Agreed Quantity:</span>
-              <span className="font-bold text-foreground">{breakdown.quantity} units</span>
+              <span className="font-bold text-foreground">{paymentBreakdown.quantity} units</span>
             </div>
             <div className="flex justify-between font-bold border-t pt-1 mt-1 text-foreground">
               <span>Subtotal Sourcing Cost:</span>
-              <span>₹{Number(breakdown.baseAmount).toLocaleString()}</span>
+              <span>₹{Number(paymentBreakdown.baseAmount).toLocaleString()}</span>
             </div>
-            {Number(breakdown.discountAmount) > 0 && (
+            {Number(paymentBreakdown.discountAmount) > 0 && (
               <div className="flex justify-between text-emerald-600 font-semibold">
-                <span>Discount ({breakdown.discountType === 'flat' ? `₹${breakdown.discountValue} flat` : `${breakdown.discountValue ?? breakdown.discountPercentage}%`} off):</span>
-                <span>-₹{Number(breakdown.discountAmount).toLocaleString()}</span>
+                <span>Discount ({paymentBreakdown.discountType === 'flat' ? `₹${paymentBreakdown.discountValue} flat` : `${paymentBreakdown.discountValue ?? paymentBreakdown.discountPercentage}%`} off):</span>
+                <span>-₹{Number(paymentBreakdown.discountAmount).toLocaleString()}</span>
               </div>
             )}
-            {Number(breakdown.platformFee) > 0 && (
+            {Number(paymentBreakdown.platformFee) > 0 && (
               <div className="flex justify-between text-[11px] text-muted-foreground">
                 <span>
                   Platform Service Commission
-                  {Number(breakdown.discountedBase) > 0 ? ` (${((Number(breakdown.platformFee) / Number(breakdown.discountedBase)) * 100).toFixed(1)}%)` : ''}:
+                  {Number(paymentBreakdown.discountedBase) > 0 ? ` (${((Number(paymentBreakdown.platformFee) / Number(paymentBreakdown.discountedBase)) * 100).toFixed(1)}%)` : ''}:
                 </span>
-                <span>₹{Number(breakdown.platformFee).toLocaleString()}</span>
+                <span>₹{Number(paymentBreakdown.platformFee).toLocaleString()}</span>
               </div>
             )}
             <div className="flex justify-between text-[11px] text-muted-foreground">
-              <span>GST Tax {Number(breakdown.discountedBase || breakdown.baseAmount) > 0 ? `(${((Number(breakdown.gst) / Number(breakdown.discountedBase || breakdown.baseAmount)) * 100).toFixed(0)}%)` : ''}:</span>
-              <span>₹{Number(breakdown.gst).toLocaleString()}</span>
+              <span>GST Tax {Number(paymentBreakdown.discountedBase || paymentBreakdown.baseAmount) > 0 ? `(${((Number(paymentBreakdown.gst) / Number(paymentBreakdown.discountedBase || paymentBreakdown.baseAmount)) * 100).toFixed(0)}%)` : ''}:</span>
+              <span>₹{Number(paymentBreakdown.gst).toLocaleString()}</span>
             </div>
             <div className="flex justify-between font-black border-t border-double pt-1.5 mt-1.5 text-primary text-sm">
               <span>Total Buyer Payable:</span>
-              <span>₹{Math.round(Number(breakdown.finalAmount)).toLocaleString()}</span>
+              <span>₹{Math.round(Number(paymentBreakdown.finalAmount)).toLocaleString()}</span>
             </div>
           </div>
           <Badge className="w-full justify-center bg-primary/10 text-primary border border-primary/20 py-1 text-[10px] uppercase font-bold tracking-wider">
@@ -1661,6 +1672,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
           </Badge>
         </div>
       );
+    }
 
     case 'order_group_created':
       return (
