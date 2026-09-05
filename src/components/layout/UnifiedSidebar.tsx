@@ -107,18 +107,21 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
 
   const adminNav: SidebarItem[] = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
-    { icon: ListTodo, label: 'Categories', path: '/admin/categories' },
-    { icon: Users, label: 'Vendors', path: '/admin/vendors', badgeCount: pendingVendors },
-    { icon: Package, label: 'Products', path: '/admin/products', badgeCount: pendingProducts },
+    // Moved up from near the bottom of this list — a frequently-checked, unread-badge-carrying
+    // tab shouldn't be the 13th of 14 items, especially now that "Direct Orders" pushed everything
+    // below it down one further and it stopped fitting on screen without scrolling at all.
+    { icon: MessageSquare, label: 'Messages', path: '/admin/messages', badgeCount: unreadMessages },
     { icon: FileText, label: 'RFQ Inquiries', path: '/admin/rfqs', badgeCount: pendingRfqs },
     { icon: ShoppingCart, label: 'Marketplace Orders', path: '/admin/orders', badgeCount: activeOrders },
     { icon: Package, label: 'Direct Orders', path: '/admin/direct-orders' },
+    { icon: ListTodo, label: 'Categories', path: '/admin/categories' },
+    { icon: Users, label: 'Vendors', path: '/admin/vendors', badgeCount: pendingVendors },
+    { icon: Package, label: 'Products', path: '/admin/products', badgeCount: pendingProducts },
     { icon: DollarSign, label: 'Commissions', path: '/admin/commissions' },
     { icon: DollarSign, label: 'Earnings Ledger', path: '/admin/earnings' },
     { icon: Users, label: 'Users', path: '/admin/users' },
     { icon: ClipboardList, label: 'Waitlist', path: '/admin/waitlist' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
-    { icon: MessageSquare, label: 'Messages', path: '/admin/messages', badgeCount: unreadMessages },
     { icon: Settings, label: 'Settings', path: '/admin/settings' },
   ];
 
