@@ -19,8 +19,10 @@ import { Badge } from '@/components/ui/badge';
 import { StatsCard } from '@/components/b2b/StatsCard';
 import { ProductCard } from '@/components/b2b/ProductCard';
 import { CategoryCard } from '@/components/b2b/CategoryCard';
-import { 
-  formatPrice, 
+import { ProfileStrengthBanner } from '@/components/b2b/ProfileStrengthBanner';
+import { buyerProfileStrengthItems } from '@/lib/buyerProfileStrength';
+import {
+  formatPrice,
   formatNumber,
   cn
 } from '@/lib/utils';
@@ -49,22 +51,25 @@ export default function BuyerDashboard() {
 
   const [dbCategories, setDbCategories] = useState<any[]>([]);
   const [dbProducts, setDbProducts] = useState<any[]>([]);
+  const [profileData, setProfileData] = useState<any>(null);
 
   const fetchDashboardContent = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [statsData, rfqData, ordersData, catRes, prodData] = await Promise.all([
+      const [statsData, rfqData, ordersData, catRes, prodData, meData] = await Promise.all([
         api.stats.get('buyer'),
         api.rfqs.list(),
         api.orders.listBuyer(),
         fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/categories`),
-        api.products.list('approved')
+        api.products.list('approved'),
+        api.auth.getMe().catch(() => null),
       ]);
       setStats(statsData);
       setLiveRfqs(rfqData);
       setRecentOrders(Array.isArray(ordersData) ? ordersData.slice(0, 3) : []);
       if (catRes.ok) setDbCategories(await catRes.json());
       setDbProducts(prodData);
+      setProfileData(meData);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
     } finally {
@@ -84,6 +89,10 @@ export default function BuyerDashboard() {
   const displayedRfqs = liveRfqs.length > 0 ? liveRfqs.filter((rfq: any) => !rfq.is_direct_order).slice(0, 3) : [];
   const featuredProducts = dbProducts.slice(0, 4);
   const topCategories = dbCategories.slice(0, 6);
+  // Same checklist as the Buyer Profile page — nudged here too (only while incomplete) so a gap
+  // like a missing phone number doesn't stay hidden until someone happens to open Profile, or
+  // gets discovered mid-checkout instead.
+  const strengthItems = profileData ? buyerProfileStrengthItems(profileData) : [];
 
   if (loading) {
     return (
@@ -100,6 +109,8 @@ export default function BuyerDashboard() {
         <h1 className="text-xl sm:text-2xl font-bold">Welcome back, {user?.full_name || user?.email.split('@')[0]}!</h1>
         <p className="text-sm sm:text-base text-muted-foreground">Here's what's happening with your account</p>
       </div>
+
+      {strengthItems.length > 0 && <ProfileStrengthBanner items={strengthItems} to="/buyer/profile" />}
 
       {/* Stats - Responsive Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

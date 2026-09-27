@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CheckCircle, XCircle, Eye, Search, Filter, Star, Loader2, FileText, Clock, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, Search, Filter, Star, Loader2, FileText, Clock, AlertCircle, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -278,7 +278,12 @@ export default function AdminVendors() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <img src={vendor.logo} alt={vendor.companyName} className="w-10 h-10 rounded-lg object-cover" />
-                      <span className="font-medium">{vendor.companyName}</span>
+                      <div className="min-w-0">
+                        <span className="font-medium block">{vendor.companyName}</span>
+                        {vendor.referred_by_name && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-primary font-medium"><UserPlus className="h-3 w-3" />Referred by {vendor.referred_by_name}</span>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>{vendor.location}</TableCell>

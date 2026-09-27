@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ProfileStrengthCard } from '@/components/b2b/ProfileStrengthCard';
 import {
   Select,
   SelectContent,
@@ -231,11 +232,6 @@ export default function BuyerProfile() {
   if (loading) {
     return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
-
-  const completionPercent = [
-    profile.name, profile.companyName, profile.phone, 
-    profile.gstNumber, addresses.length > 0
-  ].filter(Boolean).length * 20;
 
   return (
     <div className="space-y-6">
@@ -493,38 +489,13 @@ export default function BuyerProfile() {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-lg overflow-hidden">
-            <CardHeader className="bg-success/5 border-b border-success/10 pb-4">
-              <CardTitle className="text-lg flex items-center justify-between">
-                Profile Strength
-                <Badge variant="outline" className="bg-white/50">{completionPercent}%</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                <div className="h-3 bg-muted rounded-full overflow-hidden p-0.5 border">
-                  <div 
-                    className="h-full bg-success rounded-full shadow-[0_0_10px_rgba(34,197,94,0.4)] transition-all duration-1000 ease-out" 
-                    style={{ width: `${completionPercent}%` }} 
-                  />
-                </div>
-                <div className="grid gap-2">
-                  {[
-                    { label: 'Business Identity', done: profile.companyName && profile.businessType },
-                    { label: 'Contact Details', done: profile.name && profile.phone },
-                    { label: 'GST/PAN Verified', done: profile.gstNumber && profile.panNumber },
-                    { label: 'Shipping Address', done: addresses.length > 0 },
-                    { label: 'Business Description', done: profile.description.length > 20 },
-                  ].map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-muted/20 text-xs">
-                      <span className={cn(item.done ? "text-foreground font-medium" : "text-muted-foreground")}>{item.label}</span>
-                      {item.done ? <CheckCircle className="h-4 w-4 text-success" /> : <div className="w-4 h-4 rounded-full border-2 border-muted" />}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <ProfileStrengthCard items={[
+            { label: 'Business Identity', done: !!(profile.companyName && profile.businessType) },
+            { label: 'Contact Details', done: !!(profile.name && profile.phone) },
+            { label: 'GST/PAN Verified', done: !!(profile.gstNumber && profile.panNumber) },
+            { label: 'Shipping Address', done: addresses.length > 0 },
+            { label: 'Business Description', done: profile.description.length > 20 },
+          ]} />
         </div>
       </div>
 

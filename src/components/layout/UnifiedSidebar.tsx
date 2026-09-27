@@ -24,7 +24,12 @@ import {
   Globe,
   Heart,
   ListTodo,
-  ClipboardList
+  ClipboardList,
+  Award,
+  Target,
+  Gift,
+  UserPlus,
+  UserCircle
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { api } from '@/lib/api';
@@ -39,7 +44,7 @@ interface SidebarItem {
 }
 
 interface UnifiedSidebarProps {
-  role: 'admin' | 'vendor' | 'buyer';
+  role: 'admin' | 'vendor' | 'buyer' | 'employee';
   onClose?: () => void;
   className?: string;
 }
@@ -58,6 +63,8 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
   const [pendingProducts, setPendingProducts] = useState(0);
 
   useEffect(() => {
+    // Employees have no marketplace messages/RFQs/orders — nothing here applies to them.
+    if (role === 'employee') return;
     const fetchNotifications = async () => {
       try {
         const [msgNotify, sysNotify, rfqs, orders] = await Promise.all([
@@ -120,6 +127,7 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
     { icon: DollarSign, label: 'Commissions', path: '/admin/commissions' },
     { icon: DollarSign, label: 'Earnings Ledger', path: '/admin/earnings' },
     { icon: Users, label: 'Users', path: '/admin/users' },
+    { icon: Gift, label: 'Employees', path: '/admin/employees' },
     { icon: ClipboardList, label: 'Waitlist', path: '/admin/waitlist' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
     { icon: Settings, label: 'Settings', path: '/admin/settings' },
@@ -150,7 +158,15 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
     { icon: Settings, label: 'Settings', path: '/buyer/settings' },
   ];
 
-  const currentNav = role === 'admin' ? adminNav : role === 'vendor' ? vendorNav : buyerNav;
+  const employeeNav: SidebarItem[] = [
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/employee/dashboard' },
+    { icon: UserPlus, label: 'My Referrals', path: '/employee/referrals' },
+    { icon: Target, label: 'Leads', path: '/employee/leads' },
+    { icon: Award, label: 'Points & Payouts', path: '/employee/points' },
+    { icon: UserCircle, label: 'My Profile', path: '/employee/profile' },
+  ];
+
+  const currentNav = role === 'admin' ? adminNav : role === 'vendor' ? vendorNav : role === 'employee' ? employeeNav : buyerNav;
 
   return (
     <aside className={cn("flex flex-col h-full bg-sidebar border-r border-sidebar-border overflow-hidden", className)}>

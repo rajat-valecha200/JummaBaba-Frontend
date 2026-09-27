@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CheckCircle, XCircle, FileText, Building, MapPin, Phone, Mail, Globe, Eye, Clock, CreditCard, Tag, Briefcase, Printer, X, Sliders, Save, Percent } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, Building, MapPin, Phone, Mail, Globe, Eye, Clock, CreditCard, Tag, Briefcase, Printer, X, Sliders, Save, Percent, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -195,6 +195,12 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
                       <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 border-amber-500/20 px-3">
                         <Clock className="h-3 w-3 mr-1" />
                         Pending Review
+                      </Badge>
+                    )}
+                    {vendor.referred_by_name && (
+                      <Badge variant="outline" className="px-3 border-primary/30 text-primary bg-primary/5">
+                        <UserPlus className="h-3 w-3 mr-1" />
+                        Referred by {vendor.referred_by_name}{vendor.referred_by_code ? ` (${vendor.referred_by_code})` : ''}
                       </Badge>
                     )}
                     {vendor.status === 'approved' && <TrustBadge type="verified" />}

@@ -13,6 +13,8 @@ import { Logo } from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/AuthContext';
 import { LocationPicker } from '@/components/ui/LocationPicker';
 import { api } from '@/lib/api';
+import { ReferralCodeField } from '@/components/auth/ReferralCodeField';
+import { getStoredReferralCode, clearStoredReferralCode } from '@/lib/referral';
 import { OtpModal } from '@/components/auth/OtpModal';
 import {
   buyerStep1EmailSchema,
@@ -338,6 +340,7 @@ export default function BuyerRegisterPage() {
         phone: formData.phone,
         password: formData.password || otp,
         role: 'buyer',
+        referral_code: getStoredReferralCode() || undefined,
         business_name: formData.businessName,
         business_type: formData.businessType,
         gst_number: formData.gstNumber,
@@ -353,6 +356,7 @@ export default function BuyerRegisterPage() {
       });
 
       toast({ title: 'Registration Successful!', description: 'Welcome to JummaBaba.com! You can now start buying.' });
+      clearStoredReferralCode();
       navigate('/buyer/dashboard');
     } catch (error: any) {
       toast({
@@ -638,6 +642,8 @@ export default function BuyerRegisterPage() {
                   </p>
                 </div>
               )}
+
+              <ReferralCodeField />
 
               <div className="flex items-start gap-2 mt-4">
                 <Checkbox

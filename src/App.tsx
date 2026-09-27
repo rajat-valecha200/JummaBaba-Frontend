@@ -2,8 +2,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { MainLayout, VendorLayout, BuyerLayout, AdminLayout, ScrollToTop } from "@/components/layout";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { MainLayout, VendorLayout, BuyerLayout, AdminLayout, EmployeeLayout, ScrollToTop } from "@/components/layout";
 import { WishlistProvider } from "@/contexts/WishlistContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { MaintenanceGuard } from "@/components/auth/MaintenanceGuard";
@@ -63,6 +64,15 @@ import AdminMessages from "./pages/admin/AdminMessages";
 import AdminRfqs from "./pages/admin/AdminRfqs";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminDirectOrders from "./pages/admin/AdminDirectOrders";
+import AdminEmployees from "./pages/admin/AdminEmployees";
+import AdminEmployeeDetail from "./pages/admin/AdminEmployeeDetail";
+import AdminReferralDetail from "./pages/admin/AdminReferralDetail";
+import EmployeeDashboard from "./pages/employee/EmployeeDashboard";
+import EmployeeReferrals from "./pages/employee/EmployeeReferrals";
+import EmployeeLeads from "./pages/employee/EmployeeLeads";
+import EmployeePoints from "./pages/employee/EmployeePoints";
+import EmployeeProfile from "./pages/employee/EmployeeProfile";
+import { captureReferralFromUrl } from "@/lib/referral";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminCategories from "./pages/admin/AdminCategories";
 import AdminOrderDetail from "./pages/admin/AdminOrderDetail";
@@ -73,6 +83,14 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Picks a shared referral link's ?ref=CODE out of the URL on any page and remembers it, so it's
+// still there when the visitor eventually gets to a signup form.
+const RefCapture = () => {
+  const { search } = useLocation();
+  useEffect(() => captureReferralFromUrl(search), [search]);
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -80,6 +98,7 @@ const App = () => (
         <WishlistProvider>
           <BrowserRouter>
             <ScrollToTop />
+            <RefCapture />
             <MaintenanceGuard>
               <Toaster />
               <Sonner />
@@ -161,6 +180,18 @@ const App = () => (
                   <Route path="/admin/waitlist" element={<AdminWaitlist />} />
                   <Route path="/admin/categories" element={<AdminCategories />} />
                   <Route path="/admin/earnings" element={<AdminEarnings />} />
+                  <Route path="/admin/employees" element={<AdminEmployees />} />
+                  <Route path="/admin/employees/:id" element={<AdminEmployeeDetail />} />
+                  <Route path="/admin/employees/:id/referrals/:userId" element={<AdminReferralDetail />} />
+                </Route>
+
+                {/* Employee (referral partner) portal */}
+                <Route element={<ProtectedRoute allowedRoles={['employee']}><EmployeeLayout /></ProtectedRoute>}>
+                  <Route path="/employee/dashboard" element={<EmployeeDashboard />} />
+                  <Route path="/employee/referrals" element={<EmployeeReferrals />} />
+                  <Route path="/employee/leads" element={<EmployeeLeads />} />
+                  <Route path="/employee/points" element={<EmployeePoints />} />
+                  <Route path="/employee/profile" element={<EmployeeProfile />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />

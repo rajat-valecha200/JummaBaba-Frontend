@@ -4,7 +4,7 @@ import { api } from '@/lib/api';
 interface User {
   id: string;
   email: string;
-  role: 'buyer' | 'vendor' | 'admin';
+  role: 'buyer' | 'vendor' | 'admin' | 'employee';
   full_name?: string;
   business_name?: string;
   phone?: string;
@@ -26,7 +26,7 @@ interface User {
 interface Profile {
   id: string;
   full_name: string | null;
-  role: 'buyer' | 'vendor' | 'admin' | null;
+  role: 'buyer' | 'vendor' | 'admin' | 'employee' | null;
   business_name?: string;
   phone?: string;
 }
@@ -38,6 +38,9 @@ interface AuthContextType {
   login: (credentials: any) => Promise<any>;
   register: (details: any) => Promise<any>;
   signOut: () => void;
+  // Patches the cached user/profile in place (e.g. after saving a phone number from a checkout
+  // form) without a full re-login or refetch.
+  updateUser: (patch: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -93,6 +96,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return data;
   };
 
+  const updateUser = (patch: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+    setProfile((prev) => (prev ? { ...prev, ...patch } : prev));
+  };
+
   const signOut = () => {
     api.auth.logout();
     setUser(null);
@@ -102,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, register, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, login, register, signOut, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

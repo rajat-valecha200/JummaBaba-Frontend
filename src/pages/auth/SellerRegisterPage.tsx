@@ -13,6 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/AuthContext';
 import { api, apiFetch } from '@/lib/api';
+import { ReferralCodeField } from '@/components/auth/ReferralCodeField';
+import { getStoredReferralCode, clearStoredReferralCode } from '@/lib/referral';
 import { LocationPicker } from '@/components/ui/LocationPicker';
 import { OtpModal } from '@/components/auth/OtpModal';
 import {
@@ -527,6 +529,7 @@ export default function SellerRegisterPage() {
         phone: formData.phone,
         password: formData.password || otp,
         role: 'vendor',
+        referral_code: getStoredReferralCode() || undefined,
         business_name: formData.businessName,
         business_type: formData.businessType,
         gst_number: formData.gstNumber,
@@ -588,6 +591,7 @@ export default function SellerRegisterPage() {
         title: 'Registration Submitted!',
         description: 'Your seller account is under review. We\'ll notify you once approved.'
       });
+      clearStoredReferralCode();
       navigate('/vendor/dashboard');
     } catch (error: any) {
       toast({ title: 'Registration Failed', description: error.message, variant: 'destructive' });
@@ -1284,6 +1288,8 @@ export default function SellerRegisterPage() {
                   </p>
                 </div>
               )}
+
+              <ReferralCodeField />
 
               <div className="flex items-start gap-2 mt-4">
                 <Checkbox

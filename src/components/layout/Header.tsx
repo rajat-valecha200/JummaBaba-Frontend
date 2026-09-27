@@ -105,7 +105,7 @@ export function Header() {
                     <Link to="/" className="block py-2 text-primary font-bold">
                       Browse Marketplace
                     </Link>
-                    <Link to={user.role === 'admin' ? '/admin' : user.role === 'vendor' ? '/vendor/dashboard' : '/buyer/dashboard'} className="block py-2">
+                    <Link to={user.role === 'admin' ? '/admin' : user.role === 'vendor' ? '/vendor/dashboard' : user.role === 'employee' ? '/employee/dashboard' : '/buyer/dashboard'} className="block py-2">
                       My Dashboard
                     </Link>
                     <button onClick={signOut} className="block w-full text-left py-2 text-destructive">Logout</button>
@@ -228,9 +228,16 @@ export function Header() {
                       <Link to="/buyer/dashboard">Buyer Dashboard</Link>
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem asChild>
-                    <Link to={user.role === 'vendor' ? '/vendor/profile' : '/buyer/profile'}>My Profile</Link>
-                  </DropdownMenuItem>
+                  {user.role === 'employee' && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/employee/dashboard">Employee Portal</Link>
+                    </DropdownMenuItem>
+                  )}
+                  {user.role !== 'employee' && (
+                    <DropdownMenuItem asChild>
+                      <Link to={user.role === 'vendor' ? '/vendor/profile' : '/buyer/profile'}>My Profile</Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={signOut} className="text-destructive">
                     Logout

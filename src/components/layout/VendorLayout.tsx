@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { api } from '@/lib/api';
 import { UnifiedSidebar } from './UnifiedSidebar';
+import { ReferralPrompt } from '@/components/auth/ReferralPrompt';
 import { Logo } from '@/components/ui/Logo';
 
 export function VendorLayout() {
@@ -130,6 +131,7 @@ export function VendorLayout() {
           </main>
         </div>
       </div>
+      <ReferralPrompt />
     </TooltipProvider>
   );
 }

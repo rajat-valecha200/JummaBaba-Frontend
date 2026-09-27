@@ -30,6 +30,7 @@ export default function LoginPage() {
       // Auto-redirect based on role
       if (userData.role === 'admin') navigate('/admin');
       else if (userData.role === 'vendor') navigate('/vendor/dashboard');
+      else if (userData.role === 'employee') navigate('/employee/dashboard');
       else navigate('/buyer/dashboard');
     } catch (error: any) {
       toast({

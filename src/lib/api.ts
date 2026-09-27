@@ -310,6 +310,74 @@ export const api = {
     update: (id: string, data: any) =>
       apiFetch(`/profiles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   },
+  employees: {
+    // Public (signup form)
+    validateReferral: (code: string) => apiFetch(`/employees/referral/validate/${encodeURIComponent(code)}`),
+    // Buyer / seller: "do you have a referral code?" prompt after signup
+    referralStatus: () => apiFetch('/employees/referral/status'),
+    attachReferral: (code: string) => apiFetch('/employees/referral/attach', { method: 'POST', body: JSON.stringify({ code }) }),
+    // Employee portal
+    summary: () => apiFetch('/employees/me/summary'),
+    referrals: () => apiFetch('/employees/me/referrals'),
+    referralProducts: (userId: string) => apiFetch(`/employees/me/referrals/${userId}/products`),
+    listLeads: () => apiFetch('/employees/me/leads'),
+    createLead: (data: any) => apiFetch('/employees/me/leads', { method: 'POST', body: JSON.stringify(data) }),
+    updateLead: (id: string, data: any) => apiFetch(`/employees/me/leads/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteLead: (id: string) => apiFetch(`/employees/me/leads/${id}`, { method: 'DELETE' }),
+    points: () => apiFetch('/employees/me/points'),
+    payments: () => apiFetch('/employees/me/payments'),
+    myProfile: () => apiFetch('/employees/me/profile'),
+    updateMyProfile: (data: any) => apiFetch('/employees/me/profile', { method: 'PUT', body: JSON.stringify(data) }),
+    celebrations: () => apiFetch('/employees/me/celebrations'),
+    celebrationsSeen: () => apiFetch('/employees/me/celebrations/seen', { method: 'POST', body: JSON.stringify({}) }),
+    // Admin
+    adminList: () => apiFetch('/employees/admin/list'),
+    adminCreate: (data: any) => apiFetch('/employees/admin/create', { method: 'POST', body: JSON.stringify(data) }),
+    adminSetStatus: (id: string, status: 'approved' | 'rejected') =>
+      apiFetch(`/employees/admin/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    adminResetPassword: (id: string, password: string) =>
+      apiFetch(`/employees/admin/${id}/password`, { method: 'PATCH', body: JSON.stringify({ password }) }),
+    adminReferrals: (id: string) => apiFetch(`/employees/admin/${id}/referrals`),
+    adminLedger: (id: string) => apiFetch(`/employees/admin/${id}/ledger`),
+    adminReverseEntry: (entryId: string, reason?: string) =>
+      apiFetch(`/employees/admin/ledger/${entryId}/reverse`, { method: 'POST', body: JSON.stringify({ reason }) }),
+    // Task master, settings, slabs, rates
+    adminTasks: () => apiFetch('/employees/admin/tasks'),
+    adminUpdateTask: (id: string, data: any) => apiFetch(`/employees/admin/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    adminSettings: () => apiFetch('/employees/admin/settings'),
+    adminUpdateSettings: (data: any) => apiFetch('/employees/admin/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+    adminTiers: () => apiFetch('/employees/admin/tiers'),
+    adminSaveTiers: (tiers: any[]) => apiFetch('/employees/admin/tiers', { method: 'PUT', body: JSON.stringify({ tiers }) }),
+    adminRates: () => apiFetch('/employees/admin/rates'),
+    adminAddRate: (rupees_per_point: number, effective_from?: string, note?: string) =>
+      apiFetch('/employees/admin/rates', { method: 'POST', body: JSON.stringify({ rupees_per_point, effective_from, note }) }),
+    // Payments (manual for now)
+    adminPayments: () => apiFetch('/employees/admin/payments'),
+    adminEmployeePayments: (id: string) => apiFetch(`/employees/admin/${id}/payments`),
+    adminPay: (id: string, data: { reference: string; note?: string }) =>
+      apiFetch(`/employees/admin/${id}/pay`, { method: 'POST', body: JSON.stringify(data) }),
+    adminResetPoints: (id: string, reason: string) =>
+      apiFetch(`/employees/admin/${id}/reset`, { method: 'POST', body: JSON.stringify({ reason }) }),
+    adminVoidPayout: (payoutId: string, reason: string) =>
+      apiFetch(`/employees/admin/payouts/${payoutId}/void`, { method: 'POST', body: JSON.stringify({ reason }) }),
+    adminAddCustomTask: (employeeId: string, data: { title: string; details?: string; points: number }) =>
+      apiFetch(`/employees/admin/${employeeId}/custom-task`, { method: 'POST', body: JSON.stringify(data) }),
+    adminReleaseEntry: (entryId: string) => apiFetch(`/employees/admin/ledger/${entryId}/release`, { method: 'POST', body: JSON.stringify({}) }),
+    adminOverview: (id: string) => apiFetch(`/employees/admin/${id}/overview`),
+    adminReferralsPage: (id: string, params: Record<string, string | number | undefined> = {}) => {
+      const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])).toString();
+      return apiFetch(`/employees/admin/${id}/referrals-page${qs ? `?${qs}` : ''}`);
+    },
+    adminReferralDetail: (id: string, userId: string) => apiFetch(`/employees/admin/${id}/referrals/${userId}`),
+    adminLedgerPage: (id: string, params: Record<string, string | number | undefined> = {}) => {
+      const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])).toString();
+      return apiFetch(`/employees/admin/${id}/ledger-page${qs ? `?${qs}` : ''}`);
+    },
+    adminEmployeeLeads: (id: string) => apiFetch(`/employees/admin/${id}/leads`),
+    adminVerifyDetails: (id: string) => apiFetch(`/employees/admin/${id}/verify-details`, { method: 'POST', body: JSON.stringify({}) }),
+    adminRecalculate: (id: string) => apiFetch(`/employees/admin/${id}/recalculate`, { method: 'POST', body: JSON.stringify({}) }),
+    adminLiability: () => apiFetch('/employees/admin/liability'),
+  },
   admin: {
     getSettings: () => apiFetch('/admin/settings'),
     updateSettings: (data: any) => apiFetch('/admin/settings', { method: 'PATCH', body: JSON.stringify(data) }),

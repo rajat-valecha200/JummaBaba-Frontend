@@ -26,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ExpandableText } from '@/components/ui/ExpandableText';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -151,7 +152,20 @@ export default function ProductDetailPage() {
     fetchProductDetails();
   }, [slug]);
 
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
+  // Buyer's profile has no saved mobile number — offer to save whatever they type here for next
+  // time, so they don't have to retype it on every future order. Defaults to checked (opt-out,
+  // not opt-in) since not having a number on file is the actual problem being solved.
+  const [savePhone, setSavePhone] = useState(true);
+  const persistPhoneIfRequested = async (phone: string) => {
+    if (!user || user.phone || !savePhone || !phone) return;
+    try {
+      await api.profiles.update(user.id, { phone });
+      updateUser({ phone });
+    } catch {
+      /* the order itself already succeeded — losing this nicety silently is fine */
+    }
+  };
 
   // Buyer's saved Address Book (built in BuyerProfile.tsx, but never actually used at order time
   // until now) — letting them pick a saved address here instead of retyping it every single
@@ -450,6 +464,7 @@ export default function ProductDetailPage() {
         category_id: product.categoryId,
         supplier_id: product.supplier_id
       });
+      await persistPhoneIfRequested(checkoutForm.phone);
 
       toast({
         title: 'Order Placed!',
@@ -503,10 +518,10 @@ export default function ProductDetailPage() {
 
     setSubmittingRfq(true);
     try {
-      // Note: intentionally NOT syncing this back to the buyer's profile phone — profileService's
-      // generic field-update path resets a non-admin profile's status to 'pending' on ANY field
-      // change, which would be a surprising side effect of just placing an order. The phone
-      // collected here is used for this order's own delivery contact only.
+      // Saving this back to the buyer's profile (below, once the order succeeds) is opt-in via
+      // the "save to my profile" checkbox — profileService now exempts buyers from the
+      // pending-re-verification reset that a vendor's self-edit triggers, so this no longer
+      // risks scaring them with a "Pending Moderation" banner.
       const description = isSampleRequest
         ? `[SAMPLE REQUEST]${rfqForm.description ? ` ${rfqForm.description}` : ''}`
         : rfqForm.description;
@@ -522,6 +537,7 @@ export default function ProductDetailPage() {
         category_id: product.categoryId,
         supplier_id: product.supplier_id
       });
+      await persistPhoneIfRequested(rfqForm.phone);
       toast({
         title: isSampleRequest ? 'Sample Request Submitted!' : 'RFQ Submitted Successfully!',
         description: 'Your request has been sent to our admin team for mediation.',
@@ -792,6 +808,12 @@ export default function ProductDetailPage() {
                           value={checkoutForm.phone}
                           onChange={(e) => setCheckoutForm({...checkoutForm, phone: e.target.value})}
                         />
+                        {!user?.phone && (
+                          <label className="flex items-center gap-2 pt-1 text-xs text-muted-foreground cursor-pointer">
+                            <Checkbox checked={savePhone} onCheckedChange={(v) => setSavePhone(!!v)} />
+                            Save this number to my profile
+                          </label>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1094,6 +1116,12 @@ export default function ProductDetailPage() {
                         placeholder="10-digit mobile"
                         className="mt-1"
                       />
+                      {!user?.phone && (
+                        <label className="flex items-center gap-2 pt-1.5 text-xs text-muted-foreground cursor-pointer">
+                          <Checkbox checked={savePhone} onCheckedChange={(v) => setSavePhone(!!v)} />
+                          Save this number to my profile
+                        </label>
+                      )}
                     </div>
                   </div>
                 </div>
