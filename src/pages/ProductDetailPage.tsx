@@ -679,24 +679,40 @@ export default function ProductDetailPage() {
               <p className="text-muted-foreground mt-2">{product.shortDescription}</p>
             </div>
 
-            {/* Pricing */}
-            <Card>
-              <CardContent className="p-4">
-                <CompactPricing slabs={product.pricingSlabs} unit={product.unit} />
-                <div className="mt-4 p-3 bg-muted rounded-lg">
-                  <p className="text-sm">
-                    <span className="font-medium">Minimum Order Quantity:</span>{' '}
-                    <span className="text-primary font-bold">{product.moq} {product.unit}</span>
-                  </p>
+            {/* Wholesale Pricing Panel */}
+            <Card className="border-border/70 overflow-hidden shadow-sm">
+              <div className="bg-muted/30 px-5 py-3 border-b border-border/50 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Wholesale Volume Pricing
+                  </span>
+                  <Badge variant="outline" className="text-[10px] font-bold text-primary border-primary/30 bg-primary/5">
+                    Tiered Slabs
+                  </Badge>
+                </div>
+                <div className="text-xs text-muted-foreground font-medium">
+                  Min. Order: <strong className="text-foreground">{product.moq} {product.unit}</strong>
+                </div>
+              </div>
+              <CardContent className="p-4 sm:p-5 space-y-4">
+                <PricingSlabsTable slabs={product.pricingSlabs} unit={product.unit} />
+
+                <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-border/50 text-[11px] text-muted-foreground">
+                  <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                    <CheckCircle className="h-3.5 w-3.5 text-blue-600" />
+                    GST-Verified Supplier
+                  </span>
+                  <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                    <Shield className="h-3.5 w-3.5 text-emerald-600" />
+                    Trade Assurance Protected
+                  </span>
+                  <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                    <Clock className="h-3.5 w-3.5 text-amber-600" />
+                    Dispatches in 5-7 Days
+                  </span>
                 </div>
               </CardContent>
             </Card>
-
-            {/* Pricing Slabs Table */}
-            <div>
-              <h3 className="font-semibold mb-2">Quantity-Based Pricing</h3>
-              <PricingSlabsTable slabs={product.pricingSlabs} unit={product.unit} />
-            </div>
 
             {/* Checkout Dialog */}
             <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>

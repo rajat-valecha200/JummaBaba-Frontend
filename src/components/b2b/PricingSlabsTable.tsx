@@ -22,43 +22,51 @@ interface PricingSlabsTableProps {
 }
 
 export function PricingSlabsTable({ slabs, unit, className }: PricingSlabsTableProps) {
+  if (!slabs || slabs.length === 0) return null;
+
+  const basePrice = slabs[0]?.pricePerUnit || 0;
+
   return (
-    <div className={cn('border rounded-lg overflow-hidden', className)}>
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50">
-            <TableHead className="font-semibold">Quantity Range</TableHead>
-            <TableHead className="font-semibold text-right">Price per {unit}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {slabs.map((slab, index) => (
-            <TableRow
+    <div className={cn('space-y-3', className)}>
+      {/* Tiered pricing slab cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+        {slabs.map((slab, index) => {
+          const isBest = index === slabs.length - 1 && slabs.length > 1;
+          const discountPct = basePrice > slab.pricePerUnit && basePrice > 0
+            ? Math.round(((basePrice - slab.pricePerUnit) / basePrice) * 100)
+            : 0;
+
+          return (
+            <div
               key={index}
               className={cn(
-                index === slabs.length - 1 && 'bg-primary/5'
+                'p-3 rounded-xl border text-center transition-all bg-card',
+                isBest ? 'border-primary/40 bg-primary/[0.03] shadow-sm' : 'border-border/60 hover:border-border'
               )}
             >
-              <TableCell>
-                {slab.minQty} - {slab.maxQty ? slab.maxQty : `${slab.minQty}+`} {unit}
-                {index === slabs.length - 1 && (
-                  <span className="ml-2 text-xs text-primary font-medium">
-                    Best Price
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className="text-right">
-                <span className={cn(
-                  'font-semibold',
-                  index === slabs.length - 1 ? 'text-primary text-lg' : 'text-foreground'
-                )}>
-                  {formatPrice(slab.pricePerUnit)}
-                </span>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-tight">
+                {slab.minQty}{slab.maxQty ? ` - ${slab.maxQty}` : '+'} {unit}
+              </div>
+              <div className="text-base sm:text-lg font-bold text-foreground mt-1">
+                {formatPrice(slab.pricePerUnit)}
+              </div>
+              <div className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                per {unit}
+              </div>
+              {discountPct > 0 && (
+                <div className="inline-block mt-1.5 px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Save {discountPct}%
+                </div>
+              )}
+              {isBest && discountPct === 0 && (
+                <div className="inline-block mt-1.5 px-1.5 py-0.5 text-[9px] font-bold rounded bg-primary/10 text-primary">
+                  Bulk Tier
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -115,6 +115,10 @@ const App = () => (
                   <Route path="/help" element={<PolicyPage />} />
                   <Route path="/privacy" element={<PolicyPage />} />
                   <Route path="/terms" element={<PolicyPage />} />
+                  <Route path="/cancellation-policy" element={<PolicyPage />} />
+                  <Route path="/refund-policy" element={<PolicyPage />} />
+                  <Route path="/shipping-policy" element={<PolicyPage />} />
+                  <Route path="/contact" element={<PolicyPage />} />
                   <Route path="/policy/:type" element={<PolicyPage />} />
                   <Route path="/genesis-setup" element={<GenesisSetup />} />
                 </Route>

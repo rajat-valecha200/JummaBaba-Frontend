@@ -32,29 +32,32 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
   const isApproved = product.status === 'approved';
   const isVerified = product.is_verified || product.isVerified;
 
+  const supplierName = supplier?.business_name || supplier?.companyName || supplier?.full_name || 'Verified Supplier';
+  const supplierState = supplier?.state || supplier?.location || 'India';
+
   return (
-    <Card className={cn('group overflow-hidden hover:shadow-2xl transition-all duration-500 border-border/50 hover:border-primary/50 bg-card', className)}>
-      <Link to={`/product/${product.slug}`} className="relative block overflow-hidden">
-        <div className="aspect-[4/3] sm:aspect-square overflow-hidden bg-muted">
+    <Card className={cn('group overflow-hidden hover:shadow-xl transition-all duration-300 border-border/60 hover:border-primary/50 bg-card flex flex-col', className)}>
+      <Link to={`/product/${product.slug}`} className="relative block overflow-hidden bg-muted">
+        <div className="aspect-[4/3] sm:aspect-square overflow-hidden">
           <img
             src={product.images?.[0] || product.image || PRODUCT_IMAGE_PLACEHOLDER}
             alt={product.name}
             onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER; }}
-            className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out"
+            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
             loading="lazy"
           />
         </div>
-        
-        {/* Verification Badge */}
-        <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
+
+        {/* Verification and assurance badges */}
+        <div className="absolute top-2 left-2 z-10 flex flex-col gap-1 items-start">
           {isApproved ? (
-            <Badge className="bg-blue-600 text-white border-none shadow-lg px-2 py-0.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
+            <Badge className="bg-[#2563eb] text-white border-none shadow-sm px-2 py-0.5 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider">
               <CheckCircle className="h-3 w-3" />
               Verified
             </Badge>
           ) : (
-            <Badge variant="secondary" className="bg-background/80 backdrop-blur-md text-muted-foreground border-none shadow-md px-2 py-0.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
-              Not Verified
+            <Badge variant="secondary" className="bg-background/90 text-muted-foreground border-none px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+              Wholesale
             </Badge>
           )}
         </div>
@@ -63,8 +66,8 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
           variant="ghost"
           size="icon"
           className={cn(
-            "absolute top-2 right-2 z-10 bg-background/40 backdrop-blur-md opacity-0 group-hover:opacity-100 hover:bg-background transition-all duration-300 rounded-full",
-            inWishlist && "opacity-100 text-destructive hover:text-destructive bg-background/80"
+            "absolute top-2 right-2 z-10 bg-background/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:bg-background transition-all duration-200 rounded-full h-8 w-8",
+            inWishlist && "opacity-100 text-destructive hover:text-destructive bg-background/90"
           )}
           onClick={(e) => {
             e.preventDefault();
@@ -75,67 +78,71 @@ export function ProductCard({ product, supplier, className }: ProductCardProps) 
           <Heart className={cn("h-4 w-4", inWishlist && "fill-current")} />
         </Button>
       </Link>
-      
-      <CardContent className="p-3 sm:p-4 flex flex-col h-[60%]">
+
+      <CardContent className="p-3.5 sm:p-4 flex flex-col flex-1">
         <Link to={`/product/${product.slug}`}>
-          <h3 className="font-semibold text-sm sm:text-base line-clamp-2 group-hover:text-primary transition-colors mb-1 leading-snug cursor-pointer">
+          <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors leading-snug cursor-pointer mb-1.5 min-h-[2.5rem]">
             {product.name}
           </h3>
         </Link>
-        
-        <p className="text-[11px] text-muted-foreground line-clamp-1 mb-2 italic">
-          {product.shortDescription || product.short_description || 'Quality wholesale catalog item'}
-        </p>
 
-        {/* Price Display: Lowest Price (Tier 4) */}
-        <div className="mb-2 flex flex-wrap items-baseline gap-1">
-          <span className="text-xl font-extrabold text-foreground">
-            {formatPrice(lowestPrice)}
-          </span>
-          <span className="text-[10px] text-muted-foreground uppercase font-bold">/ {product.unit || 'Unit'}</span>
+        {/* Wholesale tiered pricing */}
+        <div className="mb-2">
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">
+              {formatPrice(lowestPrice)}
+            </span>
+            {highestPrice > lowestPrice && (
+              <span className="text-xs text-muted-foreground font-medium">
+                - {formatPrice(highestPrice)}
+              </span>
+            )}
+            <span className="text-[11px] text-muted-foreground font-semibold">/ {product.unit || 'unit'}</span>
+          </div>
+          {pricing && pricing.length > 1 && (
+            <span className="inline-block text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded mt-0.5">
+              Volume Slabs
+            </span>
+          )}
         </div>
 
-        {/* MOQ & Fulfillment */}
-        <div className="flex items-center justify-between text-[11px] mb-4">
-          <div className="bg-muted px-2 py-0.5 rounded text-muted-foreground font-medium">
-            MOQ: <span className="font-bold text-foreground">{product.moq || 1} {product.unit || 'Unit'}</span>
-          </div>
-          <div className="flex items-center gap-1 text-success font-semibold uppercase tracking-tighter">
-            <Building className="h-3 w-3" />
-            Live Stock
-          </div>
+        {/* Minimum order quantity */}
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-3 pb-2.5 border-b border-border/50">
+          <span className="font-medium">
+            Min. order: <strong className="text-foreground">{product.moq || 1} {product.unit || 'units'}</strong>
+          </span>
+          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+            Ready to Ship
+          </span>
         </div>
 
-        {/* Supplier Badges — Verified/Not Verified already shows as the image overlay above, so
-            this row is skipped entirely (not just emptied) whenever there's no top-supplier
-            badge to show, to avoid leaving a bare divider line with nothing under it. */}
-        {supplier?.isTopSupplier && (
-          <div className="border-t border-border/50 pt-3 space-y-2 mb-3">
-            <TrustBadges
-              isTopSupplier={supplier?.isTopSupplier}
-              isVerified={isVerified}
-              showVerifiedBadge={false}
-            />
+        {/* Supplier details */}
+        <div className="mt-auto space-y-2.5">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground gap-2">
+            <span className="truncate font-medium text-slate-700 flex items-center gap-1">
+              <Building className="h-3 w-3 shrink-0 text-slate-400" />
+              <span className="truncate">{supplierName}</span>
+            </span>
+            <span className="text-[10px] shrink-0 text-slate-500 font-medium">
+              {supplierState}
+            </span>
           </div>
-        )}
 
-        {/* CTA */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            navigate(`/product/${product.slug}?quote=1`);
-          }}
-          className="w-full relative overflow-hidden group/btn font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-white border-primary/20 hover:border-primary transition-all duration-300"
-        >
-          <span className="flex items-center gap-2 z-10 relative">
-            <MessageSquare className="h-3.5 w-3.5" />
-            Get Instant Quote
-          </span>
-          <div className="absolute inset-0 bg-primary translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300" />
-        </Button>
+          {/* Action button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate(`/product/${product.slug}?quote=1`);
+            }}
+            className="w-full font-bold text-xs uppercase tracking-wider hover:bg-primary hover:text-white border-primary/25 hover:border-primary transition-colors h-9"
+          >
+            <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+            Contact Supplier
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

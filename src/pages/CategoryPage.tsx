@@ -8,7 +8,10 @@ import {
   MapPin,
   X,
   Loader2,
-  Package
+  Package,
+  CheckCircle,
+  Zap,
+  ShieldCheck
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -43,21 +46,14 @@ export default function CategoryPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('relevance');
   const [priceRange, setPriceRange] = useState<number[]>([0, 1000000]);
-  // Temp values are the RAW STRING the input is showing, not numbers — during editing (e.g. the
-  // user selects-and-deletes the digits to type a fresh value), the field must be able to show
-  // genuinely empty for a moment. Coercing that empty string straight to 0 (what this used to do)
-  // meant the field re-rendered showing "0" mid-edit, and continued typing appended AFTER that
-  // phantom 0 instead of replacing it — typing "100" over a cleared field produced "0100".
   const [tempPriceRange, setTempPriceRange] = useState<string[]>(['0', '1000000']);
   const [absoluteMinMax, setAbsoluteMinMax] = useState<number[]>([0, 1000000]);
-  // MOQ range — same Min/Max-input pattern as price, no slider (dragging two handles precisely
-  // is exactly what made the price control feel "rigid"; typed numbers avoid that entirely).
   const [moqRange, setMoqRange] = useState<number[]>([0, 1000000]);
   const [tempMoqRange, setTempMoqRange] = useState<string[]>(['0', '1000000']);
   const [absoluteMoqMinMax, setAbsoluteMoqMinMax] = useState<number[]>([0, 1000000]);
-  // Location — supplier's state, derived from whatever's actually present in the current product
-  // pool (not a hardcoded list) so it never shows a state with zero matching products.
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [volumeOnly, setVolumeOnly] = useState(false);
 
   // Sync temp price/MOQ when filters are cleared or changed externally (e.g. "Clear All
   // Filters", or category/search changing the absolute bounds) — not on every keystroke, since
@@ -186,7 +182,11 @@ export default function CategoryPage() {
       const moq = p.moq || 0;
       const matchesMoq = moq >= moqRange[0] && moq <= moqRange[1];
       const matchesLocation = selectedStates.length === 0 || selectedStates.includes(p.supplier_state);
-      return matchesPrice && matchesMoq && matchesLocation;
+      const isVerified = p.is_verified || p.isVerified || p.status === 'approved' || p.vendor?.isVerified;
+      const matchesVerified = !verifiedOnly || Boolean(isVerified);
+      const slabs = p.pricing_slabs || p.pricingSlabs;
+      const matchesVolume = !volumeOnly || (Array.isArray(slabs) && slabs.length > 1);
+      return matchesPrice && matchesMoq && matchesLocation && matchesVerified && matchesVolume;
     });
 
     const getPrice = (p: any) => p.min_price || p.minPrice || 0;
@@ -202,7 +202,7 @@ export default function CategoryPage() {
           return 0;
       }
     });
-  }, [prePriceFilteredProducts, priceRange, moqRange, selectedStates, sortBy]);
+  }, [prePriceFilteredProducts, priceRange, moqRange, selectedStates, sortBy, verifiedOnly, volumeOnly]);
 
   if (loading) {
     return (
@@ -442,11 +442,42 @@ export default function CategoryPage() {
                 </div>
               </div>
 
+              {/* Quick wholesale filter chips */}
+              <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border/50">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mr-1">Quick Filters:</span>
+                <button
+                  type="button"
+                  onClick={() => setVerifiedOnly(!verifiedOnly)}
+                  className={cn(
+                    "px-3 py-1 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5",
+                    verifiedOnly
+                      ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                      : "bg-background hover:bg-muted text-slate-700 border-border"
+                  )}
+                >
+                  <CheckCircle className="h-3 w-3" />
+                  Verified Suppliers Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVolumeOnly(!volumeOnly)}
+                  className={cn(
+                    "px-3 py-1 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5",
+                    volumeOnly
+                      ? "bg-primary text-white border-primary shadow-sm"
+                      : "bg-background hover:bg-muted text-slate-700 border-border"
+                  )}
+                >
+                  <Zap className="h-3 w-3" />
+                  Volume Slabs Available
+                </button>
+              </div>
+
               {/* Active filters */}
               {(priceRange[0] > absoluteMinMax[0] || priceRange[1] < absoluteMinMax[1] ||
                 moqRange[0] > absoluteMoqMinMax[0] || moqRange[1] < absoluteMoqMinMax[1] ||
-                selectedStates.length > 0) && (
-                <div className="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-border/50">
+                selectedStates.length > 0 || verifiedOnly || volumeOnly) && (
+                <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border/50">
                   <span className="text-xs font-bold text-muted-foreground uppercase">Applied:</span>
 
                   {(priceRange[0] > absoluteMinMax[0] || priceRange[1] < absoluteMinMax[1]) && (
@@ -488,6 +519,28 @@ export default function CategoryPage() {
                       <X className="h-3 w-3" />
                     </Badge>
                   ))}
+
+                  {verifiedOnly && (
+                    <Badge
+                      variant="secondary"
+                      className="px-3 py-1 text-[10px] font-bold uppercase transition-all hover:bg-destructive hover:text-destructive-foreground cursor-pointer flex items-center gap-1"
+                      onClick={() => setVerifiedOnly(false)}
+                    >
+                      Verified Only
+                      <X className="h-3 w-3" />
+                    </Badge>
+                  )}
+
+                  {volumeOnly && (
+                    <Badge
+                      variant="secondary"
+                      className="px-3 py-1 text-[10px] font-bold uppercase transition-all hover:bg-destructive hover:text-destructive-foreground cursor-pointer flex items-center gap-1"
+                      onClick={() => setVolumeOnly(false)}
+                    >
+                      Volume Slabs
+                      <X className="h-3 w-3" />
+                    </Badge>
+                  )}
                 </div>
               )}
             </div>

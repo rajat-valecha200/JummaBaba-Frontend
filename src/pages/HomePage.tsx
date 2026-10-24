@@ -11,7 +11,18 @@ import {
   ShieldCheck,
   Zap,
   Globe,
-  ChevronDown
+  ChevronDown,
+  Factory,
+  Shield,
+  Clock,
+  Layers,
+  ArrowRight,
+  Sparkles,
+  Star,
+  TrendingUp,
+  Wrench,
+  Truck,
+  CheckCircle2
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -22,7 +33,7 @@ import { ProductCard } from '@/components/b2b/ProductCard';
 import { SupplierCard } from '@/components/b2b/SupplierCard';
 import { CategoryCard } from '@/components/b2b/CategoryCard';
 
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, cn, formatPrice } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
 export default function HomePage() {
@@ -34,6 +45,7 @@ export default function HomePage() {
   const [dbTopSuppliers, setDbTopSuppliers] = useState<any[]>([]);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchTab, setSearchTab] = useState<'products' | 'manufacturers'>('products');
 
   const [publicStats, setPublicStats] = useState<any>({
     products: 0,
@@ -186,328 +198,269 @@ export default function HomePage() {
   const displayTopSuppliers = dbTopSuppliers;
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* HERO SECTION */}
+    <div className="min-h-screen bg-slate-50/30 text-slate-900 relative">
+      {/* Universal Fixed B2B Brand Background Scene across entire page */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        {/* Universal Radiant Scene Image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-65 mix-blend-multiply pointer-events-none"
+          style={{ backgroundImage: "url('/assets/b2b_landing_bg_scene.jpg')" }}
+        />
+        {/* Engineering dot matrix texture fixed across the entire viewport */}
+        <div className="absolute inset-0 bg-[radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:28px_28px] opacity-25 pointer-events-none" />
 
-      <section className="relative overflow-hidden border-b bg-white">
-        {/* Background Gradients */}
-        <div className="absolute inset-0 bg-gradient-to-br from-white via-primary/5 to-zinc-50" />
-        <div className="absolute -right-20 -top-20 h-[400px] w-[400px] rounded-full bg-primary/5 blur-[100px]" />
+        {/* Ambient radiant corner glows */}
+        <div className="absolute -top-32 -left-32 w-[700px] h-[700px] bg-gradient-to-br from-blue-600/15 via-cyan-400/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-[700px] h-[700px] bg-gradient-to-bl from-orange-500/15 via-amber-400/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+      </div>
 
-        <div className="b2b-container relative z-10 py-6 md:py-10">
-          <div className="flex flex-col lg:flex-row items-center justify-center gap-10 lg:gap-24">
-            {/* LEFT COLUMN: TEXT & SEARCH */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.7 }}
-              className="w-full lg:w-[55%] max-w-2xl relative"
+      {/* Hero search section */}
+      <section className="relative overflow-hidden pt-12 pb-14 border-b border-slate-200/50 z-10">
+        <div className="b2b-container max-w-4xl relative z-10">
+          {/* Centered Tab Selector */}
+          <div className="flex items-center justify-center gap-8 mb-4 text-sm sm:text-base font-bold">
+            <button
+              type="button"
+              onClick={() => setSearchTab('products')}
+              className={cn(
+                "pb-2 relative transition-colors",
+                searchTab === 'products'
+                  ? "text-primary border-b-2 border-primary"
+                  : "text-slate-700 hover:text-slate-900"
+              )}
             >
-              {/* Subtle Decorative Background Element */}
-              <div className="absolute -left-10 -top-10 w-32 h-32 bg-primary/5 rounded-full blur-3xl -z-10" />
-              
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-primary mb-3">
-                <ShieldCheck className="h-3 w-3" />
-                Verified Industrial Marketplace
-              </div>
-
-              <h1 className="text-3xl md:text-[44px] font-bold tracking-tight leading-[1.1] text-zinc-900 mb-6">
-                Your Direct Link to <br /> 
-                <span className="text-primary">Verified</span> Wholesale Sourcing
-              </h1>
-
-              <p className="text-base md:text-lg leading-relaxed text-zinc-600 mb-6 max-w-lg">
-                Empowering businesses with transparent pricing, verified manufacturers, and secure end-to-end logistics.
-              </p>
-
-              {/* SIMPLIFIED SEARCH BAR */}
-              <div className="group relative flex items-stretch gap-0 rounded-xl border border-zinc-200 bg-white p-1 shadow-xl transition-all focus-within:ring-2 focus-within:ring-primary/10 focus-within:border-primary/30 max-w-xl">
-                <div className="relative flex-1">
-                  <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                  <Input
-                    placeholder="Search products, suppliers..."
-                    className="h-11 md:h-12 border-0 bg-transparent pl-11 text-sm md:text-base focus-visible:ring-0 placeholder:text-zinc-400"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-
-                <Button
-                  onClick={() =>
-                    searchTerm.trim() &&
-                    navigate(`/products?q=${encodeURIComponent(searchTerm)}`)
-                  }
-                  className="h-11 md:h-12 rounded-lg px-6 md:px-10 text-sm font-bold shadow-lg shadow-primary/10 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                >
-                  <Search className="h-4 w-4 md:mr-2" />
-                  <span className="hidden md:inline">Search</span>
-                </Button>
-              </div>
-
-              {/* TRENDING TAGS (Inherited style from original Popular pills) */}
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mr-1">Popular:</span>
-                {['Solar Panels', 'Industrial Pumps', 'Copper Wire', 'Safety Gear'].map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => navigate(`/products?q=${encodeURIComponent(tag)}`)}
-                    className="text-[11px] font-medium px-3 py-1 rounded-md bg-zinc-100/80 text-zinc-600 hover:bg-zinc-200 hover:text-zinc-900 transition-all border border-zinc-200/50"
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-
-              {/* TRUST BADGES ROW */}
-              <div className="mt-8 flex flex-wrap items-center gap-4 md:gap-8 text-zinc-400">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-3.5 w-3.5 text-[#467ab5]" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest">GST Verified</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Zap className="h-3.5 w-3.5 text-orange-500" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest">Instant Quotes</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Users className="h-3.5 w-3.5 text-green-600" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest">Verified Payments</span>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* RIGHT COLUMN: SQUARE IMAGE */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, x: 20 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="relative hidden lg:flex w-full lg:w-[35%] justify-center"
+              Products
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchTab('manufacturers')}
+              className={cn(
+                "pb-2 relative transition-colors",
+                searchTab === 'manufacturers'
+                  ? "text-primary border-b-2 border-primary"
+                  : "text-slate-700 hover:text-slate-900"
+              )}
             >
-              {/* Visual Connector / Background Glow */}
-              <div className="absolute -left-10 top-1/2 -translate-y-1/2 w-40 h-40 bg-primary/10 rounded-full blur-[80px] -z-10" />
-              
-              <div className="relative aspect-square w-full max-w-[380px] rounded-[32px] overflow-hidden shadow-xl border-4 border-white bg-zinc-50">
-                <img
-                  src="/assets/b2b-hero.png"
-                  alt="Industrial B2B Marketplace"
-                  className="w-full h-full object-cover"
-                />
-                
-                {/* Floating Info Card */}
-                <div className="absolute bottom-4 left-4 right-4 rounded-2xl bg-white/90 backdrop-blur-md p-3 shadow-lg border border-white/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-[8px] font-bold text-primary uppercase tracking-widest mb-0.5">Market Activity</p>
-                      <h4 className="text-sm font-bold text-zinc-900">Live Trade Hub</h4>
-                    </div>
-                    <div className="flex -space-x-1.5">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="h-6 w-6 rounded-full border-2 border-white bg-zinc-100 flex items-center justify-center">
-                          <Users className="h-3 w-3 text-zinc-400" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Decorative Elements */}
-              <div className="absolute -z-10 -bottom-4 -right-4 h-48 w-48 rounded-full bg-orange-500/5 blur-2xl" />
-              <div className="absolute -z-10 -top-4 -left-4 h-48 w-48 rounded-full bg-primary/5 blur-2xl" />
-            </motion.div>
+              Manufacturers
+            </button>
           </div>
-        </div>
-      </section>
 
-      {/* STATS SECTION - PROGRESSIVE GRADIENT & INDUSTRIAL PATTERN */}
-      <section className="relative border-b bg-gradient-to-r from-white via-zinc-50/50 to-primary/5 py-8 overflow-hidden">
-        {/* Subtle Industrial Pattern */}
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:20px_20px]" />
-        
-        <div className="b2b-container relative z-10">
-          <div className="grid grid-cols-4 text-center">
-            {/* STATS ITEMS WITH COLORED VALUES & THICKER SEPARATORS */}
-            {[
-              { label: 'Products', value: publicStats.products, icon: Package, color: 'text-primary' },
-              { label: 'Suppliers', value: publicStats.vendors, icon: Users, color: 'text-green-600' },
-              { label: 'Buyers', value: publicStats.buyers, icon: Globe, color: 'text-[#467ab5]' },
-              { label: 'RFQs', value: publicStats.rfqs, icon: Zap, color: 'text-orange-500' }
-            ].map((stat, idx) => (
-              <div 
-                key={stat.label} 
-                className="flex flex-col items-center justify-center text-center px-2 md:px-4 border-r-2 border-zinc-200/60 last:border-0"
+          {/* Large Pill Search Bar */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (searchTerm.trim()) {
+                if (searchTab === 'manufacturers') {
+                  navigate(`/suppliers?q=${encodeURIComponent(searchTerm)}`);
+                } else {
+                  navigate(`/products?q=${encodeURIComponent(searchTerm)}`);
+                }
+              }
+            }}
+            className="relative flex items-center bg-white/95 backdrop-blur-md rounded-full border-2 border-primary shadow-lg hover:shadow-xl transition-shadow p-1.5 pl-6"
+          >
+            <Input
+              placeholder={searchTab === 'manufacturers' ? "Search verified manufacturers and factories..." : "What are you looking for today? e.g. solar panels, pumps, valves..."}
+              className="h-11 sm:h-12 border-0 bg-transparent text-sm sm:text-base focus-visible:ring-0 text-zinc-900 placeholder:text-zinc-400 pl-0 pr-4"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <Button
+              type="submit"
+              className="rounded-full h-11 sm:h-12 px-6 sm:px-9 font-bold text-sm uppercase tracking-wider bg-primary hover:bg-primary/90 text-white shadow-sm flex items-center gap-2 shrink-0"
+            >
+              <Search className="h-4 w-4" />
+              <span>Search</span>
+            </Button>
+          </form>
+
+          {/* Trending Searches */}
+          <div className="mt-3.5 flex flex-wrap items-center justify-center gap-2 text-xs">
+            <span className="text-[11px] font-semibold text-zinc-400">Frequently searched:</span>
+            {['Solar Panels', 'Industrial Pumps', 'Copper Wire', 'Safety Gear', 'Packaging Boxes', 'Machinery Valves'].map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => navigate(`/products?q=${encodeURIComponent(tag)}`)}
+                className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/80 hover:bg-white text-zinc-700 border border-slate-200/60 shadow-2xs transition-colors"
               >
-                <div className={`mb-1 flex items-center justify-center gap-1 md:gap-2 ${stat.color}`}>
-                  <stat.icon className="h-4 w-4 md:h-5 md:w-5" />
-
-                  <span className="text-xl md:text-3xl font-bold">
-                    {isLoading
-                      ? '--'
-                      : `${formatNumber(stat.value)}+`}
-                  </span>
-                </div>
-
-                <p className="text-[9px] md:text-[11px] font-bold tracking-wider text-zinc-500 uppercase">
-                  {stat.label}
-                </p>
-              </div>
+                {tag}
+              </button>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CATEGORIES */}
-
-      <section className="bg-white py-10 border-b">
-        <div className="b2b-container">
-          <div className="mb-10 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl md:text-[30px] font-semibold tracking-tight text-zinc-900">
-                Browse Categories
-              </h2>
-
-              <div className="mt-2 h-1 w-14 rounded-full bg-primary" />
-            </div>
-
-            <Link
-              to="/categories"
-              className="hidden text-sm font-medium text-primary md:block"
-            >
-              Explore All
+      {/* Welcome bar */}
+      <section className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 py-4 relative z-10">
+        <div className="b2b-container flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <h2 className="text-lg md:text-xl font-bold tracking-tight">
+            Welcome to <span className="font-extrabold text-black">Jumma</span><span className="font-extrabold text-b2b-gst">Baba</span><span className="font-extrabold text-b2b-orange">.com</span>
+          </h2>
+          <div className="flex items-center gap-6 sm:gap-8 font-semibold text-slate-700">
+            <Link to="/products" className="flex items-center gap-1.5 hover:text-primary transition-colors">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              Top Ranking
             </Link>
-          </div>
-
-          <div className="relative">
-            <div
-              ref={categoryScrollRef}
-              onScroll={handleCategoryScroll}
-              className="flex justify-start gap-4 overflow-x-auto scrollbar-hide pb-6 w-full"
-            >
-              {(displayCategories.length > 8
-                ? [
-                  ...displayCategories.slice(0, 7),
-                  {
-                    id: 'view-more',
-                    name: 'View More',
-                    isViewMore: true
-                  }
-                ]
-                : displayCategories.slice(0, 8)
-              ).map((category: any) => (
-                <div
-                  key={category.id}
-                  className="flex justify-center"
-                >
-                  <CategoryCard category={category} />
-                </div>
-              ))}
-            </div>
-
-            {canScrollLeft && (
-              <button
-                onClick={() => scrollCategories('left')}
-                className="absolute left-0 top-[calc(50%-12px)] z-20 flex h-11 w-11 -translate-x-2 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-200 bg-white/90 backdrop-blur-sm shadow-lg active:scale-90 transition-all md:hidden"
-              >
-                <ChevronLeft className="h-6 w-6 text-zinc-700" />
-              </button>
-            )}
-
-            {canScrollRight && (
-              <button
-                onClick={() => scrollCategories('right')}
-                className="absolute right-0 top-[calc(50%-12px)] z-20 flex h-11 w-11 translate-x-2 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-200 bg-white/90 backdrop-blur-sm shadow-lg active:scale-90 transition-all md:hidden"
-              >
-                <ChevronRight className="h-6 w-6 text-zinc-700" />
-              </button>
-            )}
+            <Link to="/suppliers" className="flex items-center gap-1.5 hover:text-primary transition-colors">
+              <ShieldCheck className="h-4 w-4 text-blue-600" />
+              Verified Manufacturers
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* PRODUCTS */}
-
-      <section className="bg-white py-10 border-b">
-        <div className="b2b-container">
-          <div className="mb-10 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl md:text-[30px] font-semibold tracking-tight text-zinc-900">
-                Latest Arrivals
-              </h2>
-
-              <div className="mt-2 h-1 w-14 rounded-full bg-primary" />
-            </div>
-
-            <Link
-              to="/products"
-              className="text-sm font-medium text-primary"
-            >
-              Explore All
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {latestProducts
-              .slice(0, 8)
-              .map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  supplier={product.vendor}
-                />
-              ))}
-          </div>
-        </div>
-      </section>
-
-      {/* RFQ */}
-
-      <section className="bg-white py-5">
-        <div className="b2b-container">
-          <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-blue-700 to-primary p-6 md:p-8">
-            <div className="relative z-10 grid gap-6 lg:grid-cols-2 items-center">
+      {/* Multi-shelf discovery grid */}
+      <section className="relative overflow-hidden bg-white/40 backdrop-blur-xs py-10 border-b border-slate-200/60 z-10">
+        {/* Subtle ambient spots */}
+        <div className="absolute -top-12 -right-12 w-[450px] h-[450px] bg-blue-500/4 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-12 -left-12 w-[450px] h-[450px] bg-primary/4 rounded-full blur-3xl pointer-events-none" />
+        <div className="b2b-container relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
+            {/* Shelf 1: Categories for you */}
+            <div className="lg:col-span-3 bg-white rounded-2xl border border-zinc-200/80 p-4 shadow-sm flex flex-col justify-between">
               <div>
-                <Badge className="mb-4 bg-orange-500 text-white border-none">
-                  DIRECT SOURCING
-                </Badge>
+                <div className="flex items-center gap-2 pb-3 mb-2 border-b border-zinc-100">
+                  <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                  <h3 className="font-bold text-sm text-slate-900">Categories for you</h3>
+                </div>
+                <div className="space-y-1">
+                  {displayCategories.slice(0, 7).map((cat) => (
+                    <Link
+                      key={cat.id}
+                      to={`/category/${cat.slug}`}
+                      className="flex items-center justify-between px-2.5 py-2 text-xs font-medium text-slate-700 hover:text-primary hover:bg-slate-50 rounded-lg transition-colors group"
+                    >
+                      <span className="truncate">{cat.name}</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+              <Link
+                to="/categories"
+                className="mt-3 pt-2 border-t border-zinc-100 text-xs font-semibold text-primary hover:underline flex items-center justify-between"
+              >
+                <span>View all categories</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
 
-                <h2 className="mb-3 text-2xl md:text-3xl font-semibold text-white">
-                  CAN'T FIND WHAT YOU NEED?
-                </h2>
+            {/* Shelf 2: Featured Wholesale Spotlight */}
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-zinc-200/80 p-4 shadow-sm flex flex-col justify-between group">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Featured Wholesale</span>
+                <h4 className="font-bold text-xs text-slate-900 line-clamp-1 mt-0.5 mb-2">
+                  {latestProducts[0]?.name || 'Industrial Equipment'}
+                </h4>
+              </div>
+              <Link
+                to={latestProducts[0] ? `/product/${latestProducts[0].slug}` : '/products'}
+                className="my-auto block overflow-hidden rounded-xl bg-slate-50 aspect-square relative"
+              >
+                <img
+                  src={latestProducts[0]?.images?.[0] || latestProducts[0]?.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=400&h=400&fit=crop'}
+                  alt="Featured Product"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                {latestProducts[0] && (
+                  <div className="absolute bottom-2 left-2 bg-black/80 backdrop-blur-sm text-white px-2 py-0.5 rounded text-[10px] font-bold">
+                    From {formatPrice(latestProducts[0]?.min_price || latestProducts[0]?.minPrice || 450)}
+                  </div>
+                )}
+              </Link>
+              <div className="text-[11px] text-muted-foreground pt-2">
+                MOQ: {latestProducts[0]?.moq || 10} units
+              </div>
+            </div>
 
-                <p className="mb-5 max-w-md text-white/80">
-                  Post your requirement and receive
-                  quotations directly from verified
-                  suppliers.
+            {/* Shelf 3: Frequently searched item 1 */}
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-zinc-200/80 p-4 shadow-sm flex flex-col justify-between group">
+              <div>
+                <span className="text-[10px] font-semibold text-slate-400">Frequently searched</span>
+                <h4 className="font-bold text-xs text-slate-900 line-clamp-1 mt-0.5 mb-2">
+                  {latestProducts[1]?.name || 'Solar Machinery'}
+                </h4>
+              </div>
+              <Link
+                to={latestProducts[1] ? `/product/${latestProducts[1].slug}` : '/products'}
+                className="my-auto block overflow-hidden rounded-xl bg-slate-50 aspect-square"
+              >
+                <img
+                  src={latestProducts[1]?.images?.[0] || latestProducts[1]?.image || 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=400&h=400&fit=crop'}
+                  alt="Product"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              </Link>
+              <div className="text-[11px] font-semibold text-slate-700 pt-2 flex items-center justify-between">
+                <span>Verified Stock</span>
+                <span className="text-primary font-bold">Fast Quote</span>
+              </div>
+            </div>
+
+            {/* Shelf 4: Frequently searched item 2 */}
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-zinc-200/80 p-4 shadow-sm flex flex-col justify-between group">
+              <div>
+                <span className="text-[10px] font-semibold text-slate-400">Frequently searched</span>
+                <h4 className="font-bold text-xs text-slate-900 line-clamp-1 mt-0.5 mb-2">
+                  {latestProducts[2]?.name || 'Industrial Pumps'}
+                </h4>
+              </div>
+              <Link
+                to={latestProducts[2] ? `/product/${latestProducts[2].slug}` : '/products'}
+                className="my-auto block overflow-hidden rounded-xl bg-slate-50 aspect-square"
+              >
+                <img
+                  src={latestProducts[2]?.images?.[0] || latestProducts[2]?.image || 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=400&fit=crop'}
+                  alt="Product"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              </Link>
+              <div className="text-[11px] font-semibold text-slate-700 pt-2 flex items-center justify-between">
+                <span>Ready to Ship</span>
+                <span className="text-emerald-600 font-bold">In Stock</span>
+              </div>
+            </div>
+
+            {/* Shelf 5: Discover New Manufacturers Wide Card */}
+            <div className="lg:col-span-3 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50/60 to-emerald-100/40 border border-emerald-200/60 p-5 shadow-sm flex flex-col justify-between">
+              <div>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full mb-2">
+                  <ShieldCheck className="h-3 w-3" />
+                  Factory Direct
+                </span>
+                <h3 className="font-extrabold text-base text-slate-900 leading-snug mb-1">
+                  Discover new manufacturers
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Connect with GST-audited production facilities across India.
                 </p>
-
-                <Button
-                  asChild
-                  className="bg-orange-500 hover:bg-orange-600 font-semibold"
-                >
-                  <Link to="/post-requirement">
-                    Post RFQ
-                  </Link>
-                </Button>
               </div>
 
-              <div className="hidden lg:block">
-                <div className="ml-auto max-w-[320px] rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
-                      <Zap className="h-4 w-4 text-orange-400" />
+              <div className="py-4 flex justify-center">
+                <div className="h-20 w-full rounded-xl border border-emerald-200/50 bg-white/70 flex items-center justify-center p-2">
+                  <div className="flex items-center gap-3">
+                    <Factory className="h-7 w-7 text-emerald-700 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">Audited Capacity</p>
+                      <p className="text-[10px] text-slate-500">100% Verified GST entities</p>
                     </div>
-
-                    <p className="text-sm font-semibold text-white">
-                      Active Marketplace
-                    </p>
                   </div>
+                </div>
+              </div>
 
-                  <div className="space-y-3">
-                    <div className="h-2 w-3/4 overflow-hidden rounded-full bg-orange-400/30">
-                      <div className="h-full w-2/3 rounded-full bg-orange-400" />
-                    </div>
-
-                    <div className="h-2 w-1/2 rounded-full bg-white/20" />
-                  </div>
+              <div className="flex items-center justify-between pt-1">
+                <Button
+                  size="sm"
+                  asChild
+                  className="rounded-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs px-5 h-8 shadow-sm"
+                >
+                  <Link to="/suppliers">View More</Link>
+                </Button>
+                <div className="flex items-center gap-1">
+                  <span className="h-1.5 w-4 rounded-full bg-emerald-800"></span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300"></span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300"></span>
                 </div>
               </div>
             </div>
@@ -515,83 +468,169 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SUPPLIERS */}
-
-      <section className="bg-zinc-50 py-12">
+      {/* Recommended for your business */}
+      <section className="py-12 relative z-10">
         <div className="b2b-container">
-          <div className="mb-10 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl md:text-[30px] font-semibold tracking-tight text-zinc-900">
-                Verified Suppliers
-              </h2>
+          {/* Centered Divider with Brand Gradient */}
+          <div className="relative mb-8 text-center">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full h-[1px] bg-slate-200" />
+            </div>
+            <div className="relative inline-flex items-center gap-2 bg-white px-6 text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-widest border border-slate-200 rounded-full py-1 shadow-2xs">
+              <span>Recommended for your business</span>
+            </div>
+          </div>
 
-              <div className="mt-2 h-1 w-14 rounded-full bg-primary" />
+          <div className="flex items-center gap-2 mb-6">
+            <span className="text-lg">🇮🇳</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Pan-India Verified Wholesale Catalog
+            </span>
+          </div>
+
+          {/* Product Grid */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {latestProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                supplier={product.vendor}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Verified Manufacturers Grid */}
+      <section className="relative overflow-hidden bg-white/40 backdrop-blur-md py-14 border-y border-slate-200/60 z-10">
+        {/* Subtle trust blue ambient halo */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[300px] bg-gradient-to-r from-blue-600/5 to-indigo-600/4 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="b2b-container relative z-10">
+          <div className="mb-8 flex items-end justify-between">
+            <div>
+              <div className="text-[11px] font-bold text-blue-600 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Audited Entity Network
+              </div>
+              <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-zinc-900">
+                Verified Indian Manufacturers
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Direct connections with verified production facilities and certified suppliers
+              </p>
             </div>
 
             <Link
               to="/suppliers"
-              className="text-sm font-medium text-primary"
+              className="text-xs font-bold uppercase tracking-wider text-primary hover:underline hidden sm:flex items-center gap-1"
             >
               View All Suppliers
+              <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {displayTopSuppliers
-              .slice(0, 6)
-              .map((supplier) => (
-                <SupplierCard
-                  key={supplier.id}
-                  supplier={supplier}
-                />
-              ))}
+            {displayTopSuppliers.slice(0, 6).map((supplier) => (
+              <SupplierCard key={supplier.id} supplier={supplier} />
+            ))}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
+      {/* Trade assurance guarantees */}
+      <section className="relative overflow-hidden py-14 border-t border-slate-200/60 z-10">
+        {/* Subtle centered spotlight */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[300px] bg-gradient-to-r from-blue-500/4 via-primary/4 to-blue-500/4 rounded-full blur-3xl pointer-events-none" />
+        <div className="b2b-container relative z-10">
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-primary">
+              Trade With Confidence
+            </span>
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-1">
+              Protected Wholesale Commerce
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Enterprise safeguards built for high-volume Indian B2B transactions
+            </p>
+          </div>
 
-      <section className="border-t bg-white py-12">
-        <div className="b2b-container">
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="rounded-3xl bg-zinc-950 p-10 text-white">
-              <h3 className="mb-4 text-2xl md:text-3xl font-semibold tracking-tight">
-                Are You a Buyer?
-              </h3>
-
-              <p className="mb-8 text-zinc-400 leading-relaxed">
-                Join verified buyers and connect with
-                trusted suppliers across India.
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-start hover:shadow-md transition-shadow">
+              <div className="h-11 w-11 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 mb-3.5">
+                <ShieldCheck className="h-6 w-6 fill-white text-blue-600" />
+              </div>
+              <h3 className="font-bold text-sm text-slate-900 mb-1">100% GST-Audited</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Every supplier entity is verified with government GSTIN & business credentials before listing.
               </p>
-
-              <Button
-                asChild
-                className="bg-white text-black hover:bg-zinc-100 font-semibold"
-              >
-                <Link to="/register">
-                  Register as Buyer
-                </Link>
-              </Button>
             </div>
 
-            <div className="rounded-3xl bg-primary p-10 text-white">
-              <h3 className="mb-4 text-2xl md:text-3xl font-semibold tracking-tight">
-                Are You a Supplier?
-              </h3>
-
-              <p className="mb-8 text-primary-foreground/80 leading-relaxed">
-                Showcase your products and reach
-                high-intent buyers directly.
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-start hover:shadow-md transition-shadow">
+              <div className="h-11 w-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 mb-3.5">
+                <Shield className="h-6 w-6 fill-white text-emerald-600" />
+              </div>
+              <h3 className="font-bold text-sm text-slate-900 mb-1">Payment Protection</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Transactions are protected through compliant escrow payment gateways until verified dispatch.
               </p>
+            </div>
 
-              <Button
-                asChild
-                className="bg-white text-primary hover:bg-zinc-100 font-semibold"
-              >
-                <Link to="/vendor/register">
-                  Register as Seller
-                </Link>
-              </Button>
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-start hover:shadow-md transition-shadow">
+              <div className="h-11 w-11 rounded-xl bg-primary text-white flex items-center justify-center shadow-md shadow-primary/25 mb-3.5">
+                <Layers className="h-6 w-6 fill-white text-primary" />
+              </div>
+              <h3 className="font-bold text-sm text-slate-900 mb-1">Direct Volume Slabs</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Wholesale bulk tier pricing directly from manufacturers with no hidden brokerage markups.
+              </p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-start hover:shadow-md transition-shadow">
+              <div className="h-11 w-11 rounded-xl bg-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 mb-3.5">
+                <Truck className="h-6 w-6 fill-white text-amber-600" />
+              </div>
+              <h3 className="font-bold text-sm text-slate-900 mb-1">Pan-India Freight</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Clear dispatch schedules, GST tax invoices, and tracked cargo logistics across all 28 states.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Unified partner hub banner */}
+      <section className="border-t border-slate-200/60 py-12 relative z-10">
+        <div className="b2b-container">
+          <div className="rounded-3xl bg-gradient-to-br from-slate-900 via-[#0f172a] to-[#1e1b4b] border border-slate-800 shadow-2xl p-8 sm:p-12 text-white relative overflow-hidden">
+            {/* Ambient corner glow */}
+            <div className="absolute -right-16 -bottom-16 w-96 h-96 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -left-16 -top-16 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="max-w-2xl relative z-10">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2 block">
+                Wholesale Trade Hub
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-3">
+                Grow Your Business on <span className="font-extrabold text-white">Jumma</span><span className="font-extrabold text-b2b-gst">Baba</span><span className="font-extrabold text-b2b-orange">.com</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-8">
+                Connect directly with audited manufacturers across India or expand your factory's nationwide B2B buyer reach with transparent volume slabs.
+              </p>
+              <div className="flex flex-wrap items-center gap-3.5">
+                <Button asChild className="bg-white text-slate-950 hover:bg-slate-100 font-bold rounded-full px-6 h-10 text-xs shadow-sm">
+                  <Link to="/register">Register as Buyer</Link>
+                </Button>
+                <Button asChild className="bg-primary text-white hover:bg-primary/90 font-bold rounded-full px-6 h-10 text-xs shadow-sm">
+                  <Link to="/vendor/register">Register as Seller</Link>
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-6 mt-8 pt-6 border-t border-slate-800/80 text-[11px] text-slate-400 font-medium">
+                <span>✓ Zero Buyer Membership Fees</span>
+                <span>✓ Direct Supplier Messaging</span>
+                <span>✓ Official GST Tax Invoices</span>
+              </div>
             </div>
           </div>
         </div>
