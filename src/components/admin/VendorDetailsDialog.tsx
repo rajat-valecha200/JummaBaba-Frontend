@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CheckCircle, XCircle, FileText, Building, MapPin, Phone, Mail, Globe, Eye, Clock, CreditCard, Tag, Briefcase, Printer, X, Sliders, Save, Percent, UserPlus } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, Building, MapPin, Phone, Mail, Globe, Eye, Clock, CreditCard, Tag, Briefcase, Printer, X, Sliders, Save, Percent, UserPlus, ShieldCheck, Loader2, BadgeCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -369,6 +369,11 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
               </div>
             </div>
 
+            {/* Cashfree Payout Verification — the structured, Cashfree-verified record used for
+                real payouts; distinct from the "Bank Information" block above, which is just the
+                unstructured self-reported detail from registration and is never used for money. */}
+            <CashfreePayoutSection vendorId={vendor.id} />
+
             {/* Documents */}
             <div className="space-y-4">
               <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2">
@@ -688,5 +693,81 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onApprove, onR
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function CashfreePayoutSection({ vendorId }: { vendorId: string }) {
+  const { toast } = useToast();
+  const [details, setDetails] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [verifying, setVerifying] = useState(false);
+
+  const load = async () => {
+    try {
+      const data = await api.admin.getVendorPayoutDetails(vendorId);
+      setDetails(data && data.vendor_id ? data : null);
+    } catch (e) {
+      console.error('Failed to load vendor payout details', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [vendorId]);
+
+  const handleVerify = async () => {
+    try {
+      setVerifying(true);
+      const result = await api.admin.verifyVendorPayoutDetails(vendorId);
+      setDetails(result);
+      toast({ title: 'Payout details verified', description: 'This vendor can now receive real payouts via Cashfree.' });
+    } catch (e: any) {
+      toast({ title: 'Could not verify', description: e.message, variant: 'destructive' });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2">
+        <div className="h-px w-8 bg-muted-foreground/20" />
+        Cashfree Payout Verification
+      </h4>
+      {loading ? (
+        <div className="p-4 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+      ) : !details ? (
+        <div className="p-4 bg-muted/40 rounded-2xl border border-border/50 text-sm text-muted-foreground">
+          This vendor hasn't submitted payout bank details yet — nothing to verify.
+        </div>
+      ) : (
+        <div className="p-4 bg-indigo-500/5 rounded-2xl border border-indigo-500/10 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-600">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-bold text-sm">{details.account_holder}</p>
+                <p className="text-xs text-muted-foreground font-mono">{details.account_number} · {details.ifsc}</p>
+              </div>
+            </div>
+            {details.verified_at ? (
+              <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 gap-1"><BadgeCheck className="h-3.5 w-3.5" /> Verified</Badge>
+            ) : details.cashfree_verification_status === 'VERIFIED' ? (
+              <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20">Cashfree OK — needs your sign-off</Badge>
+            ) : (
+              <Badge variant="destructive">Cashfree: {details.cashfree_verification_status || 'unverified'}</Badge>
+            )}
+          </div>
+          {!details.verified_at && details.cashfree_verification_status === 'VERIFIED' && (
+            <Button size="sm" onClick={handleVerify} disabled={verifying} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-8 rounded-lg">
+              {verifying ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <BadgeCheck className="h-3.5 w-3.5 mr-1.5" />}
+              Confirm & Verify for Payouts
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

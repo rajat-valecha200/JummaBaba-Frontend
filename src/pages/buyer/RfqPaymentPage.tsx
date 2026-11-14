@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { 
   ArrowLeft, 
   CheckCircle2, 
   ShieldCheck, 
-  CreditCard, 
-  Building2, 
-  QrCode, 
+  CreditCard,
+  Building2,
   Ticket,
   AlertCircle,
   Loader2, 
@@ -25,20 +24,26 @@ import { formatPrice, cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { playNotificationChime } from '@/lib/sound';
+import { load as loadCashfree } from '@cashfreepayments/cashfree-js';
 
 export default function RfqPaymentPage() {
   const { rfqId } = useParams<{ rfqId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [rfq, setRfq] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // UTR submission state
+  // UTR submission state (fallback path, kept for when the gateway is down or unavailable)
   const [utrNumber, setUtrNumber] = useState('');
   const [agreedEscrow, setAgreedEscrow] = useState(false);
   const [agreedDetails, setAgreedDetails] = useState(false);
+  const [showManualFallback, setShowManualFallback] = useState(false);
+
+  // Cashfree checkout state
+  const [isLaunchingCheckout, setIsLaunchingCheckout] = useState(false);
 
   const fetchRfqDetails = async () => {
     if (!rfqId) return;
@@ -71,6 +76,28 @@ export default function RfqPaymentPage() {
   useEffect(() => {
     fetchRfqDetails();
   }, [rfqId]);
+
+  // Cashfree's hosted checkout redirects the browser back here with ?cf_order_id=... — that
+  // redirect is only a UX hint that checkout finished, NEVER proof the payment actually
+  // succeeded (a buyer can close the tab, or the gateway can decline it server-side after the
+  // redirect fires). The webhook is the only thing that ever marks a payment confirmed; this
+  // just polls the RFQ a few times so the banner below updates as soon as that webhook lands.
+  useEffect(() => {
+    if (!searchParams.get('cf_order_id')) return;
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts += 1;
+      await fetchRfqDetails();
+      if (attempts >= 10) clearInterval(interval);
+    }, 3000);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('cf_order_id');
+      return next;
+    }, { replace: true });
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (isLoading) {
     return (
@@ -113,6 +140,9 @@ export default function RfqPaymentPage() {
   const finalTotal = Number(breakdown.finalAmount ?? discountedBase + platformFee + gst);
 
   const currentStep = rfq.negotiation_step;
+  // Delivery's been confirmed but the order isn't fully settled yet (admin hasn't run final
+  // settlement) — that's exactly the window where the remaining tranche is due.
+  const remainingDue = !!rfq.buyer_acknowledged && !rfq.invoice_released;
 
   const handleSubmitPaymentReference = async () => {
     if (!utrNumber.trim()) {
@@ -134,6 +164,24 @@ export default function RfqPaymentPage() {
       toast({ title: 'Submission Failed', description: e.message || 'Could not submit payment reference.', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCashfreeCheckout = async (stage: 'advance' | 'remaining') => {
+    try {
+      setIsLaunchingCheckout(true);
+      const { paymentSessionId } = stage === 'advance'
+        ? await api.rfqs.initiateAdvancePayment(rfq.id)
+        : await api.rfqs.initiateRemainingPayment(rfq.id);
+      const cashfree = await loadCashfree({
+        mode: import.meta.env.VITE_CASHFREE_ENV === 'production' ? 'production' : 'sandbox'
+      });
+      // redirectTarget '_self' keeps it in this tab; Cashfree sends the browser back to this
+      // same page (order_meta.return_url, set server-side) once checkout finishes either way.
+      await cashfree.checkout({ paymentSessionId, redirectTarget: '_self' });
+    } catch (e: any) {
+      toast({ title: 'Could not start payment', description: e.message || 'Please try again.', variant: 'destructive' });
+      setIsLaunchingCheckout(false);
     }
   };
 
@@ -176,7 +224,19 @@ export default function RfqPaymentPage() {
         </div>
       )}
 
-      {['payment_confirmed_escrow', 'ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(currentStep) && (
+      {remainingDue ? (
+        <div className="bg-indigo-500/10 border-2 border-indigo-500/30 rounded-2xl p-5 flex items-center gap-4 animate-in fade-in duration-300">
+          <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/20 text-white">
+            <Package className="h-6 w-6" />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-lg font-bold text-indigo-700 dark:text-indigo-400">Delivery confirmed — remaining amount due</h4>
+            <p className="text-xs text-indigo-700/80 dark:text-indigo-400/80 font-medium">
+              Pay the remaining balance to close out this order with <span className="font-bold">{rfq.vendor_business_name || 'your supplier'}</span>.
+            </p>
+          </div>
+        </div>
+      ) : ['payment_confirmed_escrow', 'ordered', 'confirmed', 'shipped', 'delivered', 'completed'].includes(currentStep) && (
         <div className="bg-emerald-500/10 border-2 border-emerald-500/30 rounded-2xl p-5 flex items-center gap-4 animate-in fade-in duration-300">
           <div className="w-12 h-12 rounded-xl bg-emerald-500 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 text-white">
             <CheckCircle2 className="h-6 w-6" />
@@ -376,57 +436,133 @@ export default function RfqPaymentPage() {
             </CardContent>
           </Card>
 
-          {/* 3. UPI QR Code Placeholder Slot (Future extension) */}
-          <Card className="border-dashed border-2 border-slate-300 dark:border-slate-800 rounded-2xl p-5 text-center space-y-2 bg-slate-50/50 dark:bg-slate-900/50">
-            <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
-              <QrCode className="h-5 w-5" />
-            </div>
-            <h4 className="font-bold text-xs text-slate-700 dark:text-slate-300">UPI Instant QR Code Transfer</h4>
-            <p className="text-[11px] text-muted-foreground">Scan & Pay via BHIM / GPay / PhonePe (Admin Upload Slot)</p>
-          </Card>
+          {/* 3. Cashfree Checkout — the primary way to pay the advance now */}
+          {!remainingDue && ['payment_pending', 'payment_submitted'].includes(currentStep) && (
+            <Card className="border-2 border-indigo-500/30 shadow-lg rounded-2xl overflow-hidden bg-card">
+              <CardHeader className="bg-indigo-600 text-white pb-3">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" /> Pay Advance Now
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Secure checkout via Cashfree — card, UPI, netbanking or wallet. Confirmation is automatic; production starts as soon as it's verified.
+                </p>
+                <Button
+                  onClick={() => handleCashfreeCheckout('advance')}
+                  disabled={isLaunchingCheckout || (currentStep === 'payment_pending' && (!agreedEscrow || !agreedDetails))}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-11 rounded-xl shadow-lg shadow-indigo-600/20"
+                >
+                  {isLaunchingCheckout ? (
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                  ) : (
+                    'Pay Advance via Cashfree'
+                  )}
+                </Button>
+                {currentStep === 'payment_pending' && (!agreedEscrow || !agreedDetails) && (
+                  <p className="text-[11px] text-amber-600 font-semibold text-center">Accept both terms on the left to continue.</p>
+                )}
 
-          {/* 4. Payment Reference Submission Form */}
-          <Card className="border-2 border-indigo-500/30 shadow-lg rounded-2xl overflow-hidden bg-card">
-            <CardHeader className="bg-indigo-600 text-white pb-3">
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <CreditCard className="h-4 w-4" /> Deposit Reference Confirmation
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 space-y-4">
-              {currentStep === 'payment_pending' ? (
-                <>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-foreground block">
-                      Bank Transfer UTR / IMPS Reference *
-                    </label>
-                    <Input
-                      placeholder="e.g. UTR2918274619"
-                      value={utrNumber}
-                      onChange={(e) => setUtrNumber(e.target.value)}
-                      className="font-mono text-xs h-10 uppercase"
-                    />
-                  </div>
+                <button
+                  type="button"
+                  onClick={() => setShowManualFallback((v) => !v)}
+                  className="text-[11px] text-muted-foreground underline underline-offset-2 w-full text-center"
+                >
+                  {showManualFallback ? 'Hide' : 'Having trouble? Use a manual bank transfer instead'}
+                </button>
+              </CardContent>
+            </Card>
+          )}
 
-                  <Button
-                    onClick={handleSubmitPaymentReference}
-                    disabled={isSubmitting || !utrNumber.trim() || !agreedEscrow || !agreedDetails}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-11 rounded-xl shadow-lg shadow-indigo-600/20"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                    ) : (
-                      `Submit Payment Confirmation (${formatPrice(finalTotal)})`
-                    )}
-                  </Button>
-                </>
-              ) : (
-                <div className="p-3 bg-muted rounded-xl text-xs space-y-1 text-center font-semibold">
-                  <p className="text-muted-foreground">Submitted UTR Reference:</p>
-                  <p className="font-mono font-bold text-indigo-600 text-sm">{rfq.response_details?.payment_reference || 'Reference On File'}</p>
+          {/* 3b. Cashfree Checkout — remaining tranche, due once delivery's confirmed */}
+          {remainingDue && (
+            <Card className="border-2 border-indigo-500/30 shadow-lg rounded-2xl overflow-hidden bg-card">
+              <CardHeader className="bg-indigo-600 text-white pb-3">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" /> Pay Remaining Amount
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  You've confirmed delivery — pay the remaining balance to close out this order. Secure checkout via Cashfree.
+                </p>
+                <Button
+                  onClick={() => handleCashfreeCheckout('remaining')}
+                  disabled={isLaunchingCheckout}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-11 rounded-xl shadow-lg shadow-indigo-600/20"
+                >
+                  {isLaunchingCheckout ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Pay Remaining via Cashfree'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 4. Manual bank-transfer fallback — kept for when the gateway is unavailable;
+                 hidden by default now that Cashfree checkout is the primary path. Not offered
+                 for the remaining tranche — no legacy manual precedent for that stage. */}
+          {!remainingDue && (showManualFallback || !['payment_pending', 'payment_submitted'].includes(currentStep)) && (
+            <Card className="border-border/60 shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader className="bg-muted/30 pb-3 border-b border-border/40">
+                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-bold text-sm">
+                  <Building2 className="h-4 w-4 text-indigo-600" /> Manual Bank Transfer (Fallback)
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent className="p-5 space-y-3 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Account Name:</span>
+                  <span className="font-bold text-foreground">JummaBaba Sourcing Pvt Ltd</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Account Number:</span>
+                  <span className="font-mono font-bold text-foreground tracking-wider">923020048172651</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">IFSC Code:</span>
+                  <span className="font-mono font-bold text-foreground">UTIB0000842</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Transfer Modes:</span>
+                  <span className="font-bold text-indigo-600">RTGS / IMPS / NEFT</span>
+                </div>
+
+                <Separator className="my-2" />
+
+                {currentStep === 'payment_pending' || currentStep === 'payment_submitted' ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-foreground block">
+                        Bank Transfer UTR / IMPS Reference *
+                      </label>
+                      <Input
+                        placeholder="e.g. UTR2918274619"
+                        value={utrNumber}
+                        onChange={(e) => setUtrNumber(e.target.value)}
+                        className="font-mono text-xs h-10 uppercase"
+                      />
+                    </div>
+
+                    <Button
+                      onClick={handleSubmitPaymentReference}
+                      disabled={isSubmitting || !utrNumber.trim() || !agreedEscrow || !agreedDetails}
+                      variant="outline"
+                      className="w-full font-bold text-xs h-11 rounded-xl"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                      ) : (
+                        `Submit Payment Confirmation (${formatPrice(finalTotal)})`
+                      )}
+                    </Button>
+                  </>
+                ) : (
+                  <div className="p-3 bg-muted rounded-xl text-xs space-y-1 text-center font-semibold">
+                    <p className="text-muted-foreground">Submitted UTR Reference:</p>
+                    <p className="font-mono font-bold text-indigo-600 text-sm">{rfq.response_details?.payment_reference || 'Reference On File'}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
         </div>
 

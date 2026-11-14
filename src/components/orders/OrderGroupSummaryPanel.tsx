@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ChevronDown, ChevronUp, Receipt, CheckCircle2, Clock, Wallet, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Receipt, CheckCircle2, Clock, Wallet, Loader2, Send } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatPrice, cn } from '@/lib/utils';
@@ -16,7 +16,13 @@ interface OrderGroupSummaryPanelProps {
 export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSummaryPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [releasing, setReleasing] = useState(false);
+  const [dispatchingPayout, setDispatchingPayout] = useState(false);
+  // Seeded from the server (vendor_payouts has a row for this order) so the button stays
+  // correctly hidden after a page reload — the backend blocks a real double-release regardless,
+  // but a stale "unpaid" button reappearing after a refresh would still be confusing.
+  const [payoutDispatchedLocally, setPayoutDispatchedLocally] = useState(false);
   const releaseInFlight = useRef(false);
+  const payoutInFlight = useRef(false);
   const { toast } = useToast();
   if (!rfq) return null;
 
@@ -26,6 +32,7 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
 
   const headlineLabel = role === 'buyer' ? 'You Paid' : role === 'vendor' ? 'You Will Receive' : 'Order Value';
   const headlineAmount = role === 'buyer' ? bd.buyerTotalPaid : role === 'vendor' ? bd.vendorNetPayout : bd.baseAmount;
+  const payoutDispatched = !!rfq.payout_dispatched || payoutDispatchedLocally;
 
   const handleRelease = async () => {
     // Guard synchronously — a fast double-tap can fire this twice before React re-renders
@@ -46,6 +53,22 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
     } finally {
       releaseInFlight.current = false;
       setReleasing(false);
+    }
+  };
+
+  const handleDispatchPayout = async () => {
+    if (payoutInFlight.current) return;
+    payoutInFlight.current = true;
+    try {
+      setDispatchingPayout(true);
+      const result = await api.rfqs.releasePayout(rfq.id);
+      toast({ title: 'Payout dispatched', description: `${formatPrice(Number(result.amount))} sent to the vendor's bank account via Cashfree.` });
+      setPayoutDispatchedLocally(true);
+    } catch (err: any) {
+      toast({ title: 'Failed to dispatch payout', description: err.message, variant: 'destructive' });
+    } finally {
+      payoutInFlight.current = false;
+      setDispatchingPayout(false);
     }
   };
 
@@ -132,6 +155,22 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
                   {releasing ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Wallet className="h-3.5 w-3.5 mr-1.5" />}
                   Release {formatPrice(bd.vendorNetPayout)} to Vendor
                 </Button>
+              )}
+              {bd.isSettled && !payoutDispatched && (
+                <Button
+                  size="sm"
+                  onClick={handleDispatchPayout}
+                  disabled={dispatchingPayout}
+                  className="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-8 rounded-lg"
+                >
+                  {dispatchingPayout ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
+                  Dispatch Payout via Cashfree
+                </Button>
+              )}
+              {bd.isSettled && payoutDispatched && (
+                <p className="text-[10px] font-bold text-indigo-600 pt-1 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Payout dispatched to the vendor's bank account.
+                </p>
               )}
               {!isDelivered && (
                 <p className="text-[10px] text-muted-foreground pt-1">

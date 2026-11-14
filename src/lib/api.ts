@@ -60,6 +60,10 @@ export const normalizeProduct = (product: any) => {
     // out — undefined/null (e.g. product list endpoints that don't join this field) must not be
     // read as "off".
     supplierAcceptsDirectOrders: product.supplier_accepts_direct_orders !== false,
+    // null/undefined means "use the admin default" — do NOT default this to 0 like samplePrice,
+    // 0% advance and "no override set" are different things.
+    advancePercentage: product.advance_percentage ?? product.advancePercentage ?? null,
+    leadTimeDays: Number(product.lead_time_days ?? product.leadTimeDays ?? 15),
   };
 };
 
@@ -245,6 +249,12 @@ export const api = {
       apiFetch(`/rfqs/${id}/payment-request`, { method: 'POST', body: JSON.stringify({ discountType, discountValue, discountAbsorbedBy }) }),
     buyerSubmitPayment: (id: string, paymentReference: string) =>
       apiFetch(`/rfqs/${id}/buyer-submit-payment`, { method: 'POST', body: JSON.stringify({ paymentReference }) }),
+    initiateAdvancePayment: (id: string) =>
+      apiFetch(`/rfqs/${id}/payment/advance/initiate`, { method: 'POST' }),
+    initiateRemainingPayment: (id: string) =>
+      apiFetch(`/rfqs/${id}/payment/remaining/initiate`, { method: 'POST' }),
+    releasePayout: (id: string) =>
+      apiFetch(`/admin/rfqs/${id}/release-payout`, { method: 'POST' }),
     adminConfirmPayment: (id: string) =>
       apiFetch(`/rfqs/${id}/admin-confirm-payment`, { method: 'POST' }),
     releasePayment: (id: string) =>
@@ -303,6 +313,9 @@ export const api = {
     meStats: () => apiFetch('/profiles/me/stats'),
     meActivity: () => apiFetch('/profiles/me/activity'),
     mePayouts: () => apiFetch('/profiles/me/payouts'),
+    myPayoutDetails: () => apiFetch('/profiles/me/payout-details'),
+    submitPayoutDetails: (data: { accountHolder: string; accountNumber: string; ifsc: string; bankName?: string; upiId?: string }) =>
+      apiFetch('/profiles/me/payout-details', { method: 'POST', body: JSON.stringify(data) }),
     list: (role?: string, status?: string) => apiFetch(`/profiles?role=${role || ''}&status=${status || ''}`),
     getPublicById: (id: string) => apiFetch(`/profiles/${id}/public`),
     updateStatus: (id: string, status: string, rejection_reason?: string) =>
@@ -384,6 +397,9 @@ export const api = {
     getGlobalConfig: () => apiFetch('/admin/global-config'),
     updateGlobalConfig: (data: any) => apiFetch('/admin/global-config', { method: 'PATCH', body: JSON.stringify(data) }),
     getStats: () => apiFetch('/admin/stats'),
+    getVendorPayoutDetails: (vendorId: string) => apiFetch(`/admin/vendors/${vendorId}/payout-details`),
+    verifyVendorPayoutDetails: (vendorId: string) =>
+      apiFetch(`/admin/vendors/${vendorId}/payout-details/verify`, { method: 'POST' }),
   },
   waitlist: {
     submit: (email: string) => apiFetch('/waitlist', { method: 'POST', body: JSON.stringify({ email }) }),

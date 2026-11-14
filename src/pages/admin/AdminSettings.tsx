@@ -62,7 +62,13 @@ export default function AdminSettings() {
     wallet_enabled: true,
     trial_mode_enabled: true,
     website_mode: 'normal',
-    direct_order_admin_review_required: false
+    direct_order_admin_review_required: false,
+    // Bounds for the per-product advance % a seller can set (RfqPayment advance/remaining split).
+    advance_percentage_slab: { min: 10, max: 50, default: 30 },
+    // Gateway-paid cancellation formula: free within the grace window, then a charge that grows
+    // with elapsed time vs. the product's own dispatch lead, capped here.
+    cancellation_grace_hours: 12,
+    cancellation_deduction_cap: 85
   });
 
   useEffect(() => {
@@ -484,6 +490,132 @@ export default function AdminSettings() {
                       </p>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Per-Product Advance Payment Slab */}
+              <Card className="border-none shadow-2xl bg-white/50 backdrop-blur-xl overflow-hidden relative">
+                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-sky-500 to-blue-700" />
+                <CardHeader className="border-b bg-muted/20 pb-4">
+                  <div className="flex items-center gap-2">
+                    <Percent className="h-5 w-5 text-sky-600" />
+                    <div>
+                      <CardTitle className="text-lg font-black uppercase tracking-wider">Advance Payment Slab</CardTitle>
+                      <CardDescription>Bounds for the per-product advance % a seller can set (collected via Cashfree before production starts)</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Minimum %</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          className="font-bold"
+                          value={globalConfig.advance_percentage_slab.min}
+                          onChange={(e) => setGlobalConfig({
+                            ...globalConfig,
+                            advance_percentage_slab: { ...globalConfig.advance_percentage_slab, min: parseFloat(e.target.value) || 0 }
+                          })}
+                        />
+                        <Badge className="bg-sky-500/10 text-sky-700 hover:bg-sky-500/20 border-sky-500/20">%</Badge>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Maximum %</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          className="font-bold"
+                          value={globalConfig.advance_percentage_slab.max}
+                          onChange={(e) => setGlobalConfig({
+                            ...globalConfig,
+                            advance_percentage_slab: { ...globalConfig.advance_percentage_slab, max: parseFloat(e.target.value) || 0 }
+                          })}
+                        />
+                        <Badge className="bg-sky-500/10 text-sky-700 hover:bg-sky-500/20 border-sky-500/20">%</Badge>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Default %</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          className="font-bold"
+                          value={globalConfig.advance_percentage_slab.default}
+                          onChange={(e) => setGlobalConfig({
+                            ...globalConfig,
+                            advance_percentage_slab: { ...globalConfig.advance_percentage_slab, default: parseFloat(e.target.value) || 0 }
+                          })}
+                        />
+                        <Badge className="bg-sky-500/10 text-sky-700 hover:bg-sky-500/20 border-sky-500/20">%</Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground font-medium">
+                    Sellers set their own advance % per product within this range. Products left blank use the Default %.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Gateway Cancellation Formula */}
+              <Card className="border-none shadow-2xl bg-white/50 backdrop-blur-xl overflow-hidden relative">
+                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-rose-500 to-orange-600" />
+                <CardHeader className="border-b bg-muted/20 pb-4">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-rose-600" />
+                    <div>
+                      <CardTitle className="text-lg font-black uppercase tracking-wider">Gateway Cancellation Charge</CardTitle>
+                      <CardDescription>Free within the grace window; past it, the charge grows with how close the order is to each product's own dispatch date</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Free Cancellation Window</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="number"
+                          min="0"
+                          className="font-bold"
+                          value={globalConfig.cancellation_grace_hours}
+                          onChange={(e) => setGlobalConfig({ ...globalConfig, cancellation_grace_hours: parseFloat(e.target.value) || 0 })}
+                        />
+                        <Badge className="bg-rose-500/10 text-rose-700 hover:bg-rose-500/20 border-rose-500/20">Hours</Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        Buyer gets a 100% automatic refund if they cancel within this many hours of ordering.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-70">Maximum Deduction Cap</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          className="font-bold"
+                          value={globalConfig.cancellation_deduction_cap}
+                          onChange={(e) => setGlobalConfig({ ...globalConfig, cancellation_deduction_cap: parseFloat(e.target.value) || 0 })}
+                        />
+                        <Badge className="bg-rose-500/10 text-rose-700 hover:bg-rose-500/20 border-rose-500/20">%</Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        Even right before dispatch, the cancellation charge never exceeds this — the buyer always gets some refund back.
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground font-medium">
+                    Formula: Charge % = (Hours since order ÷ 24 ÷ product's Dispatch Lead Days) × 100, capped above. Set each product's dispatch lead time in its listing.
+                  </p>
                 </CardContent>
               </Card>
 

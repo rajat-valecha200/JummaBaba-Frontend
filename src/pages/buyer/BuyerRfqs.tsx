@@ -188,12 +188,16 @@ export default function BuyerRfqs() {
         accept_quote: { title: 'Billing Statement Sent', description: 'Please complete payment and submit your transaction reference to place the order.' },
         reject_quote: { title: 'Quote Declined', description: 'The request has been closed.' },
         request_cancellation: { title: 'Cancellation Requested', description: 'Your request has been sent for admin review.' },
-        confirm_delivery: { title: 'Delivery Confirmed', description: 'Thanks for confirming! Payment release to the supplier is now pending Admin review.' },
+        confirm_delivery: { title: 'Delivery Confirmed', description: 'Thanks for confirming! Pay the remaining amount to close out this order.' },
       }[action];
 
       toast(toastCopy);
       setDetailsOpen(false);
       fetchRfqs();
+      // Straight to the remaining-payment screen — no reason to make the buyer hunt for it.
+      if (action === 'confirm_delivery') {
+        navigate(`/buyer/rfq-payment/${id}`);
+      }
     } catch (error: any) {
       toast({ title: 'Action Failed', description: error.message, variant: 'destructive' });
     } finally {

@@ -151,6 +151,10 @@ interface ProductFormData {
   sampleMOQ: number;
   specifications: Record<string, string>;
   logistics: string;
+  /** '' means "use the admin default" — not every product overrides it. */
+  advancePercentage: number | '';
+  /** Days this product normally takes to dispatch — drives the cancellation-charge formula. */
+  leadTimeDays: number;
 }
 
 // Default slab templates
@@ -186,6 +190,8 @@ const emptyProduct: ProductFormData = {
     'Origin': ''
   },
   logistics: '',
+  advancePercentage: '',
+  leadTimeDays: 15,
 };
 
 // Extended product status to include 'rejected'
@@ -211,6 +217,7 @@ export default function VendorProducts() {
   const [previewProduct, setPreviewProduct] = useState<any | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [compressing, setCompressing] = useState(false);
+  const [advanceSlab, setAdvanceSlab] = useState({ min: 10, max: 50, default: 30 });
 
   useEffect(() => {
     const fetchDependencies = async () => {
@@ -218,6 +225,12 @@ export default function VendorProducts() {
         setCategories(await api.categories.list());
       } catch (err) {
         console.error('Failed to fetch categories', err);
+      }
+      try {
+        const config = await api.public.getConfig();
+        if (config?.advance_percentage_slab) setAdvanceSlab(config.advance_percentage_slab);
+      } catch (err) {
+        console.error('Failed to fetch advance % slab', err);
       }
     };
     fetchDependencies();
@@ -277,6 +290,8 @@ export default function VendorProducts() {
       sampleMOQ: product.sampleMOQ || product.sample_moq || 1,
       specifications: product.specifications || {},
       logistics: product.logistics || '',
+      advancePercentage: (product.advancePercentage ?? product.advance_percentage) ?? '',
+      leadTimeDays: Number(product.leadTimeDays ?? product.lead_time_days ?? 15),
     };
     setEditingProduct(data);
     setFormData(data);
@@ -433,6 +448,8 @@ export default function VendorProducts() {
         sample_moq: formData.sampleMOQ,
         specifications: formData.specifications,
         logistics: formData.logistics,
+        advance_percentage: formData.advancePercentage === '' ? null : formData.advancePercentage,
+        lead_time_days: formData.leadTimeDays,
       };
 
       if (editingProduct?.id) {
@@ -1216,6 +1233,55 @@ export default function VendorProducts() {
                             </div>
                           </div>
                         )}
+                      </div>
+                    </section>
+
+                    <section className="space-y-6">
+                      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-800 flex items-center gap-3">
+                        <div className="w-8 h-[3px] bg-primary rounded-full" />
+                        Advance Payment
+                      </h3>
+                      <div className="p-8 rounded-[2.5rem] bg-white border border-slate-200 shadow-[0_15px_40px_rgb(0,0,0,0.04)] space-y-4">
+                        <Label className="text-[11px] font-black uppercase text-slate-700 tracking-widest">Advance % required from buyer</Label>
+                        <div className="relative">
+                          <Input
+                            type="text"
+                            value={formData.advancePercentage === '' ? '' : formData.advancePercentage.toString()}
+                            onChange={(e) => {
+                              const val = handleNumberInput(e.target.value, true);
+                              if (val === '') {
+                                setFormData({ ...formData, advancePercentage: '' });
+                                return;
+                              }
+                              const clamped = Math.min(advanceSlab.max, Math.max(advanceSlab.min, parseFloat(val)));
+                              setFormData({ ...formData, advancePercentage: clamped });
+                            }}
+                            className="h-14 pr-12 rounded-2xl bg-white border border-slate-300 text-base font-black text-primary shadow-sm placeholder:text-slate-400 placeholder:font-medium"
+                            placeholder={`Default: ${advanceSlab.default}%`}
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-black">%</span>
+                        </div>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                          Admin allows {advanceSlab.min}–{advanceSlab.max}%, defaults to {advanceSlab.default}% if left blank. Buyer pays this much upfront before you start production.
+                        </p>
+
+                        <Label className="text-[11px] font-black uppercase text-slate-700 tracking-widest pt-2 block">Dispatch Lead Time</Label>
+                        <div className="relative">
+                          <Input
+                            type="text"
+                            value={formData.leadTimeDays === 0 ? '' : formData.leadTimeDays.toString()}
+                            onChange={(e) => {
+                              const val = handleNumberInput(e.target.value);
+                              setFormData({ ...formData, leadTimeDays: val ? Math.max(1, parseInt(val)) : 15 });
+                            }}
+                            className="h-14 pr-16 rounded-2xl bg-white border border-slate-300 text-base font-black text-slate-900 shadow-sm placeholder:text-slate-400 placeholder:font-medium"
+                            placeholder="15"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-black">days</span>
+                        </div>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                          How many days this product normally takes you to ship after an order. Used to calculate buyer cancellation charges closer to your dispatch date.
+                        </p>
                       </div>
                     </section>
                   </div>
