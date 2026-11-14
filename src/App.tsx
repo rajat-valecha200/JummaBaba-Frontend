@@ -96,7 +96,7 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <WishlistProvider>
-          <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || "/"}>
+          <BrowserRouter basename={(import.meta.env.VITE_BASE_PATH || "/").replace(/\/$/, "") || "/"}>
             <ScrollToTop />
             <RefCapture />
             <MaintenanceGuard>
