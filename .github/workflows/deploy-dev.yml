@@ -1,0 +1,35 @@
+name: Deploy Frontend to Dev
+
+on:
+  push:
+    branches:
+      - development
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: 97.74.94.237
+          username: jummababa
+          key: ${{ secrets.JUMMABABA }}
+          script: |
+            cd /home/jummababa/dev-frontend
+
+            # Force sync the latest changes from the development branch
+            git fetch origin
+            git reset --hard origin/development
+
+            # Install dependencies and build for the /dev sub-path
+            npm install
+            VITE_BASE_PATH=/dev/ VITE_API_URL=/dev/api npm run build
+
+            # Copy the new build into Nginx's dev static folder
+            rm -rf /var/www/jummababa/dev/*
+            cp -r dist/* /var/www/jummababa/dev/
