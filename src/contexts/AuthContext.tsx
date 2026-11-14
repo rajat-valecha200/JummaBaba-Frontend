@@ -105,8 +105,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     api.auth.logout();
     setUser(null);
     setProfile(null);
-    // Use replace to ensure the user cannot go back to protected pages
-    window.location.replace('/');
+    // Use replace to ensure the user cannot go back to protected pages. Absolute path, not
+    // React Router's navigate(), so it must account for the base path itself (e.g. "/dev" when
+    // deployed under a sub-path) — a bare "/" would drop the user to the root site instead.
+    const basePath = (import.meta.env.VITE_BASE_PATH || '/').replace(/\/$/, '') || '/';
+    window.location.replace(basePath);
   };
 
   return (
