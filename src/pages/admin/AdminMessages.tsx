@@ -2566,8 +2566,8 @@ export default function AdminMessages() {
   };
 
   const filteredConversations = conversations.filter(c => {
-    const matchesSearch = c.participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.participantCompany.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (c.participantName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.participantCompany || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     if (activeTab === 'all') return matchesSearch;
     if (activeTab === 'buyers') return matchesSearch && c.participantType === 'buyer';
