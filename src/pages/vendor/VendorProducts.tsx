@@ -1248,12 +1248,16 @@ export default function VendorProducts() {
                             type="text"
                             value={formData.advancePercentage === '' ? '' : formData.advancePercentage.toString()}
                             onChange={(e) => {
+                              // Don't clamp to the min/max while typing — clamping every keystroke
+                              // snapped any value that started below the min (e.g. "3" of "30")
+                              // straight up to the minimum, making it impossible to type most
+                              // values at all. Clamp only once the vendor is done, on blur.
                               const val = handleNumberInput(e.target.value, true);
-                              if (val === '') {
-                                setFormData({ ...formData, advancePercentage: '' });
-                                return;
-                              }
-                              const clamped = Math.min(advanceSlab.max, Math.max(advanceSlab.min, parseFloat(val)));
+                              setFormData({ ...formData, advancePercentage: val === '' ? '' : parseFloat(val) });
+                            }}
+                            onBlur={() => {
+                              if (formData.advancePercentage === '') return;
+                              const clamped = Math.min(advanceSlab.max, Math.max(advanceSlab.min, formData.advancePercentage as number));
                               setFormData({ ...formData, advancePercentage: clamped });
                             }}
                             className="h-14 pr-12 rounded-2xl bg-white border border-slate-300 text-base font-black text-primary shadow-sm placeholder:text-slate-400 placeholder:font-medium"
