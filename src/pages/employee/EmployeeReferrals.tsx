@@ -115,6 +115,11 @@ export default function EmployeeReferrals() {
                           <span className={cn('flex-1', s.state === 'cancelled' && 'text-muted-foreground line-through')}>
                             {s.label}
                             {s.max_count !== null && s.max_count !== undefined && s.count > 0 && <span className="text-xs text-muted-foreground"> ({s.count} of {s.max_count})</span>}
+                            {/* So the employee can actually tell the referred person what order
+                                size to aim for — pointless to show once it's already earned. */}
+                            {s.min_order_value && s.state !== 'released' && (
+                              <span className="text-xs text-muted-foreground"> (order ≥ ₹{Number(s.min_order_value).toLocaleString('en-IN')})</span>
+                            )}
                           </span>
                           {s.points > 0 && (
                             <span className={cn('text-xs font-bold', s.state === 'released' ? 'text-emerald-600' : s.state === 'blocked' ? 'text-amber-600' : 'text-muted-foreground')}>
