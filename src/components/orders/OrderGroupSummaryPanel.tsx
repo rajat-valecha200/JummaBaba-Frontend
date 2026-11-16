@@ -145,6 +145,17 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
               <Row label="Charged To" value={bd.payerRoute === 'buyer_add' ? 'Buyer' : 'Seller'} />
               <Row label="Settlement" value={settlementLabel} />
 
+              {/* Which Cashfree tranches have actually landed, not just what's owed overall —
+                  lets admin see at a glance what's left to collect before the order can settle. */}
+              {rfq.advance_paid_amount != null && (
+                <Row label="Advance Collected" value={formatPrice(Number(rfq.advance_paid_amount))} tone="emerald" />
+              )}
+              {rfq.remaining_paid_amount != null ? (
+                <Row label="Remaining Collected" value={formatPrice(Number(rfq.remaining_paid_amount))} tone="emerald" />
+              ) : rfq.advance_paid_amount != null && (
+                <Row label="Remaining Due" value={formatPrice(Math.max(0, bd.buyerTotalPaid - Number(rfq.advance_paid_amount)))} tone="rose" />
+              )}
+
               {isDelivered && !bd.isSettled && (
                 <Button
                   size="sm"
