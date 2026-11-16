@@ -248,7 +248,13 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
   useEffect(() => {
     if (cardType !== 'rfq_payment_request' || !metadata.rfq_id) return;
     api.rfqs.get(metadata.rfq_id)
-      .then((rfq: any) => setAdvanceInfo({ percent: rfq.advance_percent ?? null, amount: rfq.advance_amount ?? null }))
+      .then((rfq: any) => {
+        // Only meaningful in the two-tranche flow — 'full' mode (the default) has no separate
+        // advance at all, the buyer pays the whole bill in one go, so showing an "Advance Due
+        // Now" figure there is just wrong, not merely redundant.
+        if (rfq.payment_mode !== 'advance_remaining') return;
+        setAdvanceInfo({ percent: rfq.advance_percent ?? null, amount: rfq.advance_amount ?? null });
+      })
       .catch(() => {});
   }, [cardType, metadata.rfq_id]);
 
