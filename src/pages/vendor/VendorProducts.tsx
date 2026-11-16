@@ -249,8 +249,13 @@ export default function VendorProducts() {
       if (!user) return;
       setLoading(true);
       try {
+        // api.products.list() already runs each product through normalizeProduct (which
+        // resolves image paths against the API base URL) — doing it again here double-prefixed
+        // every image URL. Harmless on production, where that prefix happens to be exactly
+        // "/api" and cleanImagePath's dedup catches it, but broken wherever it's deployed under
+        // a different base path (e.g. "/dev/api"), since the double-prefix isn't recognized there.
         const data = await api.products.list(undefined, user.id);
-        setProductList(data.map(normalizeProduct));
+        setProductList(data);
       } catch (error) {
         console.error('Failed to fetch vendor products:', error);
       } finally {
