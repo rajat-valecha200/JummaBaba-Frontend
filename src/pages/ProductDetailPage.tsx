@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ChevronRight,
@@ -177,6 +177,10 @@ export default function ProductDetailPage() {
   // one saved address before placing any RFQ or Direct Order (see handleOpenRfq/handleBuyNow),
   // and we must not fire that block off a fetch that just hasn't resolved yet.
   const [addressesLoaded, setAddressesLoaded] = useState(false);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [newAddressForm, setNewAddressForm] = useState({ name: '', phone: '', address: '', city: '', state: '', pincode: '' });
+  const pendingAddressResume = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!user || user.role !== 'buyer') return;
@@ -215,23 +219,43 @@ export default function ProductDetailPage() {
     };
   };
 
-  // A buyer with zero saved addresses must save one before placing any RFQ or order — returns
-  // false (and shows a toast pointing them to their profile) to block whichever handler called
-  // it. Only enforced once the address-book fetch has actually resolved, so a buyer who DOES
-  // have addresses saved never gets falsely blocked by a fetch that just hasn't finished yet.
-  const requireSavedAddress = () => {
+  // A buyer with zero saved addresses must save one before placing any RFQ or order. Opens an
+  // inline "Save Address" dialog right here instead of sending them off to their profile page —
+  // `resume` is whichever handler called this, re-invoked automatically once the address is
+  // saved, so the buyer lands back in the exact same flow instead of having to click the
+  // original button again. Only enforced once the address-book fetch has actually resolved, so
+  // a buyer who DOES have addresses saved never gets falsely blocked by a fetch that just
+  // hasn't finished yet.
+  const requireSavedAddress = (resume: () => void) => {
     if (!addressesLoaded || savedAddresses.length > 0) return true;
-    toast({
-      title: 'Save an address first',
-      description: 'Add a delivery address to your profile before placing an RFQ or order.',
-      variant: 'destructive',
-      action: (
-        <Button variant="outline" size="sm" asChild className="font-bold border-primary text-primary">
-          <Link to="/buyer/profile" target="_blank">Save Address</Link>
-        </Button>
-      )
-    });
+    pendingAddressResume.current = resume;
+    setNewAddressForm({ name: user?.full_name || '', phone: user?.phone || '', address: '', city: '', state: '', pincode: '' });
+    setAddressModalOpen(true);
     return false;
+  };
+
+  const handleSaveNewAddress = async () => {
+    if (!user) return;
+    const { name, phone, address, city, state, pincode } = newAddressForm;
+    if (!name || !phone || !address || !city || !state || !pincode) {
+      toast({ title: 'Fill in every field', variant: 'destructive' });
+      return;
+    }
+    setSavingAddress(true);
+    try {
+      const newAddr = { id: `addr-${Date.now()}`, label: 'Default', isDefault: savedAddresses.length === 0, ...newAddressForm };
+      const nextAddresses = [...savedAddresses, newAddr];
+      await api.profiles.update(user.id, { addresses: nextAddresses });
+      setSavedAddresses(nextAddresses);
+      setSelectedAddressId(newAddr.id);
+      setAddressModalOpen(false);
+      pendingAddressResume.current?.();
+      pendingAddressResume.current = null;
+    } catch (error: any) {
+      toast({ title: 'Failed to save address', description: error.message, variant: 'destructive' });
+    } finally {
+      setSavingAddress(false);
+    }
   };
 
   // Auto-open the RFQ dialog when arriving via a "Get Instant Quote" link (?quote=1)
@@ -260,7 +284,7 @@ export default function ProductDetailPage() {
       setSearchParams({}, { replace: true });
       return;
     }
-    if (!requireSavedAddress()) {
+    if (!requireSavedAddress(handleOpenRfq)) {
       setSearchParams({}, { replace: true });
       return;
     }
@@ -346,7 +370,7 @@ export default function ProductDetailPage() {
       });
       return;
     }
-    if (!requireSavedAddress()) return;
+    if (!requireSavedAddress(handleOpenRfq)) return;
     const initialQty = quantity || product.moq;
     const initialTier = getActiveTier(initialQty);
     setIsSampleRequest(false);
@@ -378,7 +402,7 @@ export default function ProductDetailPage() {
       });
       return;
     }
-    if (!requireSavedAddress()) return;
+    if (!requireSavedAddress(handleOpenSampleRequest)) return;
     setIsSampleRequest(true);
     setRfqForm({
       quantity: String(product.sampleMOQ || 1),
@@ -408,7 +432,7 @@ export default function ProductDetailPage() {
       });
       return;
     }
-    if (!requireSavedAddress()) return;
+    if (!requireSavedAddress(handleBuyNow)) return;
 
     if (quantity < product.moq) {
       toast({
@@ -1362,6 +1386,50 @@ export default function ProductDetailPage() {
           </section>
         )}
       </div>
+
+      <Dialog open={addressModalOpen} onOpenChange={setAddressModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save a Delivery Address</DialogTitle>
+            <DialogDescription>You need at least one saved address before requesting a quote or placing an order. Add one here and we'll pick up right where you left off.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="newAddrName">Contact Name *</Label>
+              <Input id="newAddrName" value={newAddressForm.name} onChange={(e) => setNewAddressForm({ ...newAddressForm, name: e.target.value })} placeholder="John Doe" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newAddrPhone">Phone *</Label>
+              <Input id="newAddrPhone" value={newAddressForm.phone} onChange={(e) => setNewAddressForm({ ...newAddressForm, phone: e.target.value })} placeholder="+91 98765 43210" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newAddrAddress">Full Address *</Label>
+              <Textarea id="newAddrAddress" value={newAddressForm.address} onChange={(e) => setNewAddressForm({ ...newAddressForm, address: e.target.value })} placeholder="House No, Street, Landmark..." rows={2} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="newAddrCity">City *</Label>
+                <Input id="newAddrCity" value={newAddressForm.city} onChange={(e) => setNewAddressForm({ ...newAddressForm, city: e.target.value })} placeholder="Mumbai" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newAddrState">State *</Label>
+                <Input id="newAddrState" value={newAddressForm.state} onChange={(e) => setNewAddressForm({ ...newAddressForm, state: e.target.value })} placeholder="Maharashtra" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newAddrPincode">Pincode *</Label>
+                <Input id="newAddrPincode" value={newAddressForm.pincode} onChange={(e) => setNewAddressForm({ ...newAddressForm, pincode: e.target.value })} placeholder="400001" maxLength={6} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddressModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveNewAddress} disabled={savingAddress}>
+              {savingAddress ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save & Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
