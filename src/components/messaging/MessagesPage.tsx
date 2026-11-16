@@ -214,6 +214,17 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
   const [showDisputeInput, setShowDisputeInput] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
+  // Advance % and amount aren't part of this message's stored metadata (it's a point-in-time
+  // billing snapshot) — fetched live instead so it's always current and shows up even on older
+  // chat messages sent before this was added.
+  const [advanceInfo, setAdvanceInfo] = useState<{ percent: number | null; amount: number | null } | null>(null);
+  useEffect(() => {
+    if (cardType !== 'rfq_payment_request' || !metadata.rfq_id) return;
+    api.rfqs.get(metadata.rfq_id)
+      .then((rfq: any) => setAdvanceInfo({ percent: rfq.advance_percent ?? null, amount: rfq.advance_amount ?? null }))
+      .catch(() => {});
+  }, [cardType, metadata.rfq_id]);
+
   useEffect(() => {
     if (cardType === 'rfq_specs' && userRole === 'admin') {
       api.profiles.list('vendor', 'approved')
@@ -1417,6 +1428,12 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
               <span>Total Buyer Payable:</span>
               <span>₹{Math.round(Number(breakdown.finalAmount)).toLocaleString()}</span>
             </div>
+            {advanceInfo?.amount != null && (
+              <div className="flex justify-between font-bold border-t pt-1.5 mt-1.5 text-emerald-600">
+                <span>Advance Due Now{advanceInfo.percent ? ` (${advanceInfo.percent}%)` : ''}:</span>
+                <span>₹{Math.round(advanceInfo.amount).toLocaleString()}</span>
+              </div>
+            )}
           </div>
 
           {userRole === 'buyer' && metadata.rfq_negotiation_step === 'payment_pending' ? (
