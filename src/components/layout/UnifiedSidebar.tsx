@@ -255,13 +255,13 @@ export function UnifiedSidebar({ role, onClose, className }: UnifiedSidebarProps
       </div>
 
       <div className="p-4 border-t border-sidebar-border bg-muted/20 space-y-2 shrink-0">
-        <a
-          href="/"
+        <Link
+          to="/"
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest text-muted-foreground hover:bg-white hover:text-primary transition-all duration-200 border border-transparent hover:border-border shadow-sm"
         >
           <Globe className="h-4 w-4" />
           Public Site
-        </a>
+        </Link>
         <Button
           variant="ghost"
           onClick={handleLogout}

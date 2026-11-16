@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Eye, Search, Filter, Shield, ShoppingCart, Store, Loader2,
   CheckCircle, XCircle, FileText, File, ImageIcon, Download,
@@ -189,7 +190,7 @@ function UserActivityDialog({
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" asChild>
-                          <a href="/admin/rfqs" className="text-xs">View RFQ</a>
+                          <Link to="/admin/rfqs" className="text-xs">View RFQ</Link>
                         </Button>
                       </TableCell>
                     </TableRow>
