@@ -2203,6 +2203,10 @@ export default function AdminMessages() {
   const [loading, setLoading] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messageInput, setMessageInput] = useState('');
+  // Who admin's own typed message is addressed to — the backend's message-fetch filter
+  // (messageService.js) already respects metadata.target_role for buyer/vendor viewers; this
+  // was the one missing piece, the actual control to set it.
+  const [messageTargetRole, setMessageTargetRole] = useState<'all' | 'buyer' | 'vendor'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [orderRfq, setOrderRfq] = useState<any>(null);
 
@@ -2650,8 +2654,14 @@ export default function AdminMessages() {
     try {
       const receiverId = selectedConversation.isGroup ? null : selectedConversation.id;
       const chatGroupId = selectedConversation.isGroup ? selectedConversation.id : null;
-      await api.messages.send(receiverId, messageInput.trim(), chatGroupId);
+      // Only meaningful in a group thread (buyer+vendor+admin) — a 1:1 conversation has no one
+      // else to address it away from.
+      const metadata = selectedConversation.isGroup && messageTargetRole !== 'all'
+        ? { target_role: messageTargetRole }
+        : undefined;
+      await api.messages.send(receiverId, messageInput.trim(), chatGroupId, metadata);
       setMessageInput('');
+      setMessageTargetRole('all');
       fetchConversations();
       fetchMessages();
     } catch (error) {
@@ -3271,6 +3281,11 @@ export default function AdminMessages() {
                           ? "bg-b2b-orange text-white rounded-br-md"
                           : "bg-card text-foreground rounded-bl-md border border-border"
                       )}>
+                        {isAdmin && msg.metadata?.target_role && msg.metadata.target_role !== 'all' && (
+                          <p className="text-[9px] font-bold uppercase tracking-wider text-white/80 mb-1">
+                            → {msg.metadata.target_role} only
+                          </p>
+                        )}
                         <p className="text-sm leading-relaxed whitespace-pre-wrap">
                           {msg.text}
                         </p>
@@ -3291,6 +3306,28 @@ export default function AdminMessages() {
 
             {/* Message Input */}
             <div className="p-3 border-t border-border bg-card">
+              {selectedConversation?.isGroup && (
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Send to:</span>
+                  {([
+                    { id: 'all', label: 'Everyone' },
+                    { id: 'buyer', label: 'Buyer only' },
+                    { id: 'vendor', label: 'Vendor only' }
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setMessageTargetRole(opt.id)}
+                      className={cn(
+                        "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-colors",
+                        messageTargetRole === opt.id ? "bg-b2b-orange text-white" : "bg-muted text-muted-foreground hover:bg-muted/70"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 {selectedConversation?.groupType === 'negotiation' && (
                   <Button
