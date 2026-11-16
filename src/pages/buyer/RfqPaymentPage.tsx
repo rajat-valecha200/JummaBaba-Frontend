@@ -45,10 +45,13 @@ export default function RfqPaymentPage() {
   // Cashfree checkout state
   const [isLaunchingCheckout, setIsLaunchingCheckout] = useState(false);
 
-  const fetchRfqDetails = async () => {
+  const fetchRfqDetails = async (isBackgroundRefresh = false) => {
     if (!rfqId) return;
     try {
-      setIsLoading(true);
+      // Background polling (after returning from Cashfree, success or failed) must never flip
+      // the full-page spinner back on — doing that every 3 seconds for up to 30 seconds was
+      // swapping the whole page out and back in repeatedly, which read as the page "fluctuating".
+      if (!isBackgroundRefresh) setIsLoading(true);
       const data = await api.rfqs.get(rfqId);
       
       let details = typeof data.response_details === 'string' 
@@ -67,7 +70,9 @@ export default function RfqPaymentPage() {
       setRfq(normalized);
     } catch (e: any) {
       console.error('Failed to load RFQ payment page data', e);
-      toast({ title: 'Error', description: 'Failed to load sourcing payment details.', variant: 'destructive' });
+      if (!isBackgroundRefresh) {
+        toast({ title: 'Error', description: 'Failed to load sourcing payment details.', variant: 'destructive' });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -87,7 +92,7 @@ export default function RfqPaymentPage() {
     let attempts = 0;
     const interval = setInterval(async () => {
       attempts += 1;
-      await fetchRfqDetails();
+      await fetchRfqDetails(true);
       if (attempts >= 10) clearInterval(interval);
     }, 3000);
     setSearchParams((prev) => {
@@ -138,6 +143,11 @@ export default function RfqPaymentPage() {
   // instead of assuming a fixed rate, which would lie once admin changes it in Settings.
   const gstRate = discountedBase > 0 ? Math.round((gst / discountedBase) * 100) : 18;
   const finalTotal = Number(breakdown.finalAmount ?? discountedBase + platformFee + gst);
+
+  // Server-computed (same formula it actually charges) — null until admin's issued a billing
+  // statement, same gate `hasBreakdown` above already waits on.
+  const advancePercent = rfq.advance_percent;
+  const advanceAmount = rfq.advance_amount;
 
   const currentStep = rfq.negotiation_step;
   // Delivery's been confirmed but the order isn't fully settled yet (admin hasn't run final
@@ -445,6 +455,14 @@ export default function RfqPaymentPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-5 space-y-4">
+                {advanceAmount !== null && advanceAmount !== undefined && (
+                  <div className="flex items-center justify-between p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                    <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">
+                      Advance Due Now{advancePercent ? ` (${advancePercent}%)` : ''}
+                    </span>
+                    <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">{formatPrice(advanceAmount)}</span>
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Secure checkout via Cashfree — card, UPI, netbanking or wallet. Confirmation is automatic; production starts as soon as it's verified.
                 </p>
