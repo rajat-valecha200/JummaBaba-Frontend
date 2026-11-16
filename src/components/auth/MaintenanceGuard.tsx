@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertTriangle, Hammer } from 'lucide-react';
@@ -7,8 +8,14 @@ import { WaitlistPage } from '@/pages/WaitlistPage';
 
 export function MaintenanceGuard({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const location = useLocation();
   const [websiteMode, setWebsiteMode] = useState<'normal' | 'maintenance' | 'waitlist'>('normal');
   const [loading, setLoading] = useState(true);
+
+  // react-router's location.pathname is already basename-aware (strips the "/dev" sub-path
+  // prefix when deployed there) — window.location.pathname is NOT, so it never matched "/login"
+  // on that deployment and this bypass silently never applied there.
+  const isAuthRoute = location.pathname === '/login' || location.pathname.startsWith('/auth');
 
   useEffect(() => {
     const checkMaintenance = async () => {
@@ -24,19 +31,16 @@ export function MaintenanceGuard({ children }: { children: React.ReactNode }) {
     };
 
     // Bypass check if the user is an admin or if accessing login/auth routes
-    const isAuthRoute = window.location.pathname === '/login' || window.location.pathname.startsWith('/auth');
-
     if (user?.role === 'admin' || isAuthRoute) {
       setLoading(false);
     } else {
       checkMaintenance();
     }
-  }, [user]);
+  }, [user, isAuthRoute]);
 
   if (loading) return null;
 
   // Always render normally if user is admin or if they are explicitly on /login /auth paths
-  const isAuthRoute = window.location.pathname === '/login' || window.location.pathname.startsWith('/auth');
 
   if (user?.role !== 'admin' && !isAuthRoute) {
     if (websiteMode === 'maintenance') {

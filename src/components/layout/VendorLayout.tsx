@@ -84,7 +84,10 @@ export function VendorLayout() {
     </Popover>
   );
 
-  const handleLogout = () => { signOut(); navigate('/'); };
+  // signOut() already does a full-page redirect to the correct base path — a follow-up
+  // navigate('/') here raced it and, since it runs through the SPA router on a page that's
+  // already mid-unload, is redundant at best.
+  const handleLogout = () => { signOut(); };
 
   const location = useLocation();
   const isMessagesPage = location.pathname.endsWith('/messages');
