@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Eye, Search, Filter, Shield, ShoppingCart, Store, Loader2,
   CheckCircle, XCircle, FileText, File, ImageIcon, Download,
-  Building2, MapPin, Phone, Mail, CalendarDays, BadgeCheck,
+  Building2, MapPin, Phone, Mail, CalendarDays, BadgeCheck, Briefcase,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { api, apiFetch } from '@/lib/api';
 
-type UserRole = 'buyer' | 'vendor' | 'admin';
+type UserRole = 'buyer' | 'vendor' | 'admin' | 'employee';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -41,6 +41,8 @@ const getRoleBadge = (role: UserRole) => {
       return <Badge className="bg-primary/10 text-primary border-primary/20"><Shield className="h-3 w-3 mr-1" />Admin</Badge>;
     case 'vendor':
       return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20"><Store className="h-3 w-3 mr-1" />Vendor</Badge>;
+    case 'employee':
+      return <Badge className="bg-violet-500/10 text-violet-600 border-violet-500/20"><Briefcase className="h-3 w-3 mr-1" />Employee</Badge>;
     default:
       return <Badge variant="outline"><ShoppingCart className="h-3 w-3 mr-1" />Buyer</Badge>;
   }
