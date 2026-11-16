@@ -176,6 +176,16 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, code }),
       }),
+    forgotPassword: (email: string) =>
+      apiFetch('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }),
+    resetPassword: (email: string, code: string, newPassword: string) =>
+      apiFetch('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ email, code, newPassword }),
+      }),
   },
   products: {
     list: async (status?: string, supplierId?: string) => {

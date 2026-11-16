@@ -16,6 +16,7 @@ import CategoryPage from "./pages/CategoryPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
 import SupplierDetailPage from "./pages/SupplierDetailPage";
 import LoginPage from "./pages/auth/LoginPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import BuyerRegisterPage from "./pages/auth/BuyerRegisterPage";
 import SellerRegisterPage from "./pages/auth/SellerRegisterPage";
 import PolicyPage from "./pages/PolicyPage";
@@ -125,6 +126,7 @@ const App = () => (
 
                 {/* Auth routes */}
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/register" element={<BuyerRegisterPage />} />
                 <Route path="/buyer/register" element={<BuyerRegisterPage />} />
                 <Route path="/seller/register" element={<SellerRegisterPage />} />

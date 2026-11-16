@@ -96,6 +96,9 @@ export default function LoginPage() {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
+                  <div className="text-right">
+                    <Link to="/forgot-password" className="text-xs text-primary hover:underline">Forgot password?</Link>
+                  </div>
                 </div>
                 <Button className="w-full" type="submit" disabled={loading}>
                   {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
