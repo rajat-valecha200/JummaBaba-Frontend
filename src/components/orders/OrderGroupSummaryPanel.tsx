@@ -21,8 +21,11 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
   // correctly hidden after a page reload — the backend blocks a real double-release regardless,
   // but a stale "unpaid" button reappearing after a refresh would still be confusing.
   const [payoutDispatchedLocally, setPayoutDispatchedLocally] = useState(false);
+  const [requestingAdvance, setRequestingAdvance] = useState(false);
+  const [advanceRequestedLocally, setAdvanceRequestedLocally] = useState(false);
   const releaseInFlight = useRef(false);
   const payoutInFlight = useRef(false);
+  const advanceRequestInFlight = useRef(false);
   const { toast } = useToast();
   if (!rfq) return null;
 
@@ -53,6 +56,22 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
     } finally {
       releaseInFlight.current = false;
       setReleasing(false);
+    }
+  };
+
+  const handleRequestAdvance = async () => {
+    if (advanceRequestInFlight.current) return;
+    advanceRequestInFlight.current = true;
+    try {
+      setRequestingAdvance(true);
+      await api.rfqs.requestAdvanceRelease(rfq.id);
+      toast({ title: 'Request sent', description: 'Admin has been notified — they\'ll follow up with you directly.' });
+      setAdvanceRequestedLocally(true);
+    } catch (err: any) {
+      toast({ title: 'Could not send request', description: err.message, variant: 'destructive' });
+    } finally {
+      advanceRequestInFlight.current = false;
+      setRequestingAdvance(false);
     }
   };
 
@@ -135,6 +154,31 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
               <p className="text-[10px] text-muted-foreground pt-1">
                 {bd.isSettled ? 'Released to your wallet.' : 'Released once Admin settles this order.'}
               </p>
+              {/* Buyer may have paid more than this already — seller only ever sees their own
+                  advance entitlement here, never the buyer's actual collected amount. */}
+              {role === 'vendor' && !bd.isSettled && rfq.advance_amount != null && (
+                <div className="pt-2 mt-1 border-t border-border/40">
+                  <p className="text-[10px] text-muted-foreground">
+                    <span className="font-bold text-indigo-600">{formatPrice(Number(rfq.advance_amount))}</span> logged on the platform in your name as an advance.
+                  </p>
+                  {rfq.advance_requested_at || advanceRequestedLocally ? (
+                    <p className="text-[10px] font-bold text-indigo-600 pt-1 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Request sent — admin will follow up.
+                    </p>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleRequestAdvance}
+                      disabled={requestingAdvance}
+                      className="w-full mt-2 text-[11px] h-7 font-bold border-indigo-500/30 text-indigo-600 hover:bg-indigo-500/10"
+                    >
+                      {requestingAdvance ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : null}
+                      Request My Advance
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

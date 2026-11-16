@@ -255,14 +255,18 @@ export const api = {
       apiFetch(`/rfqs/${id}/forward-to-seller`, { method: 'POST' }),
     sellerAccept: (id: string) =>
       apiFetch(`/rfqs/${id}/seller-accept`, { method: 'POST' }),
-    sendPaymentRequest: (id: string, discountType?: 'percentage' | 'flat', discountValue?: number, discountAbsorbedBy?: 'seller' | 'platform' | 'split') =>
-      apiFetch(`/rfqs/${id}/payment-request`, { method: 'POST', body: JSON.stringify({ discountType, discountValue, discountAbsorbedBy }) }),
+    sendPaymentRequest: (id: string, discountType?: 'percentage' | 'flat', discountValue?: number, discountAbsorbedBy?: 'seller' | 'platform' | 'split', paymentMode?: 'full' | 'advance_remaining') =>
+      apiFetch(`/rfqs/${id}/payment-request`, { method: 'POST', body: JSON.stringify({ discountType, discountValue, discountAbsorbedBy, paymentMode }) }),
     buyerSubmitPayment: (id: string, paymentReference: string) =>
       apiFetch(`/rfqs/${id}/buyer-submit-payment`, { method: 'POST', body: JSON.stringify({ paymentReference }) }),
     initiateAdvancePayment: (id: string) =>
       apiFetch(`/rfqs/${id}/payment/advance/initiate`, { method: 'POST' }),
     initiateRemainingPayment: (id: string) =>
       apiFetch(`/rfqs/${id}/payment/remaining/initiate`, { method: 'POST' }),
+    initiateFullPayment: (id: string) =>
+      apiFetch(`/rfqs/${id}/payment/full/initiate`, { method: 'POST' }),
+    requestAdvanceRelease: (id: string) =>
+      apiFetch(`/rfqs/${id}/request-advance-release`, { method: 'POST' }),
     releasePayout: (id: string) =>
       apiFetch(`/admin/rfqs/${id}/release-payout`, { method: 'POST' }),
     adminConfirmPayment: (id: string) =>

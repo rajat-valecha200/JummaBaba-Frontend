@@ -2218,6 +2218,7 @@ export default function AdminMessages() {
   const [offerDiscountType, setOfferDiscountType] = useState<'percentage' | 'flat'>('percentage');
   const [offerDiscountValue, setOfferDiscountValue] = useState('');
   const [offerDiscountAbsorbedBy, setOfferDiscountAbsorbedBy] = useState<'seller' | 'platform' | 'split'>('seller');
+  const [offerPaymentMode, setOfferPaymentMode] = useState<'full' | 'advance_remaining'>('full');
   const [isGeneratingOffer, setIsGeneratingOffer] = useState(false);
   const [offerBreakdown, setOfferBreakdown] = useState<any>(null);
   const [offerBreakdownLoading, setOfferBreakdownLoading] = useState(false);
@@ -2304,7 +2305,7 @@ export default function AdminMessages() {
     if (!selectedConversation?.rfqId) return;
     try {
       setIsGeneratingOffer(true);
-      await api.rfqs.sendPaymentRequest(selectedConversation.rfqId, offerDiscountType, Number(offerDiscountValue) || 0, offerDiscountAbsorbedBy);
+      await api.rfqs.sendPaymentRequest(selectedConversation.rfqId, offerDiscountType, Number(offerDiscountValue) || 0, offerDiscountAbsorbedBy, offerPaymentMode);
 
       setShowOfferDialog(false);
       setOfferPrice('');
@@ -2312,6 +2313,7 @@ export default function AdminMessages() {
       setOfferDiscountType('percentage');
       setOfferDiscountValue('');
       setOfferDiscountAbsorbedBy('seller');
+      setOfferPaymentMode('full');
       setOfferBreakdown(null);
       fetchConversations();
       fetchMessages();
@@ -3409,6 +3411,34 @@ export default function AdminMessages() {
                         </div>
                       </div>
                     )}
+
+                    <div>
+                      <label className="text-xs font-bold text-foreground">Payment Collection</label>
+                      <div className="flex rounded-lg border overflow-hidden mt-1">
+                        {([
+                          { id: 'full', label: 'Full amount now' },
+                          { id: 'advance_remaining', label: 'Advance + remaining later' }
+                        ] as const).map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setOfferPaymentMode(opt.id)}
+                            className={cn(
+                              "flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-colors",
+                              opt.id !== 'full' && "border-l",
+                              offerPaymentMode === opt.id ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                            )}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {offerPaymentMode === 'full'
+                          ? 'Buyer pays the whole order now, in one payment.'
+                          : "Buyer pays an advance % now, the rest after confirming delivery — the seller's payout timing is unaffected either way."}
+                      </p>
+                    </div>
 
                     {(offerBreakdown || offerBreakdownLoading) && (
                       <div className="bg-slate-50 p-3 rounded-lg border space-y-1.5">

@@ -152,7 +152,9 @@ export default function RfqPaymentPage() {
   const currentStep = rfq.negotiation_step;
   // Delivery's been confirmed but the order isn't fully settled yet (admin hasn't run final
   // settlement) — that's exactly the window where the remaining tranche is due.
-  const remainingDue = !!rfq.buyer_acknowledged && !rfq.invoice_released;
+  // 'full' mode collects everything upfront — there's never a second payment to make, even
+  // once delivery's confirmed, so this must stay false regardless of buyer_acknowledged there.
+  const remainingDue = rfq.payment_mode === 'advance_remaining' && !!rfq.buyer_acknowledged && !rfq.invoice_released;
 
   const handleSubmitPaymentReference = async () => {
     if (!utrNumber.trim()) {
@@ -177,10 +179,12 @@ export default function RfqPaymentPage() {
     }
   };
 
-  const handleCashfreeCheckout = async (stage: 'advance' | 'remaining') => {
+  const handleCashfreeCheckout = async (stage: 'advance' | 'remaining' | 'full') => {
     try {
       setIsLaunchingCheckout(true);
-      const { paymentSessionId } = stage === 'advance'
+      const { paymentSessionId } = stage === 'full'
+        ? await api.rfqs.initiateFullPayment(rfq.id)
+        : stage === 'advance'
         ? await api.rfqs.initiateAdvancePayment(rfq.id)
         : await api.rfqs.initiateRemainingPayment(rfq.id);
       const cashfree = await loadCashfree({
@@ -446,8 +450,42 @@ export default function RfqPaymentPage() {
             </CardContent>
           </Card>
 
-          {/* 3. Cashfree Checkout — the primary way to pay the advance now */}
-          {!remainingDue && ['payment_pending', 'payment_submitted'].includes(currentStep) && (
+          {/* 3. Cashfree Checkout — single full payment, the default payment_mode */}
+          {!remainingDue && rfq.payment_mode === 'full' && ['payment_pending', 'payment_submitted'].includes(currentStep) && (
+            <Card className="border-2 border-indigo-500/30 shadow-lg rounded-2xl overflow-hidden bg-card">
+              <CardHeader className="bg-indigo-600 text-white pb-3">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" /> Pay Now
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                  <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">Amount Due Now</span>
+                  <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">{formatPrice(finalTotal)}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Secure checkout via Cashfree — card, UPI, netbanking or wallet. Confirmation is automatic; production starts as soon as it's verified.
+                </p>
+                <Button
+                  onClick={() => handleCashfreeCheckout('full')}
+                  disabled={isLaunchingCheckout || (currentStep === 'payment_pending' && (!agreedEscrow || !agreedDetails))}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-11 rounded-xl shadow-lg shadow-indigo-600/20"
+                >
+                  {isLaunchingCheckout ? (
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                  ) : (
+                    'Pay via Cashfree'
+                  )}
+                </Button>
+                {currentStep === 'payment_pending' && (!agreedEscrow || !agreedDetails) && (
+                  <p className="text-[11px] text-amber-600 font-semibold text-center">Accept both terms on the left to continue.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 3b. Cashfree Checkout — advance tranche, only when admin chose the two-payment flow */}
+          {!remainingDue && rfq.payment_mode === 'advance_remaining' && ['payment_pending', 'payment_submitted'].includes(currentStep) && (
             <Card className="border-2 border-indigo-500/30 shadow-lg rounded-2xl overflow-hidden bg-card">
               <CardHeader className="bg-indigo-600 text-white pb-3">
                 <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -492,7 +530,7 @@ export default function RfqPaymentPage() {
             </Card>
           )}
 
-          {/* 3b. Cashfree Checkout — remaining tranche, due once delivery's confirmed */}
+          {/* 3c. Cashfree Checkout — remaining tranche, due once delivery's confirmed */}
           {remainingDue && (
             <Card className="border-2 border-indigo-500/30 shadow-lg rounded-2xl overflow-hidden bg-card">
               <CardHeader className="bg-indigo-600 text-white pb-3">
@@ -517,8 +555,9 @@ export default function RfqPaymentPage() {
 
           {/* 4. Manual bank-transfer fallback — kept for when the gateway is unavailable;
                  hidden by default now that Cashfree checkout is the primary path. Not offered
-                 for the remaining tranche — no legacy manual precedent for that stage. */}
-          {!remainingDue && (showManualFallback || !['payment_pending', 'payment_submitted'].includes(currentStep)) && (
+                 for the remaining tranche or full-upfront mode — no legacy manual precedent
+                 for either. */}
+          {!remainingDue && rfq.payment_mode === 'advance_remaining' && (showManualFallback || !['payment_pending', 'payment_submitted'].includes(currentStep)) && (
             <Card className="border-border/60 shadow-sm rounded-2xl overflow-hidden">
               <CardHeader className="bg-muted/30 pb-3 border-b border-border/40">
                 <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-bold text-sm">
