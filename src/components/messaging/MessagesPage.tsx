@@ -873,9 +873,18 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             <CheckCircle2 className="h-6 w-6" />
           </div>
           <h4 className="font-bold text-sm text-foreground mb-1">Transaction Completed Successfully</h4>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Successful delivery has been confirmed by the Buyer. Sourcing process closed successfully. Payment release to the vendor is pending Admin settlement.
-          </p>
+          {/* Shows the server's actual message instead of one fixed paragraph — that fixed
+              copy ("pending Admin settlement") was wrong for the advance_remaining mode, where
+              it's really the BUYER who still owes the remaining amount, not admin reviewing
+              anything. */}
+          <p className="text-xs text-muted-foreground leading-relaxed">{message.text}</p>
+          {userRole === 'buyer' && metadata.rfq_id && (
+            <Link to={`/buyer/rfq-payment/${metadata.rfq_id}`} className="inline-block mt-3">
+              <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs h-8 rounded-xl">
+                Go to Payment Page →
+              </Button>
+            </Link>
+          )}
         </div>
       );
 
