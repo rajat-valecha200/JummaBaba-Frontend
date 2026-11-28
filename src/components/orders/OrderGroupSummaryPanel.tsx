@@ -135,6 +135,16 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
               <><Clock className="h-3 w-3 mr-1" /> {settlementLabel}</>
             )}
           </Badge>
+          {/* Visible even collapsed — admin has no other way to notice a vendor's advance
+              request without opening every single order chat to check. */}
+          {role === 'admin' && !bd.isSettled && rfq.advance_requested_at && !advancePayoutDispatched && (
+            <Badge
+              variant="outline"
+              className="text-[9px] uppercase font-bold tracking-wider py-0 h-5 flex-shrink-0 border-indigo-500/30 text-indigo-600 bg-indigo-500/10 animate-pulse"
+            >
+              <Bell className="h-3 w-3 mr-1" /> Advance Requested
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-sm font-black text-foreground whitespace-nowrap">
