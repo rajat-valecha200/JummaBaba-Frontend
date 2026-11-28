@@ -570,7 +570,7 @@ function SourcingActionCard({ message, userRole, onRefresh, triggerCounterNegoti
             // change when that happens, so without this check the "Accept Quote" button on this
             // (now-historical) message stays active in scrollback forever, looking clickable
             // even though the deal has already moved to payment.
-            const alreadyAccepted = ['payment_pending', 'payment_submitted', 'payment_confirmed_escrow'].includes(metadata.rfq_negotiation_step);
+            const alreadyAccepted = ['buyer_accepted_awaiting_bill', 'payment_pending', 'payment_submitted', 'payment_confirmed_escrow'].includes(metadata.rfq_negotiation_step);
 
             if (userRole === 'buyer' && metadata.rfq_status === 'responded' && metadata.moderation_status === 'quote_approved' && !alreadyAccepted) {
               return (
