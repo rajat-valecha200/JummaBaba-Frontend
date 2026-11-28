@@ -21,7 +21,8 @@ import {
   Coins,
   Plus,
   Trash2,
-  ShoppingCart
+  ShoppingCart,
+  CreditCard
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
@@ -68,7 +69,11 @@ export default function AdminSettings() {
     // Gateway-paid cancellation formula: free within the grace window, then a charge that grows
     // with elapsed time vs. the product's own dispatch lead, capped here.
     cancellation_grace_hours: 12,
-    cancellation_deduction_cap: 85
+    cancellation_deduction_cap: 85,
+    // Only applies when a buyer accepts a quote directly in chat ("Accept Quote") — that path
+    // has no admin step at all, so there's nowhere to show the Full/Advance+Remaining toggle
+    // the way adminSendPaymentRequest's own dialog does. This is the fallback for that case.
+    default_payment_mode: 'full' as 'full' | 'advance_remaining'
   });
 
   useEffect(() => {
@@ -561,6 +566,42 @@ export default function AdminSettings() {
                   </div>
                   <p className="text-[10px] text-muted-foreground font-medium">
                     Sellers set their own advance % per product within this range. Products left blank use the Default %.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Default Payment Collection Mode */}
+              <Card className="border-none shadow-2xl bg-white/50 backdrop-blur-xl overflow-hidden relative">
+                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-indigo-500 to-violet-700" />
+                <CardHeader className="border-b bg-muted/20 pb-4">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-indigo-600" />
+                    <div>
+                      <CardTitle className="text-lg font-black uppercase tracking-wider">Default Payment Collection Mode</CardTitle>
+                      <CardDescription>Used only when a buyer accepts a quote directly in chat — that path has no admin step, so admin's own Full/Advance+Remaining choice (shown when sending a Sourcing Statement) never applies there</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-3">
+                  <div className="flex rounded-lg border overflow-hidden">
+                    {([
+                      { id: 'full', label: 'Full amount now' },
+                      { id: 'advance_remaining', label: 'Advance + remaining later' }
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setGlobalConfig({ ...globalConfig, default_payment_mode: opt.id })}
+                        className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wide transition-colors ${opt.id !== 'full' ? 'border-l' : ''} ${
+                          globalConfig.default_payment_mode === opt.id ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground font-medium">
+                    The seller is never paid out early either way — this only decides how much the buyer pays upfront.
                   </p>
                 </CardContent>
               </Card>
