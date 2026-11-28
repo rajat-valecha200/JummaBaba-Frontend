@@ -269,6 +269,8 @@ export const api = {
       apiFetch(`/rfqs/${id}/request-advance-release`, { method: 'POST' }),
     releasePayout: (id: string) =>
       apiFetch(`/admin/rfqs/${id}/release-payout`, { method: 'POST' }),
+    releaseAdvanceEarly: (id: string) =>
+      apiFetch(`/admin/rfqs/${id}/release-advance-early`, { method: 'POST' }),
     adminConfirmPayment: (id: string) =>
       apiFetch(`/rfqs/${id}/admin-confirm-payment`, { method: 'POST' }),
     releasePayment: (id: string) =>

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ChevronDown, ChevronUp, Receipt, CheckCircle2, Clock, Wallet, Loader2, Send } from 'lucide-react';
+import { ChevronDown, ChevronUp, Receipt, CheckCircle2, Clock, Wallet, Loader2, Send, Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatPrice, cn } from '@/lib/utils';
@@ -23,9 +23,12 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
   const [payoutDispatchedLocally, setPayoutDispatchedLocally] = useState(false);
   const [requestingAdvance, setRequestingAdvance] = useState(false);
   const [advanceRequestedLocally, setAdvanceRequestedLocally] = useState(false);
+  const [releasingEarlyAdvance, setReleasingEarlyAdvance] = useState(false);
+  const [earlyAdvanceReleasedLocally, setEarlyAdvanceReleasedLocally] = useState(false);
   const releaseInFlight = useRef(false);
   const payoutInFlight = useRef(false);
   const advanceRequestInFlight = useRef(false);
+  const earlyAdvanceInFlight = useRef(false);
   const { toast } = useToast();
   if (!rfq) return null;
 
@@ -36,6 +39,7 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
   const headlineLabel = role === 'buyer' ? 'You Paid' : role === 'vendor' ? 'You Will Receive' : 'Order Value';
   const headlineAmount = role === 'buyer' ? bd.buyerTotalPaid : role === 'vendor' ? bd.vendorNetPayout : bd.baseAmount;
   const payoutDispatched = !!rfq.payout_dispatched || payoutDispatchedLocally;
+  const advancePayoutDispatched = !!rfq.advance_payout_dispatched || earlyAdvanceReleasedLocally;
 
   const handleRelease = async () => {
     // Guard synchronously — a fast double-tap can fire this twice before React re-renders
@@ -72,6 +76,22 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
     } finally {
       advanceRequestInFlight.current = false;
       setRequestingAdvance(false);
+    }
+  };
+
+  const handleReleaseEarlyAdvance = async () => {
+    if (earlyAdvanceInFlight.current) return;
+    earlyAdvanceInFlight.current = true;
+    try {
+      setReleasingEarlyAdvance(true);
+      const result = await api.rfqs.releaseAdvanceEarly(rfq.id);
+      toast({ title: 'Advance released', description: `${formatPrice(Number(result.amount))} sent to the vendor's bank account via Cashfree, ahead of delivery.` });
+      setEarlyAdvanceReleasedLocally(true);
+    } catch (err: any) {
+      toast({ title: 'Failed to release advance', description: err.message, variant: 'destructive' });
+    } finally {
+      earlyAdvanceInFlight.current = false;
+      setReleasingEarlyAdvance(false);
     }
   };
 
@@ -200,6 +220,39 @@ export function OrderGroupSummaryPanel({ rfq, role, onSettled }: OrderGroupSumma
                 <Row label="Remaining Due" value={formatPrice(Math.max(0, bd.buyerTotalPaid - Number(rfq.advance_paid_amount)))} tone="rose" />
               )}
 
+              {/* Vendor's "Request My Advance" click (OrderGroupSummaryPanel's vendor section) —
+                  previously invisible to admin entirely. Releasing here pays out ONLY what's
+                  already credited (the advance entitlement), via the same derived-amount,
+                  idempotent path as the normal settlement payout — see
+                  vendorPayoutService.releaseEarlyAdvance for why this is safe to net out later,
+                  and why it's the one place that knowingly breaks "vendor is never paid early". */}
+              {!bd.isSettled && rfq.advance_requested_at && (
+                <div className="mt-2 rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-2.5 space-y-1.5">
+                  <p className="text-[10px] font-bold text-indigo-600 flex items-center gap-1">
+                    <Bell className="h-3 w-3" /> Vendor requested their advance on {new Date(rfq.advance_requested_at).toLocaleDateString()}
+                  </p>
+                  {advancePayoutDispatched ? (
+                    <p className="text-[10px] font-bold text-indigo-600 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Advance already released early.
+                    </p>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={handleReleaseEarlyAdvance}
+                        disabled={releasingEarlyAdvance}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-8 rounded-lg"
+                      >
+                        {releasingEarlyAdvance ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
+                        Release Advance Now{rfq.advance_amount != null ? ` (${formatPrice(Number(rfq.advance_amount))})` : ''}
+                      </Button>
+                      <p className="text-[9px] text-muted-foreground leading-tight">
+                        Pays the vendor before delivery — if this order is later cancelled, recovering this amount means contacting the seller directly, not an automatic refund. To reply without releasing anything, message the vendor privately from chat instead.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
               {isDelivered && !bd.isSettled && (
                 <Button
                   size="sm"
